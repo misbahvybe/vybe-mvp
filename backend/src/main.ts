@@ -13,7 +13,9 @@ async function bootstrap() {
       transformOptions: { enableImplicitConversion: true },
     }),
   );
-  app.enableCors({ origin: process.env.FRONTEND_URL ?? 'http://localhost:3000', credentials: true });
+  const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
+  const corsOrigins = frontendUrl.includes(',') ? frontendUrl.split(',').map((o) => o.trim()) : [frontendUrl];
+  app.enableCors({ origin: corsOrigins, credentials: true });
   const port = process.env.PORT ?? 4000;
   await app.listen(port);
   console.log(`Vybe API running at http://localhost:${port}/api/v1`);
