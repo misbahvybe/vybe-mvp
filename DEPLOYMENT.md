@@ -28,7 +28,7 @@ Copy from `backend/.env.example`:
 # REQUIRED
 DATABASE_URL="postgresql://..."     # Neon, Supabase, or any PostgreSQL
 JWT_SECRET="..."                   # Min 32 chars, random
-FRONTEND_URL="https://your-app.com" # Your frontend URL for CORS & invite links
+FRONTEND_URL="https://vybe-mvp.vercel.app" # Vercel frontend URL for CORS & invite links
 
 # OPTIONAL
 PORT=4000
@@ -56,14 +56,17 @@ XPAY_GATEWAY_INSTANCE_ID=
 BACKEND_URL=https://api.your-app.com
 ```
 
-### Frontend (`frontend/.env.local`)
+### Frontend (`frontend/.env.local` or Vercel env vars)
 
 Copy from `frontend/.env.example`:
 
 ```env
-NEXT_PUBLIC_API_URL=https://api.your-app.com/api/v1
+# Vercel: set this in Project → Settings → Environment Variables
+NEXT_PUBLIC_API_URL=https://vybe-mvp-production.up.railway.app/api/v1
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_xxx   # Optional
 ```
+
+**Important:** Replace `your-backend.up.railway.app` with your actual Railway URL. For Vybe MVP use `https://vybe-mvp-production.up.railway.app/api/v1`.
 
 ---
 
