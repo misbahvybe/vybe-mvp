@@ -1,0 +1,389 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ENUMS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+enum Role {
+  CUSTOMER
+  RIDER
+  STORE_OWNER
+  ADMIN
+}
+
+enum PaymentMethod {
+  COD
+  CARD
+  MANUAL_TRANSFER
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+}
+
+enum OrderStatus {
+  PENDING
+  STORE_ACCEPTED
+  STORE_REJECTED
+  READY_FOR_PICKUP
+  RIDER_ASSIGNED
+  RIDER_ACCEPTED
+  PICKED_UP
+  DELIVERED
+  CANCELLED
+}
+
+enum CancellationReason {
+  CUSTOMER_CANCELLED
+  STORE_REJECTED
+  ADMIN_CANCELLED
+  OUT_OF_STOCK
+  STORE_CLOSED
+  OTHER
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 1️⃣ USERS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model User {
+  id                   String    @id @default(uuid())
+  name                 String
+  email                String?   @unique
+  phone                String    @unique
+  password             String?   // hashed
+  role                 Role      @default(CUSTOMER)
+  isVerified           Boolean   @default(false) @map("is_verified")
+  isActive             Boolean   @default(true) @map("is_active")
+  passwordSet          Boolean   @default(false) @map("password_set")
+  invitationToken      String?   @map("invitation_token")
+  invitationExpiresAt  DateTime? @map("invitation_expires_at")
+  stripeCustomerId     String?   @unique @map("stripe_customer_id")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  addresses     Address[]
+  paymentMethods SavedPaymentMethod[]
+  ordersAsCustomer Order[]     @relation("CustomerOrders")
+  ordersAsRider    Order[]      @relation("RiderOrders")
+  riderProfile    RiderProfile?
+  ownedStores     Store[]       @relation("StoreOwner")
+  riderEarnings    RiderEarning[]
+  adminLogs        AdminLog[]   @relation("AdminLogs")
+  pendingPayments  PendingPayment[]
+
+  @@index([phone])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 2️⃣ OTP
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model Otp {
+  id        String   @id @default(uuid())
+  phone     String
+  code      String   // hashed
+  expiresAt DateTime @map("expires_at")
+  attempts  Int      @default(0)
+  isUsed    Boolean  @default(false) @map("is_used")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([phone, expiresAt])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 2️⃣b SAVED PAYMENT METHODS (cards)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model SavedPaymentMethod {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  providerId  String   @map("provider_id")   // Stripe pm_xxx or internal id for dev
+  last4       String
+  brand       String   // Visa, Mastercard
+  isDefault   Boolean  @default(false) @map("is_default")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 3️⃣ ADDRESSES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model Address {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  label      String?
+  latitude   Decimal  @db.Decimal(10, 7)
+  longitude  Decimal  @db.Decimal(10, 7)
+  fullAddress String  @map("full_address")
+  city       String   @default("Lahore")
+  isDefault  Boolean  @default(false) @map("is_default")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders Order[] @relation("DeliveryAddress")
+
+  @@index([userId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 4️⃣ STORES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model Store {
+  id           String   @id @default(uuid())
+  ownerId      String   @map("owner_id")
+  name         String
+  description  String?
+  phone        String?
+  latitude     Decimal? @db.Decimal(10, 7)
+  longitude    Decimal? @db.Decimal(10, 7)
+  address      String?
+  city         String   @default("Lahore")
+  isApproved   Boolean  @default(false) @map("is_approved")
+  isOpen       Boolean  @default(true) @map("is_open")
+  openingTime  String?  @map("opening_time")   // HH:mm e.g. "09:00"
+  closingTime  String?  @map("closing_time")   // HH:mm e.g. "22:00"
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  owner             User              @relation("StoreOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  products          Product[]
+  productCategories ProductCategory[]
+  orders            Order[]
+  categories        StoreToCategory[]
+  earnings          StoreEarning[]
+
+  @@index([city])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 5️⃣ STORE CATEGORIES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model StoreCategory {
+  id   String @id @default(uuid())
+  name String @unique
+
+  stores StoreToCategory[]
+}
+
+model StoreToCategory {
+  storeId    String @map("store_id")
+  categoryId String @map("category_id")
+
+  store    Store         @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  category StoreCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([storeId, categoryId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 5️⃣b PRODUCT CATEGORIES (per store: Beverages, Snacks, etc.)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model ProductCategory {
+  id        String   @id @default(uuid())
+  storeId   String   @map("store_id")
+  name      String
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  store    Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@index([storeId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 6️⃣ PRODUCTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model Product {
+  id                 String   @id @default(uuid())
+  storeId            String   @map("store_id")
+  productCategoryId  String?  @map("product_category_id")
+  name               String
+  description        String?
+  price              Decimal  @db.Decimal(10, 2)
+  stock              Decimal  @default(999) @db.Decimal(10, 2)
+  isOutOfStock       Boolean  @default(false) @map("is_out_of_stock")
+  imageUrl           String?  @map("image_url")
+  isAvailable        Boolean  @default(true) @map("is_available")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  store            Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  category         ProductCategory? @relation(fields: [productCategoryId], references: [id], onDelete: SetNull)
+  orderItems       OrderItem[]
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 7️⃣ ORDERS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model Order {
+  id               String        @id @default(uuid())
+  customerId       String        @map("customer_id")
+  storeId         String        @map("store_id")
+  riderId          String?       @map("rider_id")
+  addressId       String        @map("address_id")
+  subtotalAmount   Decimal       @map("subtotal_amount") @db.Decimal(10, 2)
+  deliveryFee      Decimal       @default(0) @map("delivery_fee") @db.Decimal(10, 2)
+  serviceFee       Decimal       @default(0) @map("service_fee") @db.Decimal(10, 2)
+  totalAmount      Decimal       @map("total_amount") @db.Decimal(10, 2)
+  commissionAmount Decimal       @default(0) @map("commission_amount") @db.Decimal(10, 2)
+  paymentMethod   PaymentMethod  @default(COD) @map("payment_method")
+  paymentStatus   PaymentStatus  @default(PENDING) @map("payment_status")
+  orderStatus     OrderStatus   @default(PENDING) @map("order_status")
+  notes           String?
+  cancellationReason CancellationReason? @map("cancellation_reason")
+  cancelledByRole Role?         @map("cancelled_by_role")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  customer  User         @relation("CustomerOrders", fields: [customerId], references: [id])
+  store     Store        @relation(fields: [storeId], references: [id])
+  rider     User?        @relation("RiderOrders", fields: [riderId], references: [id])
+  address   Address      @relation("DeliveryAddress", fields: [addressId], references: [id])
+  items     OrderItem[]
+  riderEarning RiderEarning?
+  storeEarning StoreEarning?
+  statusHistory OrderStatusHistory[]
+
+  @@index([customerId])
+  @@index([storeId])
+  @@index([riderId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 7️⃣b ORDER STATUS HISTORY
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model OrderStatusHistory {
+  id            String      @id @default(uuid())
+  orderId       String      @map("order_id")
+  status        OrderStatus
+  changedByUserId String?   @map("changed_by_user_id")
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 8️⃣ ORDER ITEMS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  orderId   String  @map("order_id")
+  productId String  @map("product_id")
+  quantity  Decimal @db.Decimal(10, 2)
+  price     Decimal @db.Decimal(10, 2)
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 9️⃣ RIDER PROFILE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model RiderProfile {
+  id        String   @id @default(uuid())
+  userId    String   @unique @map("user_id")
+  vehicleType   String   @default("Bike") @map("vehicle_type")
+  vehicleNumber String? @map("vehicle_number")
+  isAvailable   Boolean  @default(true) @map("is_available")
+  currentLatitude  Decimal? @map("current_latitude") @db.Decimal(10, 7)
+  currentLongitude Decimal? @map("current_longitude") @db.Decimal(10, 7)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🔟 RIDER EARNINGS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model RiderEarning {
+  id           String   @id @default(uuid())
+  riderId      String   @map("rider_id")
+  orderId      String   @unique @map("order_id")
+  earningAmount Decimal @map("earning_amount") @db.Decimal(10, 2)
+  isPaid       Boolean  @default(false) @map("is_paid")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  rider User  @relation(fields: [riderId], references: [id])
+  order Order @relation(fields: [orderId], references: [id])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 1️⃣1️⃣ STORE EARNINGS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model StoreEarning {
+  id                String   @id @default(uuid())
+  storeId           String   @map("store_id")
+  orderId           String   @unique @map("order_id")
+  storeAmount       Decimal  @map("store_amount") @db.Decimal(10, 2)      // store gets this
+  commissionAmount  Decimal  @map("commission_amount") @db.Decimal(10, 2) // platform earning
+  isSettled          Boolean  @default(false) @map("is_settled")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  store Store @relation(fields: [storeId], references: [id])
+  order Order @relation(fields: [orderId], references: [id])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 1️⃣2️⃣ PENDING PAYMENT (XPay redirect flow)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model PendingPayment {
+  id           String   @id @default(uuid())
+  customerId   String   @map("customer_id")
+  storeId      String   @map("store_id")
+  addressId    String   @map("address_id")
+  itemsJson    String   @map("items_json")   // JSON: [{productId, quantity, price}]
+  amountPkr    Decimal  @map("amount_pkr") @db.Decimal(10, 2)
+  xpayIntentId String?  @map("xpay_intent_id")
+  status       String   @default("PENDING")  // PENDING | COMPLETED | EXPIRED
+  expiresAt    DateTime @map("expires_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  customer User @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([status, expiresAt])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 1️⃣3️⃣ ADMIN LOGS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model AdminLog {
+  id       String   @id @default(uuid())
+  adminId  String   @map("admin_id")
+  action   String
+  targetId String? @map("target_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  admin User @relation("AdminLogs", fields: [adminId], references: [id])
+}

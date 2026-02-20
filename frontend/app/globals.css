@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary: #1e3a5f;
+  --primary-dark: #152a45;
+  --accent: #f97316;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+}
+
+body {
+  @apply bg-primary-dark text-[var(--foreground)] antialiased;
+}
+
+/* Content panel: light background with rounded top corners (matches design screenshots) */
+.content-panel {
+  background-color: var(--background);
+  border-radius: 1.5rem 1.5rem 0 0; /* rounded-t-3xl */
+}
+
+/* Bottom nav safe area for mobile */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+/* Leaflet map container */
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+}
+
+@import 'leaflet/dist/leaflet.css';
