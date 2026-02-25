@@ -2,21 +2,20 @@
 
 import { useEffect } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Search } from 'lucide-react';
+import { Search, UtensilsCrossed, ShoppingBasket, Pill, Bike, Package, Wallet, Coins, User } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { StickyHeader } from '@/components/layout/StickyHeader';
 import { ContentPanel } from '@/components/layout/ContentPanel';
 import { Card } from '@/components/ui/Card';
 
 const CATEGORY_CARDS = [
-  { id: 'food', label: 'Food', image: 'https://plus.unsplash.com/premium_photo-1661591247553-cf24f24504ac?w=400&auto=format&fit=crop&q=60', href: '/dashboard/category/food', comingSoon: false },
-  { id: 'grocery', label: 'Grocery', image: 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=400&auto=format&fit=crop&q=60', href: '/dashboard/category/grocery', comingSoon: false },
-  { id: 'medicine', label: 'Medicine', image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=400&auto=format&fit=crop&q=60', href: '/dashboard/category/medicine', comingSoon: false },
-  { id: 'ride', label: 'Book a Ride', image: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&auto=format&fit=crop&q=60', href: '#', comingSoon: true },
-  { id: 'parcel', label: 'Send Parcel', image: 'https://images.unsplash.com/photo-1566576912321-d58ddd7a6088?w=400&auto=format&fit=crop&q=60', href: '#', comingSoon: true },
-  { id: 'wallet', label: 'Crypto Wallet', image: 'https://images.unsplash.com/photo-1563013544-824ae1b704d3?w=400&auto=format&fit=crop&q=60', href: '/wallet', comingSoon: false },
+  { id: 'food', label: 'Food', icon: UtensilsCrossed, href: '/dashboard/category/food', comingSoon: false },
+  { id: 'grocery', label: 'Grocery', icon: ShoppingBasket, href: '/dashboard/category/grocery', comingSoon: false },
+  { id: 'medicine', label: 'Medicine', icon: Pill, href: '/dashboard/category/medicine', comingSoon: false },
+  { id: 'ride', label: 'Ride', icon: Bike, href: '#', comingSoon: true },
+  { id: 'courier', label: 'Courier', icon: Package, href: '#', comingSoon: true },
+  { id: 'wallet', label: 'Crypto Wallet', icon: Wallet, href: '/wallet', comingSoon: false },
 ];
 
 export default function DashboardPage() {
@@ -45,11 +44,16 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <StickyHeader
-        title="Vybe"
+        title="VYBE"
         rightAction={
-          <Link href="/dashboard/search" className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="Search">
-            <Search className="w-6 h-6" strokeWidth={2} />
-          </Link>
+          <div className="flex items-center gap-1">
+            <Link href="/dashboard/search" className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="Search">
+              <Search className="w-5 h-5" strokeWidth={2} />
+            </Link>
+            <Link href="/more/account" className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="Profile">
+              <User className="w-5 h-5" strokeWidth={2} />
+            </Link>
+          </div>
         }
       />
       <ContentPanel>
@@ -62,36 +66,37 @@ export default function DashboardPage() {
         <section>
           <h2 className="text-sm font-medium text-slate-600 mb-3">Categories</h2>
           <div className="grid grid-cols-2 gap-3">
-            {CATEGORY_CARDS.map((cat) => (
-              <div key={cat.id} className="relative">
-                {cat.comingSoon ? (
-                  <div className="relative pointer-events-none select-none">
-                    <Card className="overflow-hidden p-0 opacity-60">
-                      <div className="aspect-[4/3] relative">
-                        <Image src={cat.image} alt={cat.label} fill className="object-cover" sizes="50vw" />
-                      </div>
-                      <div className="p-3">
-                        <span className="font-medium text-slate-700">{cat.label}</span>
-                      </div>
-                    </Card>
-                    <div className="absolute top-2 right-2 bg-slate-500 text-white text-xs px-2 py-0.5 rounded-full font-medium z-10">
-                      Coming Soon
+            {CATEGORY_CARDS.map((cat) => {
+              const Icon = cat.icon;
+              return (
+                <div key={cat.id} className="relative">
+                  {cat.comingSoon ? (
+                    <div className="relative pointer-events-none select-none">
+                      <Card className="p-4 flex items-center gap-3 opacity-60">
+                        <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
+                          <Icon className="w-6 h-6 text-slate-600" strokeWidth={1.5} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="font-medium text-slate-700">{cat.label}</span>
+                        </div>
+                        <span className="text-xs bg-slate-400 text-white px-2 py-0.5 rounded-full font-medium shrink-0">
+                          Coming Soon
+                        </span>
+                      </Card>
                     </div>
-                  </div>
-                ) : (
-                  <Link href={cat.href}>
-                    <Card className="overflow-hidden p-0 hover:shadow-soft-lg transition-shadow">
-                      <div className="aspect-[4/3] relative">
-                        <Image src={cat.image} alt={cat.label} fill className="object-cover" sizes="50vw" />
-                      </div>
-                      <div className="p-3">
+                  ) : (
+                    <Link href={cat.href}>
+                      <Card className="p-4 flex items-center gap-3 hover:shadow-soft-lg transition-shadow border border-slate-200">
+                        <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
+                          <Icon className="w-6 h-6 text-slate-700" strokeWidth={1.5} />
+                        </div>
                         <span className="font-medium text-slate-800">{cat.label}</span>
-                      </div>
-                    </Card>
-                  </Link>
-                )}
-              </div>
-            ))}
+                      </Card>
+                    </Link>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </section>
       </main>

@@ -9,13 +9,13 @@ const config: Config = {
     extend: {
       colors: {
         primary: {
-          DEFAULT: '#1e3a5f',
-          dark: '#152a45',
-          light: '#2d4a6f',
+          DEFAULT: '#7c3aed',
+          dark: '#1a1a1a',
+          light: '#8b5cf6',
         },
-        accent: '#f97316',
-        'accent-hover': '#ea580c',
-        surface: '#f8fafc', /* same as --background for content panels */
+        accent: '#7c3aed',
+        'accent-hover': '#6d28d9',
+        surface: '#ffffff',
       },
       borderRadius: {
         card: '1rem',

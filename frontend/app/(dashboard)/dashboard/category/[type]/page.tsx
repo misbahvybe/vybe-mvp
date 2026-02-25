@@ -2,16 +2,13 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
+import { Store } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { StickyHeader } from '@/components/layout/StickyHeader';
 import { ContentPanel } from '@/components/layout/ContentPanel';
 import { Card } from '@/components/ui/Card';
 import api from '@/services/api';
-
-const SHOP_FRONT_IMAGE =
-  'https://images.unsplash.com/photo-1550989460-0adf9ea622e2?w=600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0';
 
 interface StoreSummary {
   id: string;
@@ -98,13 +95,13 @@ export default function CategoryPage() {
               const firstProduct = store.products[0];
               return (
                 <Link key={store.id} href={`/dashboard/stores/${store.id}`}>
-                  <Card className="overflow-hidden hover:shadow-soft-lg transition-shadow">
-                    <div className="aspect-square bg-slate-100 rounded-t-card relative overflow-hidden">
-                      <Image src={SHOP_FRONT_IMAGE} alt={store.name} fill className="object-cover" sizes="50vw" />
+                  <Card className="overflow-hidden hover:shadow-soft-lg transition-shadow border border-slate-200">
+                    <div className="aspect-square bg-slate-100 rounded-t-card flex items-center justify-center">
+                      <Store className="w-16 h-16 text-slate-400" strokeWidth={1.5} />
                     </div>
                     <div className="pt-3">
                       <p className="font-semibold text-slate-800">{store.name}</p>
-                      <p className="text-accent font-semibold text-sm mt-1">
+                      <p className="text-primary font-semibold text-sm mt-1">
                         {firstProduct ? `From Rs ${Number(firstProduct.price).toFixed(0)}` : '—'}
                       </p>
                     </div>

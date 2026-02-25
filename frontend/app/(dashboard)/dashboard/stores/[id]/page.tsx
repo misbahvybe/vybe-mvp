@@ -3,12 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
+import { Package } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useCartStore } from '@/store/cartStore';
-
-const FALLBACK_PRODUCT_IMAGE =
-  'https://images.unsplash.com/photo-1542838132-92c53300491e?w=400&auto=format&fit=crop&q=60&ixlib=rb-4.1.0';
 import { StickyHeader } from '@/components/layout/StickyHeader';
 import { ContentPanel } from '@/components/layout/ContentPanel';
 import { Card } from '@/components/ui/Card';
@@ -83,14 +80,8 @@ export default function StoreDetailPage() {
             const available = p.isAvailable !== false && !p.isOutOfStock && store.isOpenNow !== false;
             return (
               <Card key={p.id} className={`flex gap-4 transition-all duration-200 ${!available ? 'opacity-60' : ''}`}>
-                <div className="w-20 h-20 rounded-button bg-slate-100 relative overflow-hidden shrink-0">
-                  <Image
-                    src={p.imageUrl || FALLBACK_PRODUCT_IMAGE}
-                    alt={p.name}
-                    fill
-                    className="object-cover"
-                    sizes="80px"
-                  />
+                <div className="w-20 h-20 rounded-button bg-slate-100 relative overflow-hidden shrink-0 flex items-center justify-center">
+                  <Package className="w-10 h-10 text-slate-500" strokeWidth={1.5} />
                   {!available && (
                     <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center">
                       <span className="text-white text-xs font-medium">Out of stock</span>

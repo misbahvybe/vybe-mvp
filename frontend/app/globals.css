@@ -3,21 +3,21 @@
 @tailwind utilities;
 
 :root {
-  --primary: #1e3a5f;
-  --primary-dark: #152a45;
-  --accent: #f97316;
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --primary: #7c3aed;
+  --primary-dark: #1a1a1a;
+  --accent: #7c3aed;
+  --background: #ffffff;
+  --foreground: #1a1a1a;
 }
 
 body {
   @apply bg-primary-dark text-[var(--foreground)] antialiased;
 }
 
-/* Content panel: light background with rounded top corners (matches design screenshots) */
+/* Content panel: white background with rounded top corners */
 .content-panel {
   background-color: var(--background);
-  border-radius: 1.5rem 1.5rem 0 0; /* rounded-t-3xl */
+  border-radius: 1.5rem 1.5rem 0 0;
 }
 
 /* Bottom nav safe area for mobile */

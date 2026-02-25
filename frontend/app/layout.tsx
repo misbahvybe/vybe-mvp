@@ -3,13 +3,13 @@ import './globals.css';
 import { AuthListener } from '@/components/auth/AuthListener';
 
 export const metadata: Metadata = {
-  title: 'Vybe – Delivery Platform',
-  description: 'Order, deliver, partner. Lahore-based multi-role delivery.',
+  title: 'VYBE Super App',
+  description: 'Everything you need now with crypto. Food, grocery, medicine delivery.',
   manifest: '/manifest.json',
 };
 
 export const viewport: Viewport = {
-  themeColor: '#1e3a5f',
+  themeColor: '#1a1a1a',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,

@@ -130,7 +130,7 @@ export default function OrderDetailPage() {
             {STATUS_LABELS[order.orderStatus] ?? order.orderStatus}
           </span>
           {order.orderStatus !== 'DELIVERED' && order.orderStatus !== 'CANCELLED' && order.orderStatus !== 'STORE_REJECTED' && (
-            <p className="text-xs text-slate-500 mt-2">Expected delivery: 90–120 minutes</p>
+            <p className="text-xs text-slate-500 mt-2">Fast delivery</p>
           )}
           {order.cancellationReason && (
             <p className="text-sm text-red-600 mt-2">Reason: {CANCELLATION_LABELS[order.cancellationReason] ?? order.cancellationReason}</p>

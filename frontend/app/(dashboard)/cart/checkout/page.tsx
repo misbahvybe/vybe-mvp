@@ -285,7 +285,7 @@ function CheckoutContent() {
             <span>Service fee</span>
             <span>Rs {SERVICE_FEE}</span>
           </div>
-          <p className="text-xs text-slate-500 mt-2">Delivery in 90–120 minutes</p>
+          <p className="text-xs text-slate-500 mt-2">Fast delivery</p>
           <div className="flex justify-between pt-3 font-bold text-slate-800">
             <span>Total</span>
             <span className="text-accent">Rs {(total() + DELIVERY_FEE + SERVICE_FEE).toFixed(0)}</span>
