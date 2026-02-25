@@ -2,14 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, ClipboardList, ShoppingCart, Wallet, MoreHorizontal } from 'lucide-react';
+import { MdHome, MdListAlt, MdShoppingCart, MdAccountBalanceWallet, MdMenu } from 'react-icons/md';
 
 const items = [
-  { href: '/dashboard', label: 'Home', Icon: Home },
-  { href: '/orders', label: 'Order', Icon: ClipboardList },
-  { href: '/cart', label: 'My Cart', Icon: ShoppingCart },
-  { href: '/wallet', label: 'Wallet', Icon: Wallet },
-  { href: '/more', label: 'More', Icon: MoreHorizontal },
+  { href: '/dashboard', label: 'Home', Icon: MdHome },
+  { href: '/orders', label: 'Order', Icon: MdListAlt },
+  { href: '/cart', label: 'My Cart', Icon: MdShoppingCart },
+  { href: '/wallet', label: 'Wallet', Icon: MdAccountBalanceWallet },
+  { href: '/more', label: 'More', Icon: MdMenu },
 ];
 
 const iconClass = 'w-6 h-6';
@@ -29,7 +29,7 @@ export function BottomNav() {
                 active ? 'text-accent' : 'text-white/80'
               }`}
             >
-              <Icon className={iconClass} strokeWidth={2} aria-hidden />
+              <Icon className={iconClass} aria-hidden />
               <span className="text-xs font-medium">{label}</span>
             </Link>
           );

@@ -1,6 +1,6 @@
 'use client';
 
-import { Wallet } from 'lucide-react';
+import { MdAccountBalanceWallet } from 'react-icons/md';
 import { StickyHeader } from '@/components/layout/StickyHeader';
 import { ContentPanel } from '@/components/layout/ContentPanel';
 import { Card } from '@/components/ui/Card';
@@ -13,7 +13,7 @@ export default function WalletPage() {
       <ContentPanel>
       <main className="max-w-lg mx-auto px-4 py-4">
         <Card className="text-center py-8 mb-6">
-          <Wallet className="w-12 h-12 text-primary mx-auto mb-4" strokeWidth={1.5} />
+          <MdAccountBalanceWallet className="w-12 h-12 text-primary mx-auto mb-4" />
           <p className="text-4xl font-bold text-slate-800 mb-1">PKR 0.00</p>
           <p className="text-slate-600 text-sm mb-2">Available balance</p>
           <span className="inline-block px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-medium mb-4">

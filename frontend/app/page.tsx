@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { UtensilsCrossed, ShoppingBasket, Pill } from 'lucide-react';
+import { MdRestaurant, MdShoppingBasket, MdLocalPharmacy } from 'react-icons/md';
 import { Button } from '@/components/ui/Button';
 
 const SLIDES = [
@@ -68,14 +68,14 @@ export default function LandingPage() {
   }
 
   const current = SLIDES[slide];
-  const SlideIcon = current.id === 'food' ? UtensilsCrossed : current.id === 'grocery' ? ShoppingBasket : Pill;
+  const SlideIcon = current.id === 'food' ? MdRestaurant : current.id === 'grocery' ? MdShoppingBasket : MdLocalPharmacy;
 
   return (
     <div className="min-h-screen flex flex-col bg-primary-dark">
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="relative h-[45vh] min-h-[320px] bg-white overflow-hidden rounded-b-3xl flex flex-col items-center justify-center">
           <div className="w-24 h-24 rounded-2xl bg-slate-100 flex items-center justify-center">
-            <SlideIcon className="w-12 h-12 text-slate-700" strokeWidth={1.5} />
+            <SlideIcon className="w-14 h-14 text-slate-700" />
           </div>
         </div>
         <div className="bg-primary-dark rounded-t-3xl px-6 pt-6 pb-10 safe-bottom flex-1 flex flex-col justify-center relative z-10">

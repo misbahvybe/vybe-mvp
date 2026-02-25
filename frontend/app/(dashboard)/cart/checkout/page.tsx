@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Banknote, CreditCard, Coins } from 'lucide-react';
+import { MdPayments, MdCreditCard, MdCurrencyBitcoin } from 'react-icons/md';
 import { loadStripe } from '@stripe/stripe-js';
 import { useAuthStore } from '@/store/authStore';
 import { useCartStore } from '@/store/cartStore';
@@ -196,7 +196,7 @@ function CheckoutContent() {
           >
             <Card>
               <div className="flex items-center gap-3">
-                <Banknote className="w-5 h-5 text-primary shrink-0" strokeWidth={2} />
+                <MdPayments className="w-5 h-5 text-primary shrink-0" />
                 <div>
                   <p className="font-medium text-slate-800">Cash on Delivery</p>
                   <p className="text-xs text-slate-500">Pay when you receive</p>
@@ -214,7 +214,7 @@ function CheckoutContent() {
             >
               <Card>
                 <div className="flex items-center gap-3">
-                  <CreditCard className="w-5 h-5 text-primary shrink-0" strokeWidth={2} />
+                  <MdCreditCard className="w-5 h-5 text-primary shrink-0" />
                   <div>
                     <p className="font-medium text-slate-800">Card / JazzCash / EasyPaisa (XPay)</p>
                     <p className="text-xs text-slate-500">Pay securely with card or mobile wallet</p>
@@ -234,7 +234,7 @@ function CheckoutContent() {
             >
               <Card>
                 <div className="flex items-center gap-3">
-                  <CreditCard className="w-5 h-5 text-primary shrink-0" strokeWidth={2} />
+                  <MdCreditCard className="w-5 h-5 text-primary shrink-0" />
                   <div>
                     <p className="font-medium text-slate-800">•••• {card.last4}</p>
                     <p className="text-xs text-slate-500">{card.cardType}</p>
@@ -254,7 +254,7 @@ function CheckoutContent() {
           <div className="relative pointer-events-none select-none">
             <Card className="border-2 border-dashed border-slate-200 opacity-70">
               <div className="flex items-center gap-3">
-                <Coins className="w-5 h-5 text-amber-500 shrink-0" strokeWidth={2} />
+                <MdCurrencyBitcoin className="w-5 h-5 text-amber-500 shrink-0" />
                 <div>
                   <p className="font-medium text-slate-700">Crypto (Binance Wallet)</p>
                   <p className="text-xs text-slate-500">Pakistan&apos;s first regulated crypto payments</p>

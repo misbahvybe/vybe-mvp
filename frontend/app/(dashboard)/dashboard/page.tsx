@@ -3,19 +3,19 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Search, UtensilsCrossed, ShoppingBasket, Pill, Bike, Package, Wallet, Coins, User } from 'lucide-react';
+import { MdSearch, MdRestaurant, MdShoppingBasket, MdLocalPharmacy, MdTwoWheeler, MdLocalShipping, MdAccountBalanceWallet, MdPerson } from 'react-icons/md';
 import { useAuthStore } from '@/store/authStore';
 import { StickyHeader } from '@/components/layout/StickyHeader';
 import { ContentPanel } from '@/components/layout/ContentPanel';
 import { Card } from '@/components/ui/Card';
 
 const CATEGORY_CARDS = [
-  { id: 'food', label: 'Food', icon: UtensilsCrossed, href: '/dashboard/category/food', comingSoon: false },
-  { id: 'grocery', label: 'Grocery', icon: ShoppingBasket, href: '/dashboard/category/grocery', comingSoon: false },
-  { id: 'medicine', label: 'Medicine', icon: Pill, href: '/dashboard/category/medicine', comingSoon: false },
-  { id: 'ride', label: 'Ride', icon: Bike, href: '#', comingSoon: true },
-  { id: 'courier', label: 'Courier', icon: Package, href: '#', comingSoon: true },
-  { id: 'wallet', label: 'Crypto Wallet', icon: Wallet, href: '/wallet', comingSoon: false },
+  { id: 'food', label: 'Food', icon: MdRestaurant, href: '/dashboard/category/food', comingSoon: false },
+  { id: 'grocery', label: 'Grocery', icon: MdShoppingBasket, href: '/dashboard/category/grocery', comingSoon: false },
+  { id: 'medicine', label: 'Medicine', icon: MdLocalPharmacy, href: '/dashboard/category/medicine', comingSoon: false },
+  { id: 'ride', label: 'Ride', icon: MdTwoWheeler, href: '#', comingSoon: true },
+  { id: 'courier', label: 'Courier', icon: MdLocalShipping, href: '#', comingSoon: true },
+  { id: 'wallet', label: 'Crypto Wallet', icon: MdAccountBalanceWallet, href: '/wallet', comingSoon: false },
 ];
 
 export default function DashboardPage() {
@@ -48,10 +48,10 @@ export default function DashboardPage() {
         rightAction={
           <div className="flex items-center gap-1">
             <Link href="/dashboard/search" className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="Search">
-              <Search className="w-5 h-5" strokeWidth={2} />
+              <MdSearch className="w-5 h-5" />
             </Link>
             <Link href="/more/account" className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="Profile">
-              <User className="w-5 h-5" strokeWidth={2} />
+              <MdPerson className="w-5 h-5" />
             </Link>
           </div>
         }
@@ -74,7 +74,7 @@ export default function DashboardPage() {
                     <div className="relative pointer-events-none select-none">
                       <Card className="p-4 flex items-center gap-3 opacity-60">
                         <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
-                          <Icon className="w-6 h-6 text-slate-600" strokeWidth={1.5} />
+                          <Icon className="w-7 h-7 text-slate-600" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <span className="font-medium text-slate-700">{cat.label}</span>
@@ -88,7 +88,7 @@ export default function DashboardPage() {
                     <Link href={cat.href}>
                       <Card className="p-4 flex items-center gap-3 hover:shadow-soft-lg transition-shadow border border-slate-200">
                         <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
-                          <Icon className="w-6 h-6 text-slate-700" strokeWidth={1.5} />
+                          <Icon className="w-7 h-7 text-slate-700" />
                         </div>
                         <span className="font-medium text-slate-800">{cat.label}</span>
                       </Card>

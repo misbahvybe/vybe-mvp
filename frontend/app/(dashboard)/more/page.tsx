@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { User, MapPin, CreditCard, Lock, Users } from 'lucide-react';
+import { MdPerson, MdLocationOn, MdCreditCard, MdLock, MdPeople } from 'react-icons/md';
 import { useAuthStore } from '@/store/authStore';
 import { StickyHeader } from '@/components/layout/StickyHeader';
 import { ContentPanel } from '@/components/layout/ContentPanel';
@@ -12,11 +12,11 @@ import { Button } from '@/components/ui/Button';
 const iconClass = 'w-5 h-5 text-primary shrink-0';
 
 const menuItems = [
-  { href: '/more/account', label: 'Account Information', Icon: User },
-  { href: '/addresses', label: 'Delivery Address', Icon: MapPin },
-  { href: '/profile/payment-methods', label: 'Payment Method', Icon: CreditCard },
-  { href: '/more/password', label: 'Password', Icon: Lock },
-  { href: '/more/refer', label: 'Reference Friends', Icon: Users },
+  { href: '/more/account', label: 'Account Information', Icon: MdPerson },
+  { href: '/addresses', label: 'Delivery Address', Icon: MdLocationOn },
+  { href: '/profile/payment-methods', label: 'Payment Method', Icon: MdCreditCard },
+  { href: '/more/password', label: 'Password', Icon: MdLock },
+  { href: '/more/refer', label: 'Reference Friends', Icon: MdPeople },
 ];
 
 export default function MorePage() {
@@ -50,7 +50,7 @@ export default function MorePage() {
               href={item.href}
               className="flex items-center gap-4 px-4 py-3 border-b border-slate-100 last:border-0"
             >
-              <item.Icon className={iconClass} strokeWidth={2} />
+              <item.Icon className={iconClass} />
               <span className="flex-1 font-medium text-slate-800">{item.label}</span>
               <span className="text-slate-400">›</span>
             </Link>

@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { Store } from 'lucide-react';
+import { MdStore } from 'react-icons/md';
 import { useAuthStore } from '@/store/authStore';
 import { StickyHeader } from '@/components/layout/StickyHeader';
 import { ContentPanel } from '@/components/layout/ContentPanel';
@@ -97,7 +97,7 @@ export default function CategoryPage() {
                 <Link key={store.id} href={`/dashboard/stores/${store.id}`}>
                   <Card className="overflow-hidden hover:shadow-soft-lg transition-shadow border border-slate-200">
                     <div className="aspect-square bg-slate-100 rounded-t-card flex items-center justify-center">
-                      <Store className="w-16 h-16 text-slate-400" strokeWidth={1.5} />
+                      <MdStore className="w-16 h-16 text-slate-400" />
                     </div>
                     <div className="pt-3">
                       <p className="font-semibold text-slate-800">{store.name}</p>

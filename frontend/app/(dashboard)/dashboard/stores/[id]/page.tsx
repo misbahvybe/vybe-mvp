@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Package } from 'lucide-react';
+import { MdInventory2 } from 'react-icons/md';
 import { useAuthStore } from '@/store/authStore';
 import { useCartStore } from '@/store/cartStore';
 import { StickyHeader } from '@/components/layout/StickyHeader';
@@ -81,7 +81,7 @@ export default function StoreDetailPage() {
             return (
               <Card key={p.id} className={`flex gap-4 transition-all duration-200 ${!available ? 'opacity-60' : ''}`}>
                 <div className="w-20 h-20 rounded-button bg-slate-100 relative overflow-hidden shrink-0 flex items-center justify-center">
-                  <Package className="w-10 h-10 text-slate-500" strokeWidth={1.5} />
+                  <MdInventory2 className="w-10 h-10 text-slate-500" />
                   {!available && (
                     <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center">
                       <span className="text-white text-xs font-medium">Out of stock</span>
