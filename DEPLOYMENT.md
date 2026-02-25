@@ -83,9 +83,11 @@ npm run prisma:seed
 ### 2. Backend (Railway)
 
 - **Root Directory:** `backend`
-- **Build Command:** `npm install && npm run build` (postinstall runs `prisma generate`)
-- **Start Command:** `npm run start:prod`
+- **Build:** Railway auto-detects `Dockerfile` and uses it (recommended)
+- **Or Nixpacks:** Build Command: `npm install && npx prisma generate && npm run build` | Start: `npm run start:prod`
 - **Required env:** `DATABASE_URL`, `JWT_SECRET`, `FRONTEND_URL`
+
+**If you see "Cannot find module /app/dist/main":** The build step didn't run. Use the Dockerfile (Railway will auto-detect it) or set `NPM_CONFIG_PRODUCTION=false` so devDependencies (nest-cli) are installed during build.
 
 ### 3. Frontend (Vercel)
 
