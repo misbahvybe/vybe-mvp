@@ -80,7 +80,7 @@ export default function StoreDetailPage() {
         <div className="space-y-4 pb-24">
           {store.products.map((p) => {
             const qty = storeId === store.id ? items.find((i) => i.productId === p.id)?.quantityKg ?? 0 : 0;
-            const available = p.isAvailable !== false && !p.isOutOfStock;
+            const available = p.isAvailable !== false && !p.isOutOfStock && store.isOpenNow !== false;
             return (
               <Card key={p.id} className={`flex gap-4 transition-all duration-200 ${!available ? 'opacity-60' : ''}`}>
                 <div className="w-20 h-20 rounded-button bg-slate-100 relative overflow-hidden shrink-0">

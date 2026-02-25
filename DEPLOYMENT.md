@@ -72,7 +72,7 @@ NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_xxx   # Optional
 
 ## 🚀 Deploy Steps
 
-### 1. Database
+### 1. Database (run once after deploy)
 
 ```bash
 cd backend
@@ -80,23 +80,18 @@ npx prisma db push
 npm run prisma:seed
 ```
 
-### 2. Backend
+### 2. Backend (Railway)
 
-```bash
-cd backend
-npm run build
-npm run start:prod
-# Or use: node dist/main.js
-```
+- **Root Directory:** `backend`
+- **Build Command:** `npm install && npm run build` (postinstall runs `prisma generate`)
+- **Start Command:** `npm run start:prod`
+- **Required env:** `DATABASE_URL`, `JWT_SECRET`, `FRONTEND_URL`
 
-### 3. Frontend
+### 3. Frontend (Vercel)
 
-```bash
-cd frontend
-npm run build
-npm run start
-# Or deploy to Vercel/Netlify
-```
+- **Root Directory:** `frontend`
+- **Build Command:** `npm run build` (default)
+- **Required env:** `NEXT_PUBLIC_API_URL` = `https://your-backend.up.railway.app/api/v1`
 
 ---
 
