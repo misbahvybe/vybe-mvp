@@ -1,6 +1,6 @@
 # Single-stage build - avoids multi-stage COPY issues on Railway
-# Use Debian slim (not Alpine) - Prisma needs libssl.so.1.1 which Alpine 3.17+ removed
-FROM node:18-slim
+# Use Debian Bullseye (11) - has OpenSSL 1.1; Bookworm (12) only has OpenSSL 3.x
+FROM node:18-bullseye-slim
 
 WORKDIR /app
 
