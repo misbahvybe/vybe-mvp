@@ -128,6 +128,26 @@ npm run prisma:seed
 
 1. **XPay (Pakistan):** Use XPay for card/JazzCash/EasyPaisa in Pakistan. Add XPAY_API_KEY, XPAY_ACCOUNT_ID from [xpay.postexglobal.com](https://www.xpay.postexglobal.com/).
 2. **Stripe + PKR:** Stripe may not support PKR. Use XPay for Pakistan. COD works without any gateway.
-2. **Multi-store owners:** Store owners with multiple stores see only the first store in the dashboard. Use one store per owner or add store switching later.
-3. **CORS:** Set `FRONTEND_URL` to your deployed frontend URL.
-4. **Neon DB:** If paused, wake it via dashboard or a simple query before running migrations.
+3. **Multi-store owners:** Store owners with multiple stores see only the first store in the dashboard. Use one store per owner or add store switching later.
+4. **CORS:** Set `FRONTEND_URL` to your deployed frontend URL.
+5. **Neon DB:** If paused, wake it via dashboard or a simple query before running migrations.
+
+---
+
+## 🔧 Troubleshooting 502 / CORS
+
+If you see **502 Bad Gateway** or **CORS blocked** when calling the backend from Vercel:
+
+1. **502 = backend not responding** – The CORS error is a side effect. When the server returns 502, it often omits CORS headers, so the browser reports CORS instead of the real issue.
+
+2. **Check Railway logs** – In Railway → your service → Deployments → View Logs. Look for:
+   - `Missing required env: DATABASE_URL, JWT_SECRET` → Add env vars in Railway → Variables
+   - `Bootstrap failed:` → Shows the actual startup error
+   - Database connection errors → Neon may be paused; wake it in the Neon dashboard
+
+3. **Required env vars in Railway:**
+   - `DATABASE_URL` – Neon connection string
+   - `JWT_SECRET` – Min 32 chars
+   - `FRONTEND_URL` – `https://vybe-mvp.vercel.app`
+
+4. **Port binding** – The backend must listen on `0.0.0.0` (not localhost) so Railway’s proxy can reach it. This is already configured in `main.ts`.
