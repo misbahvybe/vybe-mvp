@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { MdInventory2 } from 'react-icons/md';
 import { useAuthStore } from '@/store/authStore';
 import { useCartStore } from '@/store/cartStore';
@@ -26,6 +27,8 @@ interface Store {
   id: string;
   name: string;
   description: string | null;
+  imageUrl?: string | null;
+  address?: string | null;
   isOpenNow?: boolean;
   products: Product[];
 }
@@ -65,6 +68,11 @@ export default function StoreDetailPage() {
       <StickyHeader title={store.name} backHref="/dashboard" />
       <ContentPanel>
       <main className="max-w-lg mx-auto px-4 py-4">
+        {store.imageUrl && (
+          <div className="aspect-video w-full max-h-48 rounded-card overflow-hidden bg-slate-100 mb-4 relative">
+            <Image src={store.imageUrl} alt={store.name} fill className="object-cover" sizes="(max-width: 512px) 100vw, 512px" unoptimized />
+          </div>
+        )}
         {store.isOpenNow === false && (
           <div className="mb-4 p-4 rounded-card bg-amber-50 border border-amber-200">
             <p className="font-medium text-amber-800">Store is closed</p>
@@ -75,13 +83,19 @@ export default function StoreDetailPage() {
           <p className="text-slate-600 text-sm mb-4">{store.description}</p>
         )}
         <div className="space-y-4 pb-24">
-          {store.products.map((p) => {
+          {store.products
+            .filter((p) => p.isAvailable !== false)
+            .map((p) => {
             const qty = storeId === store.id ? items.find((i) => i.productId === p.id)?.quantityKg ?? 0 : 0;
-            const available = p.isAvailable !== false && !p.isOutOfStock && store.isOpenNow !== false;
+            const available = !p.isOutOfStock && store.isOpenNow !== false;
             return (
               <Card key={p.id} className={`flex gap-4 transition-all duration-200 ${!available ? 'opacity-60' : ''}`}>
                 <div className="w-20 h-20 rounded-button bg-slate-100 relative overflow-hidden shrink-0 flex items-center justify-center">
-                  <MdInventory2 className="w-10 h-10 text-slate-500" />
+                  {p.imageUrl ? (
+                    <Image src={p.imageUrl} alt={p.name} fill className="object-cover" sizes="80px" unoptimized />
+                  ) : (
+                    <MdInventory2 className="w-10 h-10 text-slate-500" />
+                  )}
                   {!available && (
                     <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center">
                       <span className="text-white text-xs font-medium">Out of stock</span>

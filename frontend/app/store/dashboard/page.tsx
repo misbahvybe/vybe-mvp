@@ -50,8 +50,13 @@ export default function StoreDashboardPage() {
   const [store, setStore] = useState<{
     id: string;
     name: string;
+    description?: string | null;
+    imageUrl?: string | null;
     phone?: string;
     address?: string;
+    city?: string;
+    latitude?: number | null;
+    longitude?: number | null;
     isOpen: boolean;
     openingTime?: string;
     closingTime?: string;
@@ -128,13 +133,13 @@ export default function StoreDashboardPage() {
     <div className="min-h-screen flex flex-col">
       <StickyHeader title="Store Dashboard" />
       <div className="border-b border-slate-200 bg-white sticky top-0 z-10">
-        <div className="flex">
+        <div className="flex overflow-x-auto">
           {tabs.map((t) => (
             <button
               key={t.id}
               type="button"
               onClick={() => setTab(t.id)}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-medium transition-colors ${
+              className={`flex-1 min-w-[4rem] flex items-center justify-center gap-1.5 py-3 px-2 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
                 tab === t.id ? 'text-primary border-b-2 border-primary' : 'text-slate-500 hover:text-slate-700'
               }`}
             >
@@ -343,7 +348,7 @@ function StoreProductsTab({
   onRefresh,
 }: {
   categories: { id: string; name: string; products: unknown[] }[];
-  products: { id: string; name: string; price: number; stock: number; isAvailable: boolean; isOutOfStock: boolean; productCategoryId?: string | null; category?: { name: string } }[];
+  products: { id: string; name: string; price: number; stock: number; isAvailable: boolean; isOutOfStock: boolean; imageUrl?: string | null; productCategoryId?: string | null; category?: { name: string } }[];
   loading: boolean;
   onRefresh: () => void;
 }) {
@@ -351,8 +356,8 @@ function StoreProductsTab({
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [newCategoryName, setNewCategoryName] = useState('');
-  const [newProduct, setNewProduct] = useState({ name: '', price: '', stock: '999', productCategoryId: '' });
-  const [editProduct, setEditProduct] = useState({ name: '', price: '', stock: 0, productCategoryId: '' });
+  const [newProduct, setNewProduct] = useState({ name: '', price: '', stock: '999', productCategoryId: '', imageUrl: '', isAvailable: true });
+  const [editProduct, setEditProduct] = useState({ name: '', price: '', stock: 0, productCategoryId: '', imageUrl: '', isAvailable: true });
   const [submitting, setSubmitting] = useState(false);
 
   const addCategory = async () => {
@@ -379,8 +384,10 @@ function StoreProductsTab({
         price: Number(newProduct.price),
         stock: Number(newProduct.stock) || 999,
         productCategoryId: newProduct.productCategoryId || undefined,
+        imageUrl: newProduct.imageUrl.trim() || undefined,
+        isAvailable: newProduct.isAvailable,
       });
-      setNewProduct({ name: '', price: '', stock: '999', productCategoryId: '' });
+      setNewProduct({ name: '', price: '', stock: '999', productCategoryId: '', imageUrl: '', isAvailable: true });
       setShowAddProduct(false);
       onRefresh();
     } catch (e) {
@@ -399,13 +406,15 @@ function StoreProductsTab({
     }
   };
 
-  const startEdit = (p: { id: string; name: string; price: number; stock: number; productCategoryId?: string | null }) => {
+  const startEdit = (p: { id: string; name: string; price: number; stock: number; productCategoryId?: string | null; imageUrl?: string | null; isAvailable?: boolean }) => {
     setEditingProductId(p.id);
     setEditProduct({
       name: p.name,
       price: String(p.price),
       stock: Number(p.stock),
       productCategoryId: p.productCategoryId ?? '',
+      imageUrl: p.imageUrl ?? '',
+      isAvailable: p.isAvailable ?? true,
     });
   };
 
@@ -418,6 +427,8 @@ function StoreProductsTab({
         price: Number(editProduct.price),
         stock: Number(editProduct.stock),
         productCategoryId: editProduct.productCategoryId || undefined,
+        imageUrl: editProduct.imageUrl.trim() || undefined,
+        isAvailable: editProduct.isAvailable,
       });
       setEditingProductId(null);
       onRefresh();
@@ -476,6 +487,12 @@ function StoreProductsTab({
             className="w-full px-3 py-2 border rounded-button mb-2"
           />
           <input
+            value={editProduct.imageUrl}
+            onChange={(e) => setEditProduct((f) => ({ ...f, imageUrl: e.target.value }))}
+            placeholder="Image URL (optional)"
+            className="w-full px-3 py-2 border rounded-button mb-2"
+          />
+          <input
             type="number"
             value={editProduct.price}
             onChange={(e) => setEditProduct((f) => ({ ...f, price: e.target.value }))}
@@ -487,8 +504,18 @@ function StoreProductsTab({
             value={editProduct.stock}
             onChange={(e) => setEditProduct((f) => ({ ...f, stock: Number(e.target.value) }))}
             placeholder="Stock"
-            className="w-full px-3 py-2 border rounded-button mb-3"
+            className="w-full px-3 py-2 border rounded-button mb-2"
           />
+          <div className="flex items-center gap-2 mb-3">
+            <input
+              type="checkbox"
+              id="edit-available"
+              checked={editProduct.isAvailable}
+              onChange={(e) => setEditProduct((f) => ({ ...f, isAvailable: e.target.checked }))}
+              className="rounded border-slate-300"
+            />
+            <label htmlFor="edit-available" className="text-sm text-slate-700">Available (show to customers)</label>
+          </div>
           <select
             value={editProduct.productCategoryId}
             onChange={(e) => setEditProduct((f) => ({ ...f, productCategoryId: e.target.value }))}
@@ -514,6 +541,12 @@ function StoreProductsTab({
             className="w-full px-3 py-2 border rounded-button mb-2"
           />
           <input
+            value={newProduct.imageUrl}
+            onChange={(e) => setNewProduct({ ...newProduct, imageUrl: e.target.value })}
+            placeholder="Image URL (optional)"
+            className="w-full px-3 py-2 border rounded-button mb-2"
+          />
+          <input
             type="number"
             value={newProduct.price}
             onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
@@ -527,6 +560,16 @@ function StoreProductsTab({
             placeholder="Stock"
             className="w-full px-3 py-2 border rounded-button mb-2"
           />
+          <div className="flex items-center gap-2 mb-2">
+            <input
+              type="checkbox"
+              id="new-available"
+              checked={newProduct.isAvailable}
+              onChange={(e) => setNewProduct({ ...newProduct, isAvailable: e.target.checked })}
+              className="rounded border-slate-300"
+            />
+            <label htmlFor="new-available" className="text-sm text-slate-700">Available (show to customers)</label>
+          </div>
           <select
             value={newProduct.productCategoryId}
             onChange={(e) => setNewProduct({ ...newProduct, productCategoryId: e.target.value })}
@@ -612,14 +655,19 @@ function StoreSettingsTab({
   loading,
   onRefresh,
 }: {
-  store: { id: string; name: string; phone?: string; address?: string; isOpen: boolean; openingTime?: string; closingTime?: string } | null;
+  store: { id: string; name: string; description?: string | null; imageUrl?: string | null; phone?: string; address?: string; city?: string; latitude?: number | null; longitude?: number | null; isOpen: boolean; openingTime?: string; closingTime?: string } | null;
   loading: boolean;
   onRefresh: () => void;
 }) {
   const [form, setForm] = useState({
     name: '',
+    description: '',
+    imageUrl: '',
     phone: '',
     address: '',
+    city: 'Lahore',
+    latitude: '',
+    longitude: '',
     openingTime: '09:00',
     closingTime: '22:00',
     isOpen: true,
@@ -630,8 +678,13 @@ function StoreSettingsTab({
     if (store) {
       setForm({
         name: store.name,
+        description: store.description ?? '',
+        imageUrl: store.imageUrl ?? '',
         phone: store.phone ?? '',
         address: store.address ?? '',
+        city: store.city ?? 'Lahore',
+        latitude: store.latitude != null ? String(store.latitude) : '',
+        longitude: store.longitude != null ? String(store.longitude) : '',
         openingTime: store.openingTime ?? '09:00',
         closingTime: store.closingTime ?? '22:00',
         isOpen: store.isOpen,
@@ -642,7 +695,11 @@ function StoreSettingsTab({
   const save = async () => {
     setSaving(true);
     try {
-      await api.patch('/store-owner/store', form);
+      await api.patch('/store-owner/store', {
+        ...form,
+        latitude: form.latitude ? Number(form.latitude) : undefined,
+        longitude: form.longitude ? Number(form.longitude) : undefined,
+      });
       onRefresh();
     } catch (e) {
       alert((e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Failed');
@@ -682,6 +739,26 @@ function StoreSettingsTab({
           <input
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+            placeholder="e.g. Karachi Biryani House"
+            className="w-full px-3 py-2 border rounded-button"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Store Image URL</label>
+          <input
+            value={form.imageUrl}
+            onChange={(e) => setForm((f) => ({ ...f, imageUrl: e.target.value }))}
+            placeholder="https://example.com/store-image.jpg"
+            className="w-full px-3 py-2 border rounded-button"
+          />
+          <p className="text-xs text-slate-500 mt-1">Paste an image URL – appears on store listing</p>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
+          <input
+            value={form.description}
+            onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+            placeholder="e.g. Authentic biryani & karahi"
             className="w-full px-3 py-2 border rounded-button"
           />
         </div>
@@ -694,12 +771,44 @@ function StoreSettingsTab({
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Address</label>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Address / Location</label>
           <input
             value={form.address}
             onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
+            placeholder="e.g. DHA Phase 5, Lahore"
             className="w-full px-3 py-2 border rounded-button"
           />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">City</label>
+          <input
+            value={form.city}
+            onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))}
+            placeholder="Lahore"
+            className="w-full px-3 py-2 border rounded-button"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Latitude</label>
+            <input
+              type="text"
+              value={form.latitude}
+              onChange={(e) => setForm((f) => ({ ...f, latitude: e.target.value }))}
+              placeholder="31.5204"
+              className="w-full px-3 py-2 border rounded-button"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Longitude</label>
+            <input
+              type="text"
+              value={form.longitude}
+              onChange={(e) => setForm((f) => ({ ...f, longitude: e.target.value }))}
+              placeholder="74.3587"
+              className="w-full px-3 py-2 border rounded-button"
+            />
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>

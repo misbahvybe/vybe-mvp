@@ -26,17 +26,19 @@ export class StoresService {
   async updateStore(ownerId: string, dto: UpdateStoreDto) {
     const store = await this.prisma.store.findFirst({ where: { ownerId } });
     if (!store) throw new ForbiddenException('Store not found');
-    return this.prisma.store.update({
-      where: { id: store.id },
-      data: {
-        ...(dto.name !== undefined && { name: dto.name }),
-        ...(dto.phone !== undefined && { phone: dto.phone }),
-        ...(dto.address !== undefined && { address: dto.address }),
-        ...(dto.openingTime !== undefined && { openingTime: dto.openingTime }),
-        ...(dto.closingTime !== undefined && { closingTime: dto.closingTime }),
-        ...(dto.isOpen !== undefined && { isOpen: dto.isOpen }),
-      },
-    });
+    const data: Record<string, unknown> = {};
+    if (dto.name !== undefined) data.name = dto.name;
+    if (dto.description !== undefined) data.description = dto.description;
+    if (dto.imageUrl !== undefined) data.imageUrl = dto.imageUrl;
+    if (dto.phone !== undefined) data.phone = dto.phone;
+    if (dto.address !== undefined) data.address = dto.address;
+    if (dto.city !== undefined) data.city = dto.city;
+    if (dto.latitude !== undefined) data.latitude = dto.latitude;
+    if (dto.longitude !== undefined) data.longitude = dto.longitude;
+    if (dto.openingTime !== undefined) data.openingTime = dto.openingTime;
+    if (dto.closingTime !== undefined) data.closingTime = dto.closingTime;
+    if (dto.isOpen !== undefined) data.isOpen = dto.isOpen;
+    return this.prisma.store.update({ where: { id: store.id }, data });
   }
 
   async getEarnings(ownerId: string) {

@@ -10,13 +10,15 @@ import { ContentPanel } from '@/components/layout/ContentPanel';
 import { Card } from '@/components/ui/Card';
 import api from '@/services/api';
 
-const SHOP_FRONT_IMAGE =
+const SHOP_PLACEHOLDER =
   'https://images.unsplash.com/photo-1550989460-0adf9ea622e2?w=600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0';
 
 interface StoreSummary {
   id: string;
   name: string;
   description: string | null;
+  imageUrl: string | null;
+  address?: string | null;
   products: { id: string; name: string; price: number }[];
 }
 
@@ -45,7 +47,14 @@ export default function StoresPage() {
               <Link key={store.id} href={`/dashboard/stores/${store.id}`}>
                 <Card className="overflow-hidden hover:shadow-soft-lg transition-shadow">
                   <div className="aspect-square bg-slate-100 rounded-t-card relative overflow-hidden">
-                    <Image src={SHOP_FRONT_IMAGE} alt={store.name} fill className="object-cover" sizes="50vw" />
+                    <Image
+                      src={store.imageUrl || SHOP_PLACEHOLDER}
+                      alt={store.name}
+                      fill
+                      className="object-cover"
+                      sizes="50vw"
+                      unoptimized={!!store.imageUrl}
+                    />
                   </div>
                   <div className="pt-3">
                     <p className="font-semibold text-slate-800">{store.name}</p>

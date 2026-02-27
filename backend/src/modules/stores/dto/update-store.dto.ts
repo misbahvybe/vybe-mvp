@@ -1,4 +1,5 @@
-import { IsString, IsOptional, IsBoolean, Matches } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, Matches, IsNumber } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class UpdateStoreDto {
   @IsOptional()
@@ -7,11 +8,33 @@ export class UpdateStoreDto {
 
   @IsOptional()
   @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
+
+  @IsOptional()
+  @IsString()
   phone?: string;
 
   @IsOptional()
   @IsString()
   address?: string;
+
+  @IsOptional()
+  @IsString()
+  city?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  latitude?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  longitude?: number;
 
   @IsOptional()
   @IsString()
