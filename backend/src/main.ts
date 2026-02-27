@@ -20,6 +20,9 @@ async function bootstrap() {
   );
   const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
   const corsOrigins = frontendUrl.includes(',') ? frontendUrl.split(',').map((o) => o.trim()) : [frontendUrl];
+  // Always allow Vercel deployment (in case FRONTEND_URL not set in Railway)
+  const vercelOrigin = 'https://vybe-mvp.vercel.app';
+  if (!corsOrigins.includes(vercelOrigin)) corsOrigins.push(vercelOrigin);
   app.enableCors({ origin: corsOrigins, credentials: true });
   const port = process.env.PORT ?? 4000;
   await app.listen(port);
