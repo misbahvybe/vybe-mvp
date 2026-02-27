@@ -1,6 +1,6 @@
-# Root Dockerfile - builds backend when Railway uses repo root
-# If Root Directory = backend, Railway will use backend/Dockerfile instead
-FROM node:18-alpine AS builder
+# Root Dockerfile - use when Railway Root Directory = repo root
+# If Root Directory = backend, Railway uses backend/Dockerfile instead
+FROM node:18-alpine
 
 WORKDIR /app
 
@@ -13,18 +13,10 @@ RUN npx prisma generate
 COPY backend/ .
 
 RUN npm run build
-
-FROM node:18-alpine AS runner
-
-WORKDIR /app
-
-COPY backend/package*.json ./
-COPY backend/prisma ./prisma/
+RUN ls -la dist/ && test -f dist/main.js
 
 RUN npm ci --omit=dev
 RUN npx prisma generate
-
-COPY --from=builder /app/dist ./dist
 
 EXPOSE 4000
 
