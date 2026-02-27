@@ -1,6 +1,10 @@
 import axios, { AxiosInstance } from 'axios';
 
-const baseURL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
+let baseURL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
+// Ensure absolute URL (fixes Vercel env missing https://)
+if (baseURL && !baseURL.startsWith('http://') && !baseURL.startsWith('https://')) {
+  baseURL = `https://${baseURL}`;
+}
 
 export const api: AxiosInstance = axios.create({
   baseURL,
