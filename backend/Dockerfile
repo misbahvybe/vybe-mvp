@@ -13,12 +13,10 @@ COPY . .
 
 RUN npm run build
 
-# Verify dist exists (helps debug if build fails)
-RUN ls -la dist/ && test -f dist/main.js
-
 RUN npm ci --omit=dev
 RUN npx prisma generate
 
 EXPOSE 4000
 
-CMD ["node", "dist/main.js"]
+# NestJS outputs to dist/src/ when preserving source structure
+CMD ["node", "dist/src/main.js"]
