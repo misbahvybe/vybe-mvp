@@ -1,5 +1,6 @@
 # Single-stage build - avoids multi-stage COPY issues on Railway
-FROM node:18-alpine
+# Use Debian slim (not Alpine) - Prisma needs libssl.so.1.1 which Alpine 3.17+ removed
+FROM node:18-slim
 
 WORKDIR /app
 

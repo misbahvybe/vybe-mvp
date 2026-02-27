@@ -1,6 +1,7 @@
 # Root Dockerfile - use when Railway Root Directory = repo root
 # If Root Directory = backend, Railway uses backend/Dockerfile instead
-FROM node:18-alpine
+# Use Debian slim (not Alpine) - Prisma needs libssl which Alpine 3.17+ lacks
+FROM node:18-slim
 
 WORKDIR /app
 
