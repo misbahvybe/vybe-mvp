@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { MdLocationOn } from 'react-icons/md';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { StickyHeader } from '@/components/layout/StickyHeader';
@@ -43,7 +43,9 @@ export default function AddressesPage() {
           <>
             {addresses.map((addr) => (
               <Card key={addr.id} className="mb-4 flex items-center gap-4">
-                <MdLocationOn className="w-6 h-6 text-primary shrink-0" />
+                <span className="w-8 h-8 shrink-0 relative block">
+                  <Image src="/map-location.png" alt="" width={32} height={32} className="object-contain" />
+                </span>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-slate-800">{addr.label || 'Address'}</p>
                   <p className="text-sm text-slate-600">{addr.fullAddress}</p>

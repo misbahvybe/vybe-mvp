@@ -3,7 +3,8 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { MdPayments, MdCreditCard, MdCurrencyBitcoin } from 'react-icons/md';
+import Image from 'next/image';
+import { MdPayments, MdCurrencyBitcoin } from 'react-icons/md';
 import { loadStripe } from '@stripe/stripe-js';
 import { useAuthStore } from '@/store/authStore';
 import { useCartStore } from '@/store/cartStore';
@@ -214,7 +215,9 @@ function CheckoutContent() {
             >
               <Card>
                 <div className="flex items-center gap-3">
-                  <MdCreditCard className="w-5 h-5 text-primary shrink-0" />
+                  <span className="w-7 h-7 shrink-0 relative block">
+                    <Image src="/credit-cards.png" alt="" width={28} height={28} className="object-contain" />
+                  </span>
                   <div>
                     <p className="font-medium text-slate-800">Card / JazzCash / EasyPaisa (XPay)</p>
                     <p className="text-xs text-slate-500">Pay securely with card or mobile wallet</p>
@@ -234,7 +237,9 @@ function CheckoutContent() {
             >
               <Card>
                 <div className="flex items-center gap-3">
-                  <MdCreditCard className="w-5 h-5 text-primary shrink-0" />
+                  <span className="w-7 h-7 shrink-0 relative block">
+                    <Image src="/credit-cards.png" alt="" width={28} height={28} className="object-contain" />
+                  </span>
                   <div>
                     <p className="font-medium text-slate-800">•••• {card.last4}</p>
                     <p className="text-xs text-slate-500">{card.cardType}</p>

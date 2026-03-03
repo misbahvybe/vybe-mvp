@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
-import { MdStore } from 'react-icons/md';
 import { useAuthStore } from '@/store/authStore';
 import { StickyHeader } from '@/components/layout/StickyHeader';
 import { ContentPanel } from '@/components/layout/ContentPanel';
@@ -96,8 +96,8 @@ export default function CategoryPage() {
               return (
                 <Link key={store.id} href={`/dashboard/stores/${store.id}`}>
                   <Card className="overflow-hidden hover:shadow-soft-lg transition-shadow border border-slate-200">
-                    <div className="aspect-square bg-slate-100 rounded-t-card flex items-center justify-center">
-                      <MdStore className="w-16 h-16 text-slate-400" />
+                    <div className="aspect-square bg-white border-b border-slate-100 rounded-t-card flex items-center justify-center p-4">
+                      <Image src="/store-shelf.png" alt="" width={96} height={96} className="object-contain" />
                     </div>
                     <div className="pt-3">
                       <p className="font-semibold text-slate-800">{store.name}</p>

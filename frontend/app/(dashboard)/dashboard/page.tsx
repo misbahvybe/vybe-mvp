@@ -2,20 +2,21 @@
 
 import { useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { MdSearch, MdRestaurant, MdShoppingBasket, MdLocalPharmacy, MdTwoWheeler, MdLocalShipping, MdAccountBalanceWallet, MdPerson } from 'react-icons/md';
+import { MdSearch, MdPerson } from 'react-icons/md';
 import { useAuthStore } from '@/store/authStore';
 import { StickyHeader } from '@/components/layout/StickyHeader';
 import { ContentPanel } from '@/components/layout/ContentPanel';
 import { Card } from '@/components/ui/Card';
 
 const CATEGORY_CARDS = [
-  { id: 'food', label: 'Food', icon: MdRestaurant, href: '/dashboard/category/food', comingSoon: false },
-  { id: 'grocery', label: 'Grocery', icon: MdShoppingBasket, href: '/dashboard/category/grocery', comingSoon: false },
-  { id: 'medicine', label: 'Medicine', icon: MdLocalPharmacy, href: '/dashboard/category/medicine', comingSoon: false },
-  { id: 'ride', label: 'Ride', icon: MdTwoWheeler, href: '#', comingSoon: true },
-  { id: 'courier', label: 'Courier', icon: MdLocalShipping, href: '#', comingSoon: true },
-  { id: 'wallet', label: 'Crypto Wallet', icon: MdAccountBalanceWallet, href: '/wallet', comingSoon: false },
+  { id: 'food', label: 'Food', image: '/food-plate.png', href: '/dashboard/category/food', comingSoon: false },
+  { id: 'grocery', label: 'Grocery', image: '/grocery-shopping-basket.png', href: '/dashboard/category/grocery', comingSoon: false },
+  { id: 'medicine', label: 'Medicine', image: '/medicine-box.png', href: '/dashboard/category/medicine', comingSoon: false },
+  { id: 'ride', label: 'Ride', image: '/delivery-scooter.png', href: '#', comingSoon: true },
+  { id: 'courier', label: 'Courier', image: '/delivery-package.png', href: '#', comingSoon: true },
+  { id: 'wallet', label: 'Crypto Wallet', image: '/wallet.png', href: '/wallet', comingSoon: false },
 ];
 
 export default function DashboardPage() {
@@ -66,37 +67,34 @@ export default function DashboardPage() {
         <section>
           <h2 className="text-sm font-medium text-slate-600 mb-3">Categories</h2>
           <div className="grid grid-cols-2 gap-3">
-            {CATEGORY_CARDS.map((cat) => {
-              const Icon = cat.icon;
-              return (
-                <div key={cat.id} className="relative">
-                  {cat.comingSoon ? (
-                    <div className="relative pointer-events-none select-none">
-                      <Card className="p-4 flex items-center gap-3 opacity-60">
-                        <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
-                          <Icon className="w-7 h-7 text-slate-600" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <span className="font-medium text-slate-700">{cat.label}</span>
-                        </div>
-                        <span className="text-xs bg-slate-400 text-white px-2 py-0.5 rounded-full font-medium shrink-0">
-                          Coming Soon
-                        </span>
-                      </Card>
-                    </div>
-                  ) : (
-                    <Link href={cat.href}>
-                      <Card className="p-4 flex items-center gap-3 hover:shadow-soft-lg transition-shadow border border-slate-200">
-                        <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
-                          <Icon className="w-7 h-7 text-slate-700" />
-                        </div>
-                        <span className="font-medium text-slate-800">{cat.label}</span>
-                      </Card>
-                    </Link>
-                  )}
-                </div>
-              );
-            })}
+            {CATEGORY_CARDS.map((cat) => (
+              <div key={cat.id} className="relative">
+                {cat.comingSoon ? (
+                  <div className="relative pointer-events-none select-none">
+                    <Card className="p-4 flex items-center gap-3 opacity-60">
+                      <div className="w-16 h-16 rounded-lg bg-white flex items-center justify-center shrink-0 overflow-hidden border border-slate-100">
+                        <Image src={cat.image} alt={cat.label} width={56} height={56} className="object-contain" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="font-medium text-slate-700">{cat.label}</span>
+                      </div>
+                      <span className="text-xs bg-slate-400 text-white px-2 py-0.5 rounded-full font-medium shrink-0">
+                        Coming Soon
+                      </span>
+                    </Card>
+                  </div>
+                ) : (
+                  <Link href={cat.href}>
+                    <Card className="p-4 flex items-center gap-3 hover:shadow-soft-lg transition-shadow border border-slate-200">
+                      <div className="w-16 h-16 rounded-lg bg-white flex items-center justify-center shrink-0 overflow-hidden border border-slate-100">
+                        <Image src={cat.image} alt={cat.label} width={56} height={56} className="object-contain" />
+                      </div>
+                      <span className="font-medium text-slate-800">{cat.label}</span>
+                    </Card>
+                  </Link>
+                )}
+              </div>
+            ))}
           </div>
         </section>
       </main>

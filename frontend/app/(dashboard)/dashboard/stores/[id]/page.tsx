@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { MdInventory2 } from 'react-icons/md';
 import { useAuthStore } from '@/store/authStore';
 import { useCartStore } from '@/store/cartStore';
 import { StickyHeader } from '@/components/layout/StickyHeader';
@@ -90,11 +89,11 @@ export default function StoreDetailPage() {
             const available = !p.isOutOfStock && store.isOpenNow !== false;
             return (
               <Card key={p.id} className={`flex gap-4 transition-all duration-200 ${!available ? 'opacity-60' : ''}`}>
-                <div className="w-20 h-20 rounded-button bg-slate-100 relative overflow-hidden shrink-0 flex items-center justify-center">
+                <div className="w-20 h-20 rounded-button bg-white border border-slate-100 relative overflow-hidden shrink-0 flex items-center justify-center">
                   {p.imageUrl ? (
                     <Image src={p.imageUrl} alt={p.name} fill className="object-cover" sizes="80px" unoptimized />
                   ) : (
-                    <MdInventory2 className="w-10 h-10 text-slate-500" />
+                    <Image src="/store-shelf.png" alt="" width={56} height={56} className="object-contain" />
                   )}
                   {!available && (
                     <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center">

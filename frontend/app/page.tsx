@@ -2,25 +2,13 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { MdRestaurant, MdShoppingBasket, MdLocalPharmacy } from 'react-icons/md';
+import Image from 'next/image';
 import { Button } from '@/components/ui/Button';
 
 const SLIDES = [
-  {
-    id: 'food',
-    title: 'Food',
-    description: 'Fast delivery from top restaurants across Pakistan. Pay with crypto or cash.',
-  },
-  {
-    id: 'grocery',
-    title: 'Groceries',
-    description: 'Fresh ingredients delivered fast. One app for food, groceries, medicine.',
-  },
-  {
-    id: 'medicine',
-    title: 'Medicine',
-    description: 'Prescriptions & health essentials. Fast, verified delivery.',
-  },
+  { id: 'food', title: 'Food', description: 'Fast delivery from top restaurants across Pakistan. Pay with crypto or cash.', image: '/food-plate.png' },
+  { id: 'grocery', title: 'Groceries', description: 'Fresh ingredients delivered fast. One app for food, groceries, medicine.', image: '/grocery-shopping-basket.png' },
+  { id: 'medicine', title: 'Medicine', description: 'Prescriptions & health essentials. Fast, verified delivery.', image: '/medicine-box.png' },
 ];
 
 export default function LandingPage() {
@@ -68,14 +56,13 @@ export default function LandingPage() {
   }
 
   const current = SLIDES[slide];
-  const SlideIcon = current.id === 'food' ? MdRestaurant : current.id === 'grocery' ? MdShoppingBasket : MdLocalPharmacy;
 
   return (
     <div className="min-h-screen flex flex-col bg-primary-dark">
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="relative h-[45vh] min-h-[320px] bg-white overflow-hidden rounded-b-3xl flex flex-col items-center justify-center">
-          <div className="w-24 h-24 rounded-2xl bg-slate-100 flex items-center justify-center">
-            <SlideIcon className="w-14 h-14 text-slate-700" />
+        <div className="relative h-[65vh] min-h-[220px] bg-white overflow-hidden rounded-b-3xl flex flex-col items-center justify-center">
+          <div className="w-92 h-92 rounded-2xl bg-white flex items-center justify-center p-3 ">
+            <Image src={current.image} alt={current.title} width={312} height={312} className="object-contain" />
           </div>
         </div>
         <div className="bg-primary-dark rounded-t-3xl px-6 pt-6 pb-10 safe-bottom flex-1 flex flex-col justify-center relative z-10">
