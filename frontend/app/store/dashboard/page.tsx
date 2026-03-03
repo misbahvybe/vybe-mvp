@@ -132,24 +132,24 @@ export default function StoreDashboardPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <StickyHeader title="Store Dashboard" />
-      <div className="border-b border-slate-200 bg-white sticky top-0 z-10">
-        <div className="flex overflow-x-auto">
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTab(t.id)}
-              className={`flex-1 min-w-[4rem] flex items-center justify-center gap-1.5 py-3 px-2 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
-                tab === t.id ? 'text-primary border-b-2 border-primary' : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              {t.icon}
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </div>
       <ContentPanel>
+        <div className="border-b border-slate-200 bg-surface sticky top-0 z-10">
+          <div className="flex overflow-x-auto">
+            {tabs.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTab(t.id)}
+                className={`flex-1 min-w-[4rem] flex items-center justify-center gap-1.5 py-3 px-2 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
+                  tab === t.id ? 'text-primary border-b-2 border-primary' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {t.icon}
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
         <main className="max-w-lg mx-auto px-4 py-4">
           {tab === 'orders' && (
             <>

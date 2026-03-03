@@ -264,7 +264,7 @@ function CheckoutContent() {
                   <p className="font-medium text-slate-700">Crypto (Binance Wallet)</p>
                   <p className="text-xs text-slate-500">Pakistan&apos;s first regulated crypto payments</p>
                 </div>
-                <span className="ml-auto text-xs bg-slate-400 text-white px-2 py-0.5 rounded-full font-medium">Coming Soon</span>
+                {/* <span className="ml-auto text-xs bg-slate-400 text-white px-2 py-0.5 rounded-full font-medium">Coming Soon</span> */}
               </div>
             </Card>
           </div>

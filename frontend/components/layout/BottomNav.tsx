@@ -1,15 +1,16 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
 import { usePathname } from 'next/navigation';
+import type { LucideIcon } from 'lucide-react';
+import { Home, ListOrdered, ShoppingCart, Wallet, Menu } from 'lucide-react';
 
-const items = [
-  { href: '/dashboard', label: 'Home', image: '/simple-house.png' },
-  { href: '/orders', label: 'Order', image: '/checklist.png' },
-  { href: '/cart', label: 'My Cart', image: '/shopping-cart.png' },
-  { href: '/wallet', label: 'Wallet', image: '/wallet.png' },
-  { href: '/more', label: 'More', image: '/Menu.png' },
+const items: { href: string; label: string; Icon: LucideIcon }[] = [
+  { href: '/dashboard', label: 'Home', Icon: Home },
+  { href: '/orders', label: 'Order', Icon: ListOrdered },
+  { href: '/cart', label: 'My Cart', Icon: ShoppingCart },
+  { href: '/wallet', label: 'Wallet', Icon: Wallet },
+  { href: '/more', label: 'More', Icon: Menu },
 ];
 
 export function BottomNav() {
@@ -19,6 +20,7 @@ export function BottomNav() {
       <div className="flex justify-around items-center min-h-[64px] max-w-lg mx-auto pb-[env(safe-area-inset-bottom,0)]">
         {items.map((item) => {
           const active = pathname === item.href || pathname.startsWith(item.href + '/');
+          const Icon = item.Icon;
           return (
             <Link
               key={item.href}
@@ -27,16 +29,7 @@ export function BottomNav() {
                 active ? 'text-accent' : 'text-white/80'
               }`}
             >
-              <span className="w-8 h-8 relative block">
-                <Image
-                  src={item.image}
-                  alt={item.label}
-                  width={32}
-                  height={32}
-                  className="object-contain"
-                  aria-hidden
-                />
-              </span>
+              <Icon className="w-6 h-6" aria-hidden />
               <span className="text-xs font-medium">{item.label}</span>
             </Link>
           );

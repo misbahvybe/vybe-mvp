@@ -125,25 +125,25 @@ export default function RiderDashboardPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <StickyHeader title="Rider Dashboard" />
-      <div className="border-b border-slate-200 bg-white sticky top-0 z-10">
-        <div className="flex">
-          <button
-            type="button"
-            onClick={() => setTab('dashboard')}
-            className={`flex-1 py-3 text-sm font-semibold ${tab === 'dashboard' ? 'text-primary border-b-2 border-primary' : 'text-slate-500'}`}
-          >
-            Dashboard
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('earnings')}
-            className={`flex-1 py-3 text-sm font-semibold ${tab === 'earnings' ? 'text-primary border-b-2 border-primary' : 'text-slate-500'}`}
-          >
-            Earnings
-          </button>
-        </div>
-      </div>
       <ContentPanel>
+        <div className="border-b border-slate-200 bg-surface sticky top-0 z-10">
+          <div className="flex">
+            <button
+              type="button"
+              onClick={() => setTab('dashboard')}
+              className={`flex-1 py-3 text-sm font-semibold ${tab === 'dashboard' ? 'text-primary border-b-2 border-primary' : 'text-slate-500'}`}
+            >
+              Dashboard
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab('earnings')}
+              className={`flex-1 py-3 text-sm font-semibold ${tab === 'earnings' ? 'text-primary border-b-2 border-primary' : 'text-slate-500'}`}
+            >
+              Earnings
+            </button>
+          </div>
+        </div>
         <main className="max-w-lg mx-auto px-4 py-4">
           {tab === 'dashboard' && (
             <>

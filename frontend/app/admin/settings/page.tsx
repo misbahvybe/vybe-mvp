@@ -36,9 +36,9 @@ export default function AdminSettingsPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Crypto Payments</label>
-            <div className="flex items-center gap-2 mt-1">
+            {/* <div className="flex items-center gap-2 mt-1">
               <span className="px-2 py-1 bg-amber-100 text-amber-800 text-sm rounded">Coming Soon</span>
-            </div>
+            </div> */}
             <p className="text-xs text-slate-500 mt-1">Binance wallet integration</p>
           </div>
         </div>
