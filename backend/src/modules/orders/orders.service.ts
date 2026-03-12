@@ -8,6 +8,7 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 import { PrepareXPayDto } from './dto/prepare-xpay.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
+import { EditOrderItemDto } from './dto/edit-order-item.dto';
 import { canTransition, getAllowedTransitions } from './order-state-machine';
 import { Decimal } from '@prisma/client/runtime/library';
 
@@ -484,5 +485,152 @@ export class OrdersService {
       where: { role: 'RIDER', isActive: true },
       select: { id: true, name: true, phone: true },
     });
+  }
+
+  async reassignRider(orderId: string, newRiderId: string, adminId: string, reason?: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      select: { id: true, riderId: true, orderStatus: true },
+    });
+    if (!order) {
+      throw new BadRequestException('Order not found');
+    }
+    if (
+      order.orderStatus === OrderStatus.DELIVERED ||
+      order.orderStatus === OrderStatus.CANCELLED
+    ) {
+      throw new BadRequestException('Cannot change rider for a completed or cancelled order');
+    }
+    if (order.riderId === newRiderId) {
+      throw new BadRequestException('Order is already assigned to this rider');
+    }
+
+    const rider = await this.prisma.user.findFirst({
+      where: { id: newRiderId, role: Role.RIDER, isActive: true },
+      select: { id: true },
+    });
+    if (!rider) {
+      throw new BadRequestException('Rider not found or inactive');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.order.update({
+        where: { id: orderId },
+        data: { riderId: newRiderId },
+      });
+      const txAny = tx as any;
+      await txAny.orderRiderChange.create({
+        data: {
+          orderId,
+          adminId,
+          oldRiderId: order.riderId,
+          newRiderId,
+          reason,
+        },
+      });
+    });
+
+    return { success: true };
+  }
+
+  async editOrderItem(
+    orderId: string,
+    itemId: string,
+    userId: string,
+    role: Role,
+    dto: EditOrderItemDto,
+  ) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { items: true, storeEarning: true },
+    });
+    if (!order) throw new BadRequestException('Order not found');
+
+    // Only allow edits while order is with store/admin, before rider/delivery
+    if (
+      order.orderStatus !== OrderStatus.PENDING &&
+      order.orderStatus !== OrderStatus.STORE_ACCEPTED
+    ) {
+      throw new BadRequestException('Items can only be edited while order is pending or preparing');
+    }
+
+    if (role === Role.CUSTOMER) {
+      throw new ForbiddenException('Customers cannot edit items');
+    }
+    if (role === Role.STORE_OWNER) {
+      const store = await this.getStoreForOwner(userId);
+      if (!store || store.id !== order.storeId) {
+        throw new ForbiddenException('Order not found');
+      }
+    }
+
+    const item = order.items.find((i) => i.id === itemId);
+    if (!item) throw new BadRequestException('Item not found on order');
+
+    const currentQty = Number(item.quantity);
+    const price = Number(item.price);
+
+    const remove = dto.remove === true || dto.quantity === 0;
+    const newQty = dto.quantity != null ? Number(dto.quantity) : currentQty;
+
+    if (!remove && (Number.isNaN(newQty) || newQty <= 0 || newQty >= currentQty)) {
+      throw new BadRequestException('Only reducing quantity is supported');
+    }
+
+    const qtyToRemove = remove ? currentQty : currentQty - newQty;
+    const amountDelta = qtyToRemove * price; // amount to subtract from subtotal
+
+    if (amountDelta <= 0) {
+      throw new BadRequestException('No change in amount');
+    }
+
+    const subtotalDecimal = order.subtotalAmount.minus(new Decimal(amountDelta));
+    if (subtotalDecimal.lte(0)) {
+      throw new BadRequestException('Order must contain at least one item with positive amount');
+    }
+
+    const newCommission = subtotalDecimal.mul(PLATFORM_COMMISSION_PERCENT);
+    const newStoreAmount = subtotalDecimal.minus(newCommission);
+    const deliveryFeeDecimal = order.deliveryFee;
+    const serviceFeeDecimal = order.serviceFee;
+    const newTotal = subtotalDecimal.add(deliveryFeeDecimal).add(serviceFeeDecimal);
+
+    await this.prisma.$transaction(async (tx) => {
+      // Restore stock for removed quantity
+      await tx.product.update({
+        where: { id: item.productId },
+        data: { stock: { increment: qtyToRemove } },
+      });
+
+      if (remove) {
+        await tx.orderItem.delete({ where: { id: itemId } });
+      } else {
+        await tx.orderItem.update({
+          where: { id: itemId },
+          data: { quantity: new Decimal(newQty) },
+        });
+      }
+
+      await tx.order.update({
+        where: { id: orderId },
+        data: {
+          subtotalAmount: subtotalDecimal,
+          commissionAmount: newCommission,
+          totalAmount: newTotal,
+        },
+      });
+
+      if (order.storeEarning) {
+        await tx.storeEarning.update({
+          where: { id: order.storeEarning.id },
+          data: {
+            storeAmount: newStoreAmount,
+            commissionAmount: newCommission,
+          },
+        });
+      }
+    });
+
+    return { success: true };
   }
 }

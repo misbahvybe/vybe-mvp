@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
 import api from '@/services/api';
 
 interface Order {
@@ -17,6 +18,12 @@ interface Order {
   rider?: { name: string; phone: string } | null;
   address?: { fullAddress: string };
   items: { product: { name: string }; quantity: number; price: number }[];
+}
+
+interface Rider {
+  id: string;
+  name: string;
+  phone: string;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -38,12 +45,20 @@ function AdminOrdersContent() {
   const statusFilter = searchParams?.get('status') ?? '';
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [riders, setRiders] = useState<Rider[]>([]);
+  const [reassigningId, setReassigningId] = useState<string | null>(null);
 
   const fetchOrders = useCallback(() => {
     api.get<Order[]>('/orders').then((r) => setOrders(r.data ?? [])).catch(() => setOrders([])).finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => fetchOrders(), [fetchOrders]);
+  useEffect(() => {
+    fetchOrders();
+    api
+      .get<Rider[]>('/orders/riders/list')
+      .then((r) => setRiders(r.data ?? []))
+      .catch(() => setRiders([]));
+  }, [fetchOrders]);
 
   const filtered = orders.filter((o) => {
     if (!statusFilter) return true;
@@ -52,6 +67,42 @@ function AdminOrdersContent() {
   });
 
   const formatDate = (d: string) => new Date(d).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' });
+
+  const handleReassign = async (order: Order) => {
+    if (riders.length === 0) {
+      alert('No active riders available to assign.');
+      return;
+    }
+    const options = riders
+      .map((r, idx) => `${idx + 1}) ${r.name} (${r.phone})`)
+      .join('\n');
+    const input = prompt(
+      `Select new rider for order #${order.id.slice(-8)}:\n${options}\n\nEnter number (1-${riders.length}):`,
+    );
+    if (!input) return;
+    const index = Number(input) - 1;
+    if (Number.isNaN(index) || index < 0 || index >= riders.length) {
+      alert('Invalid selection');
+      return;
+    }
+    const rider = riders[index];
+    const reason = prompt('Optional reason for reassignment', '');
+    setReassigningId(order.id);
+    try {
+      await api.patch(`/orders/${order.id}/reassign-rider`, {
+        riderId: rider.id,
+        reason: reason || undefined,
+      });
+      fetchOrders();
+    } catch (e) {
+      alert(
+        (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+          'Failed to reassign rider',
+      );
+    } finally {
+      setReassigningId(null);
+    }
+  };
 
   return (
     <div>
@@ -86,7 +137,19 @@ function AdminOrdersContent() {
                     <td className="p-3 font-mono text-xs">#{o.id.slice(-8)}</td>
                     <td className="p-3">{o.customer?.name ?? '—'}</td>
                     <td className="p-3">{o.store?.name ?? '—'}</td>
-                    <td className="p-3">{o.rider?.name ?? '—'}</td>
+                    <td className="p-3">
+                      <div className="flex items-center gap-2">
+                        <span>{o.rider?.name ?? '—'}</span>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleReassign(o)}
+                          disabled={!!reassigningId}
+                        >
+                          {reassigningId === o.id ? 'Changing...' : 'Change'}
+                        </Button>
+                      </div>
+                    </td>
                     <td className="p-3">
                       <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                         o.orderStatus === 'DELIVERED' ? 'bg-green-100 text-green-800' :

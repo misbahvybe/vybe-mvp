@@ -170,15 +170,49 @@ export default function RiderDashboardPage() {
               </p>
 
               <div className="grid grid-cols-2 gap-3 mb-6">
-                <Card className="p-4">
-                  <p className="text-xs text-slate-500 uppercase">Today Earnings</p>
-                  <p className="text-xl font-bold text-accent mt-1">
-                    {loading ? '—' : `${Number(dashboard?.todayEarnings ?? 0).toLocaleString()} PKR`}
-                  </p>
+                <Card className="p-4 flex flex-col justify-between">
+                  <div>
+                    <p className="text-xs text-slate-500 uppercase">Today Earnings</p>
+                    <p className="text-xl font-bold text-accent mt-1">
+                      {loading ? '—' : `${Number(dashboard?.todayEarnings ?? 0).toLocaleString()} PKR`}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    className="mt-3"
+                    onClick={() => {
+                      const amountStr = prompt(
+                        'Withdraw amount (PKR)',
+                        String(Number(dashboard?.todayEarnings ?? 0)),
+                      );
+                      if (!amountStr) return;
+                      const amount = Number(amountStr);
+                      if (!amount || amount <= 0) {
+                        alert('Enter a valid amount');
+                        return;
+                      }
+                      (async () => {
+                        try {
+                          await api.post('/withdraw/request', { amount });
+                          alert('Withdraw request submitted. Admin will process within 24 hours.');
+                        } catch (e) {
+                          alert(
+                            (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+                              'Failed to submit withdraw request',
+                          );
+                        }
+                      })();
+                    }}
+                  >
+                    Request Withdraw
+                  </Button>
                 </Card>
                 <Card className="p-4">
                   <p className="text-xs text-slate-500 uppercase">Completed</p>
-                  <p className="text-xl font-bold text-slate-800 mt-1">{loading ? '—' : dashboard?.completedToday ?? 0}</p>
+                  <p className="text-xl font-bold text-slate-800 mt-1">
+                    {loading ? '—' : dashboard?.completedToday ?? 0}
+                  </p>
                 </Card>
               </div>
 

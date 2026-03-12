@@ -20,7 +20,7 @@ interface OrderDetail {
   rider?: { name: string; phone: string } | null;
   statusHistory?: { status: string; createdAt: string; changedByUserId: string | null }[];
   allowedTransitions?: string[];
-  items: { product: { name: string }; quantity: number; price: number }[];
+  items: { id: string; product: { name: string }; quantity: number; price: number }[];
 }
 
 const CANCELLATION_LABELS: Record<string, string> = {
@@ -227,12 +227,87 @@ export default function OrderDetailPage() {
         )}
         <Card>
           <p className="font-semibold text-slate-800 mb-2">Products</p>
-          {order.items.map((item, i) => (
-            <div key={i} className="flex justify-between py-2 border-b border-slate-100 last:border-0">
-              <span className="text-slate-800">{item.product.name} × {Number(item.quantity)}</span>
-              <span className="text-accent font-medium">Rs {(Number(item.quantity) * Number(item.price)).toFixed(0)}</span>
-            </div>
-          ))}
+          {order.items.map((item) => {
+            const canEditItems =
+              (user?.role === 'ADMIN' || user?.role === 'STORE_OWNER') &&
+              (order.orderStatus === 'PENDING' || order.orderStatus === 'STORE_ACCEPTED');
+            const lineTotal = Number(item.quantity) * Number(item.price);
+            return (
+              <div
+                key={item.id}
+                className="flex items-center justify-between gap-2 py-2 border-b border-slate-100 last:border-0"
+              >
+                <div className="flex-1">
+                  <span className="text-slate-800">
+                    {item.product.name} × {Number(item.quantity)}
+                  </span>
+                  {canEditItems && (
+                    <div className="mt-1 flex gap-2 text-xs">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                          const newQtyStr = prompt(
+                            `New quantity for ${item.product.name} (current ${Number(
+                              item.quantity,
+                            )})`,
+                            String(Number(item.quantity) - 1),
+                          );
+                          if (!newQtyStr) return;
+                          const newQty = Number(newQtyStr);
+                          if (!newQty || newQty <= 0 || newQty >= Number(item.quantity)) {
+                            alert('Only reducing quantity is allowed');
+                            return;
+                          }
+                          try {
+                            await api.patch(`/orders/${order.id}/items/${item.id}`, {
+                              quantity: newQty,
+                            });
+                            fetchOrder();
+                          } catch (e) {
+                            alert(
+                              (e as { response?: { data?: { message?: string } } })?.response
+                                ?.data?.message ?? 'Failed to update item',
+                            );
+                          }
+                        }}
+                      >
+                        Edit qty
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                          if (
+                            !confirm(
+                              `Remove ${item.product.name} from this order? This will reduce the total amount.`,
+                            )
+                          )
+                            return;
+                          try {
+                            await api.patch(`/orders/${order.id}/items/${item.id}`, {
+                              remove: true,
+                            });
+                            fetchOrder();
+                          } catch (e) {
+                            alert(
+                              (e as { response?: { data?: { message?: string } } })?.response
+                                ?.data?.message ?? 'Failed to remove item',
+                            );
+                          }
+                        }}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                <span className="text-accent font-medium">
+                  Rs {lineTotal.toFixed(0)}
+                </span>
+              </div>
+            );
+          })}
           <div className="flex justify-between pt-3 font-bold text-slate-800">
             <span>Total</span>
             <span className="text-accent">Rs {Number(order.totalAmount).toFixed(0)}</span>

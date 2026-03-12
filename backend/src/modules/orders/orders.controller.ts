@@ -9,6 +9,7 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 import { PrepareXPayDto } from './dto/prepare-xpay.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
+import { EditOrderItemDto } from './dto/edit-order-item.dto';
 
 @Controller('orders')
 export class OrdersController {
@@ -74,6 +75,28 @@ export class OrdersController {
   async getRiders(@CurrentUser() user: User) {
     if (user.role !== 'ADMIN') throw new ForbiddenException('Admin only');
     return this.orders.getRiders();
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id/reassign-rider')
+  async reassignRider(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @Body() body: { riderId: string; reason?: string },
+  ) {
+    if (user.role !== 'ADMIN') throw new ForbiddenException('Admin only');
+    return this.orders.reassignRider(id, body.riderId, user.id, body.reason);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch(':orderId/items/:itemId')
+  async editItem(
+    @CurrentUser() user: User,
+    @Param('orderId') orderId: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: EditOrderItemDto,
+  ) {
+    return this.orders.editOrderItem(orderId, itemId, user.id, user.role, dto);
   }
 
   @UseGuards(JwtAuthGuard)

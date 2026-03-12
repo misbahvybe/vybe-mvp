@@ -79,6 +79,8 @@ model User {
   riderEarnings    RiderEarning[]
   adminLogs        AdminLog[]   @relation("AdminLogs")
   pendingPayments  PendingPayment[]
+  withdrawRequests WithdrawRequest[]
+  orderRiderChanges OrderRiderChange[] @relation("OrderRiderChangeAdmin")
 
   @@index([phone])
 }
@@ -265,6 +267,7 @@ model Order {
   riderEarning RiderEarning?
   storeEarning StoreEarning?
   statusHistory OrderStatusHistory[]
+  riderChanges OrderRiderChange[] @relation("OrderRiderChanges")
 
   @@index([customerId])
   @@index([storeId])
@@ -285,6 +288,26 @@ model OrderStatusHistory {
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([orderId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 7️⃣c ORDER RIDER CHANGES (admin reassign)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model OrderRiderChange {
+  id          String   @id @default(uuid())
+  orderId     String   @map("order_id")
+  adminId     String   @map("admin_id")
+  oldRiderId  String?  @map("old_rider_id")
+  newRiderId  String?  @map("new_rider_id")
+  reason      String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  order Order @relation("OrderRiderChanges", fields: [orderId], references: [id], onDelete: Cascade)
+  admin User  @relation("OrderRiderChangeAdmin", fields: [adminId], references: [id])
+
+  @@index([orderId])
+  @@index([adminId])
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -387,4 +410,24 @@ model AdminLog {
   createdAt DateTime @default(now()) @map("created_at")
 
   admin User @relation("AdminLogs", fields: [adminId], references: [id])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 1️⃣4️⃣ WITHDRAW REQUESTS (riders & stores)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model WithdrawRequest {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  role        Role
+  amount      Decimal  @db.Decimal(10, 2)
+  status      String   @default("PENDING") // PENDING | APPROVED | REJECTED | PAID
+  note        String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  processedAt DateTime? @map("processed_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
 }

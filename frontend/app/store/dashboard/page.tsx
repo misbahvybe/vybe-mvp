@@ -285,6 +285,40 @@ export default function StoreDashboardPage() {
                 </div>
               ) : earnings ? (
                 <>
+                  <Card className="p-4 mb-6 flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Available balance</p>
+                      <p className="text-2xl font-bold text-accent">
+                        {earnings.today.net.toLocaleString()} PKR
+                      </p>
+                    </div>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => {
+                        const amountStr = prompt('Withdraw amount (PKR)', String(earnings.today.net));
+                        if (!amountStr) return;
+                        const amount = Number(amountStr);
+                        if (!amount || amount <= 0) {
+                          alert('Enter a valid amount');
+                          return;
+                        }
+                        (async () => {
+                          try {
+                            await api.post('/withdraw/request', { amount });
+                            alert('Withdraw request submitted. Admin will process within 24 hours.');
+                          } catch (e) {
+                            alert(
+                              (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+                                'Failed to submit withdraw request',
+                            );
+                          }
+                        })();
+                      }}
+                    >
+                      Request Withdraw
+                    </Button>
+                  </Card>
                   <Card className="p-4 mb-6">
                     <p className="text-xs text-slate-500 uppercase tracking-wide mb-3">Today</p>
                     <div className="grid grid-cols-2 gap-4">

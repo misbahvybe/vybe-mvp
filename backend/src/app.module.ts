@@ -5,6 +5,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { StripeModule } from './modules/stripe/stripe.module';
 import { XPayModule } from './modules/xpay/xpay.module';
+import { WithdrawModule } from './modules/withdraw/withdraw.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { UsersModule } from './modules/users/users.module';
@@ -20,6 +21,7 @@ import { HealthModule } from './modules/health/health.module';
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
     StripeModule,
     XPayModule,
+    WithdrawModule,
     PrismaModule,
     AuthModule,
     UsersModule,
