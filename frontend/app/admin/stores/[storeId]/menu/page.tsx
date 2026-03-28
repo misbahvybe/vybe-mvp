@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { GalleryImageInput } from '@/components/ui/GalleryImageInput';
 import api from '@/services/api';
 import { ArrowLeft, UtensilsCrossed } from 'lucide-react';
 
@@ -270,12 +271,15 @@ export default function AdminStoreMenuPage() {
                   </option>
                 ))}
               </select>
-              <input
-                className="border border-slate-200 rounded-lg px-3 py-2 text-sm sm:col-span-2"
-                placeholder="Image URL (optional)"
-                value={newProduct.imageUrl}
-                onChange={(e) => setNewProduct((x) => ({ ...x, imageUrl: e.target.value }))}
-              />
+              <div className="sm:col-span-2 lg:col-span-3">
+                <span className="block text-xs font-medium text-slate-600 mb-1">Product image</span>
+                <GalleryImageInput
+                  idPrefix="admin-new-product"
+                  uploadRole="admin"
+                  value={newProduct.imageUrl}
+                  onChange={(url) => setNewProduct((x) => ({ ...x, imageUrl: url }))}
+                />
+              </div>
             </div>
             <Button type="button" className="mt-3" size="sm" onClick={addProduct}>
               Add product
@@ -334,12 +338,15 @@ export default function AdminStoreMenuPage() {
                                   </option>
                                 ))}
                               </select>
-                              <input
-                                className="border rounded px-2 py-1.5 text-sm sm:col-span-2"
-                                placeholder="Image URL"
-                                value={editForm.imageUrl}
-                                onChange={(e) => setEditForm((f) => ({ ...f, imageUrl: e.target.value }))}
-                              />
+                              <div className="sm:col-span-2">
+                                <span className="block text-xs font-medium text-slate-600 mb-1">Product image</span>
+                                <GalleryImageInput
+                                  idPrefix={`admin-edit-${editingId ?? 'p'}`}
+                                  uploadRole="admin"
+                                  value={editForm.imageUrl}
+                                  onChange={(url) => setEditForm((f) => ({ ...f, imageUrl: url }))}
+                                />
+                              </div>
                               <label className="flex items-center gap-2 text-sm sm:col-span-2">
                                 <input
                                   type="checkbox"

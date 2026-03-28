@@ -6,6 +6,7 @@ import { StickyHeader } from '@/components/layout/StickyHeader';
 import { ContentPanel } from '@/components/layout/ContentPanel';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { GalleryImageInput } from '@/components/ui/GalleryImageInput';
 import {
   Package,
   ShoppingBag,
@@ -520,12 +521,15 @@ function StoreProductsTab({
             placeholder="Name"
             className="w-full px-3 py-2 border rounded-button mb-2"
           />
-          <input
-            value={editProduct.imageUrl}
-            onChange={(e) => setEditProduct((f) => ({ ...f, imageUrl: e.target.value }))}
-            placeholder="Image URL (optional)"
-            className="w-full px-3 py-2 border rounded-button mb-2"
-          />
+          <div className="mb-2">
+            <span className="block text-xs font-medium text-slate-600 mb-1">Product image</span>
+            <GalleryImageInput
+              idPrefix={`store-edit-${editingProductId ?? 'p'}`}
+              uploadRole="store-owner"
+              value={editProduct.imageUrl}
+              onChange={(url) => setEditProduct((f) => ({ ...f, imageUrl: url }))}
+            />
+          </div>
           <input
             type="number"
             value={editProduct.price}
@@ -574,12 +578,15 @@ function StoreProductsTab({
             placeholder="Product name"
             className="w-full px-3 py-2 border rounded-button mb-2"
           />
-          <input
-            value={newProduct.imageUrl}
-            onChange={(e) => setNewProduct({ ...newProduct, imageUrl: e.target.value })}
-            placeholder="Image URL (optional)"
-            className="w-full px-3 py-2 border rounded-button mb-2"
-          />
+          <div className="mb-2">
+            <span className="block text-xs font-medium text-slate-600 mb-1">Product image</span>
+            <GalleryImageInput
+              idPrefix="store-new-product"
+              uploadRole="store-owner"
+              value={newProduct.imageUrl}
+              onChange={(url) => setNewProduct({ ...newProduct, imageUrl: url })}
+            />
+          </div>
           <input
             type="number"
             value={newProduct.price}
@@ -778,14 +785,13 @@ function StoreSettingsTab({
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Store Image URL</label>
-          <input
+          <label className="block text-sm font-medium text-slate-700 mb-1">Store photo (listing)</label>
+          <GalleryImageInput
+            idPrefix="store-settings-banner"
+            uploadRole="store-owner"
             value={form.imageUrl}
-            onChange={(e) => setForm((f) => ({ ...f, imageUrl: e.target.value }))}
-            placeholder="https://example.com/store-image.jpg"
-            className="w-full px-3 py-2 border rounded-button"
+            onChange={(url) => setForm((f) => ({ ...f, imageUrl: url }))}
           />
-          <p className="text-xs text-slate-500 mt-1">Paste an image URL – appears on store listing</p>
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>

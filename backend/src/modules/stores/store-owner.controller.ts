@@ -13,10 +13,8 @@ import {
   Req,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname, join } from 'path';
-import { randomUUID } from 'crypto';
 import type { Request } from 'express';
+import { multerImageFileOptions, publicUploadedImageUrl } from '../../common/uploads/image-multer';
 import { StoresService } from './stores.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -47,32 +45,12 @@ export class StoreOwnerController {
 
   /** Product or store banner image; saved under `/uploads/products/`. Set `API_PUBLIC_URL` on deploy so URLs are absolute. */
   @Post('uploads/image')
-  @UseInterceptors(
-    FileInterceptor('file', {
-      storage: diskStorage({
-        destination: join(process.cwd(), 'uploads', 'products'),
-        filename: (_req, file, cb) => {
-          const ext = extname(file.originalname || '').toLowerCase();
-          const safe = ['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext) ? ext : '.jpg';
-          cb(null, `${randomUUID()}${safe}`);
-        },
-      }),
-      limits: { fileSize: 5 * 1024 * 1024 },
-      fileFilter: (_req, file, cb) => {
-        const ok = /^image\/(jpeg|jpg|png|gif|webp)$/i.test(file.mimetype);
-        cb(null, ok);
-      },
-    }),
-  )
+  @UseInterceptors(FileInterceptor('file', multerImageFileOptions()))
   uploadImage(@UploadedFile() file: Express.Multer.File | undefined, @Req() req: Request) {
     if (!file) {
       throw new BadRequestException('Upload a JPEG, PNG, GIF, or WebP image (max 5 MB)');
     }
-    const configured = process.env.API_PUBLIC_URL?.trim().replace(/\/$/, '');
-    const proto = (req.get('x-forwarded-proto') || req.protocol || 'http').split(',')[0].trim();
-    const host = (req.get('x-forwarded-host') || req.get('host') || 'localhost:4000').split(',')[0].trim();
-    const base = configured || `${proto}://${host}`;
-    return { imageUrl: `${base}/uploads/products/${file.filename}` };
+    return { imageUrl: publicUploadedImageUrl(req, file.filename) };
   }
 
   @Get('earnings')
