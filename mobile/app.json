@@ -20,6 +20,14 @@
       "package": "com.vybecode.vybemobile"
     },
     "web": {},
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Vybe needs access to your photos to upload store and product images."
+        }
+      ]
+    ],
     "extra": {
       "backendUrl": "https://vybe-mvp-production.up.railway.app/api/v1",
       "eas": {

@@ -1,5 +1,8 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { join } from 'path';
+import { existsSync, mkdirSync } from 'fs';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -8,7 +11,15 @@ async function bootstrap() {
   if (missing.length > 0) {
     throw new Error(`Missing required env: ${missing.join(', ')}. Check backend/.env or deployment variables.`);
   }
-  const app = await NestFactory.create(AppModule);
+
+  const uploadsRoot = join(process.cwd(), 'uploads');
+  const uploadsProducts = join(uploadsRoot, 'products');
+  if (!existsSync(uploadsProducts)) {
+    mkdirSync(uploadsProducts, { recursive: true });
+  }
+
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  app.useStaticAssets(uploadsRoot, { prefix: '/uploads/' });
   app.setGlobalPrefix('api/v1');
   app.useGlobalPipes(
     new ValidationPipe({

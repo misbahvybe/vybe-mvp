@@ -8,8 +8,12 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  Image,
 } from 'react-native';
 import { api } from '@api/client';
+import { uploadStoreOwnerImage } from '@api/uploads';
+import { pickGalleryImage } from '@lib/pickGalleryImage';
+import { useAuthStore } from '@store/auth';
 import { PartnerScreenShell } from '@components/partner/PartnerScreenShell';
 import { tokens } from '@theme/tokens';
 
@@ -29,9 +33,11 @@ interface StoreInfo {
 }
 
 export function StoreSettingsScreen() {
+  const token = useAuthStore((s) => s.token);
   const [store, setStore] = useState<StoreInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [imageUploading, setImageUploading] = useState(false);
   const [form, setForm] = useState({
     name: '',
     description: '',
@@ -74,6 +80,28 @@ export function StoreSettingsScreen() {
       })
       .finally(() => setLoading(false));
   }, []);
+
+  const pickStorePhoto = async () => {
+    const uri = await pickGalleryImage();
+    if (!uri) {
+      Alert.alert('Photos', 'Photo access was denied or no image was selected.');
+      return;
+    }
+    if (!token) {
+      Alert.alert('Session', 'Please sign in again.');
+      return;
+    }
+    setImageUploading(true);
+    try {
+      const imageUrl = await uploadStoreOwnerImage(uri, token);
+      setForm((f) => ({ ...f, imageUrl }));
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Upload failed';
+      Alert.alert('Upload failed', msg);
+    } finally {
+      setImageUploading(false);
+    }
+  };
 
   const save = async () => {
     setSaving(true);
@@ -132,23 +160,53 @@ export function StoreSettingsScreen() {
 
           <View style={styles.card}>
             <Field
-              label="Store Name"
+              label="Store name"
               placeholder="e.g. Karachi Biryani House"
               value={form.name}
               onChangeText={(t) => setForm((f) => ({ ...f, name: t }))}
             />
+            <Text style={styles.fieldLabel}>Store photo (listing image)</Text>
+            {form.imageUrl ? (
+              <Image
+                source={{ uri: form.imageUrl }}
+                style={styles.previewImage}
+                resizeMode="cover"
+              />
+            ) : null}
+            <TouchableOpacity
+              style={styles.galleryButton}
+              onPress={pickStorePhoto}
+              disabled={imageUploading}
+            >
+              {imageUploading ? (
+                <ActivityIndicator color="#0f172a" />
+              ) : (
+                <Text style={styles.galleryButtonText}>Choose from gallery</Text>
+              )}
+            </TouchableOpacity>
+            {form.imageUrl ? (
+              <TouchableOpacity
+                onPress={() => setForm((f) => ({ ...f, imageUrl: '' }))}
+                style={{ marginBottom: 8 }}
+              >
+                <Text style={styles.linkMuted}>Remove photo</Text>
+              </TouchableOpacity>
+            ) : null}
+            <Text style={styles.helperText}>Or paste an image link</Text>
             <Field
-              label="Store Image URL"
-              placeholder="https://example.com/store-image.jpg"
+              label=""
+              placeholder="https://…"
               value={form.imageUrl}
               onChangeText={(t) => setForm((f) => ({ ...f, imageUrl: t }))}
-              helper="Paste an image URL – appears on store listing"
+              autoCapitalize="none"
+              autoCorrect={false}
             />
             <Field
-              label="Description"
-              placeholder="e.g. Authentic biryani & karahi"
+              label="About your store (customers see this)"
+              placeholder="e.g. Authentic biryani, karahi, and BBQ — fresh daily"
               value={form.description}
               onChangeText={(t) => setForm((f) => ({ ...f, description: t }))}
+              multiline
             />
             <Field
               label="Phone"
@@ -233,6 +291,9 @@ interface FieldProps {
   placeholder?: string;
   keyboardType?: 'default' | 'numeric' | 'phone-pad' | 'email-address';
   helper?: string;
+  multiline?: boolean;
+  autoCapitalize?: 'none' | 'sentences';
+  autoCorrect?: boolean;
 }
 
 function Field({
@@ -242,17 +303,24 @@ function Field({
   placeholder,
   keyboardType,
   helper,
+  multiline,
+  autoCapitalize = 'sentences',
+  autoCorrect = true,
 }: FieldProps) {
   return (
     <View style={{ marginBottom: 10 }}>
-      <Text style={styles.fieldLabel}>{label}</Text>
+      {label ? <Text style={styles.fieldLabel}>{label}</Text> : null}
       <TextInput
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
         placeholderTextColor="#9ca3af"
-        style={styles.input}
+        style={[styles.input, multiline && styles.inputMultiline]}
         keyboardType={keyboardType}
+        multiline={multiline}
+        textAlignVertical={multiline ? 'top' : 'center'}
+        autoCapitalize={autoCapitalize}
+        autoCorrect={autoCorrect}
       />
       {helper ? <Text style={styles.helperText}>{helper}</Text> : null}
     </View>
@@ -326,6 +394,35 @@ const styles = StyleSheet.create({
     marginTop: 3,
     fontSize: 11,
     color: '#94a3b8',
+  },
+  previewImage: {
+    width: '100%',
+    height: 140,
+    borderRadius: 12,
+    backgroundColor: '#f1f5f9',
+    marginBottom: 8,
+  },
+  galleryButton: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#0f172a',
+    paddingVertical: 10,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  galleryButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0f172a',
+  },
+  linkMuted: {
+    fontSize: 12,
+    color: '#64748b',
+    fontWeight: '500',
+  },
+  inputMultiline: {
+    minHeight: 88,
+    paddingTop: 10,
   },
   row: {
     flexDirection: 'row',

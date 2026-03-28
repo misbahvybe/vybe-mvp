@@ -61,4 +61,4 @@ If Neon keeps failing, switch to a local database:
 2. Run seed: `npx prisma db seed`
 3. Try logging in with:
    - Admin: `admin@vybe.pk` / `Admin123!`
-   - Store: `store@vybe.pk` / `Store123!`
+   - Store: `store1@vybe.pk` / `Store123!`

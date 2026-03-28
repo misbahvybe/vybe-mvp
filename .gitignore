@@ -28,3 +28,6 @@ npm-debug.log*
 
 # Prisma
 backend/node_modules/
+
+# Uploaded images (local dev)
+backend/uploads/

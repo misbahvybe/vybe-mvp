@@ -8,9 +8,12 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  Image,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
 import { api } from '@api/client';
+import { uploadStoreOwnerImage } from '@api/uploads';
+import { pickGalleryImage } from '@lib/pickGalleryImage';
+import { useAuthStore } from '@store/auth';
 import { PartnerScreenShell } from '@components/partner/PartnerScreenShell';
 import { tokens } from '@theme/tokens';
 
@@ -22,6 +25,7 @@ interface Category {
 interface Product {
   id: string;
   name: string;
+  description?: string | null;
   price: number;
   stock: number;
   isAvailable: boolean;
@@ -31,17 +35,19 @@ interface Product {
 }
 
 export function StoreProductsScreen() {
-  const navigation = useNavigation<any>();
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [imageUploadFor, setImageUploadFor] = useState<'new' | 'edit' | null>(null);
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [newCategoryName, setNewCategoryName] = useState('');
+  const token = useAuthStore((s) => s.token);
   const [newProduct, setNewProduct] = useState({
     name: '',
+    description: '',
     price: '',
     stock: '999',
     productCategoryId: '',
@@ -50,6 +56,7 @@ export function StoreProductsScreen() {
   });
   const [editProduct, setEditProduct] = useState({
     name: '',
+    description: '',
     price: '',
     stock: '',
     productCategoryId: '',
@@ -78,6 +85,32 @@ export function StoreProductsScreen() {
     fetchAll();
   }, []);
 
+  const pickAndUploadImage = async (target: 'new' | 'edit') => {
+    const uri = await pickGalleryImage();
+    if (!uri) {
+      Alert.alert('Photos', 'Photo access was denied or no image was selected.');
+      return;
+    }
+    if (!token) {
+      Alert.alert('Session', 'Please sign in again.');
+      return;
+    }
+    setImageUploadFor(target);
+    try {
+      const imageUrl = await uploadStoreOwnerImage(uri, token);
+      if (target === 'new') {
+        setNewProduct((f) => ({ ...f, imageUrl }));
+      } else {
+        setEditProduct((f) => ({ ...f, imageUrl }));
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Upload failed';
+      Alert.alert('Upload failed', msg);
+    } finally {
+      setImageUploadFor(null);
+    }
+  };
+
   const addCategory = async () => {
     if (!newCategoryName.trim()) return;
     setSubmitting(true);
@@ -100,6 +133,7 @@ export function StoreProductsScreen() {
     try {
       await api.post('/store-owner/products', {
         name: newProduct.name.trim(),
+        description: newProduct.description.trim() || undefined,
         price: Number(newProduct.price),
         stock: Number(newProduct.stock) || 999,
         productCategoryId: newProduct.productCategoryId || undefined,
@@ -108,6 +142,7 @@ export function StoreProductsScreen() {
       });
       setNewProduct({
         name: '',
+        description: '',
         price: '',
         stock: '999',
         productCategoryId: '',
@@ -140,6 +175,7 @@ export function StoreProductsScreen() {
     setEditingProductId(p.id);
     setEditProduct({
       name: p.name,
+      description: p.description ?? '',
       price: String(p.price),
       stock: String(p.stock),
       productCategoryId: p.productCategoryId ?? '',
@@ -154,6 +190,7 @@ export function StoreProductsScreen() {
     try {
       await api.patch(`/store-owner/products/${editingProductId}`, {
         name: editProduct.name.trim(),
+        description: editProduct.description.trim() || undefined,
         price: Number(editProduct.price),
         stock: Number(editProduct.stock),
         productCategoryId: editProduct.productCategoryId || undefined,
@@ -233,14 +270,53 @@ export function StoreProductsScreen() {
                 <TextInput
                   value={editProduct.name}
                   onChangeText={(t) => setEditProduct((f) => ({ ...f, name: t }))}
-                  placeholder="Name"
+                  placeholder="Product name"
                   style={styles.input}
                 />
+                <Text style={styles.fieldLabel}>Description (what customers see)</Text>
+                <TextInput
+                  value={editProduct.description}
+                  onChangeText={(t) => setEditProduct((f) => ({ ...f, description: t }))}
+                  placeholder="e.g. Half plate, served with raita"
+                  style={[styles.input, styles.inputMultiline]}
+                  multiline
+                  textAlignVertical="top"
+                />
+                <Text style={styles.fieldLabel}>Photo</Text>
+                {editProduct.imageUrl ? (
+                  <View style={styles.previewWrap}>
+                    <Image
+                      source={{ uri: editProduct.imageUrl }}
+                      style={styles.previewImage}
+                      resizeMode="cover"
+                    />
+                    <TouchableOpacity
+                      onPress={() => setEditProduct((f) => ({ ...f, imageUrl: '' }))}
+                      style={styles.textLinkBtn}
+                    >
+                      <Text style={styles.textLink}>Remove photo</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
+                <TouchableOpacity
+                  style={styles.galleryButton}
+                  onPress={() => pickAndUploadImage('edit')}
+                  disabled={imageUploadFor === 'edit'}
+                >
+                  {imageUploadFor === 'edit' ? (
+                    <ActivityIndicator color="#0f172a" />
+                  ) : (
+                    <Text style={styles.galleryButtonText}>Choose from gallery</Text>
+                  )}
+                </TouchableOpacity>
+                <Text style={styles.hint}>Or paste an image link</Text>
                 <TextInput
                   value={editProduct.imageUrl}
                   onChangeText={(t) => setEditProduct((f) => ({ ...f, imageUrl: t }))}
-                  placeholder="Image URL (optional)"
+                  placeholder="https://…"
                   style={styles.input}
+                  autoCapitalize="none"
+                  autoCorrect={false}
                 />
                 <TextInput
                   value={editProduct.price}
@@ -345,14 +421,53 @@ export function StoreProductsScreen() {
                 <TextInput
                   value={newProduct.name}
                   onChangeText={(t) => setNewProduct((f) => ({ ...f, name: t }))}
-                  placeholder="Product name"
+                  placeholder="Item name"
                   style={styles.input}
                 />
+                <Text style={styles.fieldLabel}>Description (optional)</Text>
+                <TextInput
+                  value={newProduct.description}
+                  onChangeText={(t) => setNewProduct((f) => ({ ...f, description: t }))}
+                  placeholder="e.g. Half plate, spicy, served with raita"
+                  style={[styles.input, styles.inputMultiline]}
+                  multiline
+                  textAlignVertical="top"
+                />
+                <Text style={styles.fieldLabel}>Item photo</Text>
+                {newProduct.imageUrl ? (
+                  <Image
+                    source={{ uri: newProduct.imageUrl }}
+                    style={styles.previewImage}
+                    resizeMode="cover"
+                  />
+                ) : null}
+                <TouchableOpacity
+                  style={styles.galleryButton}
+                  onPress={() => pickAndUploadImage('new')}
+                  disabled={imageUploadFor === 'new'}
+                >
+                  {imageUploadFor === 'new' ? (
+                    <ActivityIndicator color="#0f172a" />
+                  ) : (
+                    <Text style={styles.galleryButtonText}>Choose from gallery</Text>
+                  )}
+                </TouchableOpacity>
+                {newProduct.imageUrl ? (
+                  <TouchableOpacity
+                    onPress={() => setNewProduct((f) => ({ ...f, imageUrl: '' }))}
+                    style={{ marginBottom: 8 }}
+                  >
+                    <Text style={styles.linkMuted}>Remove photo</Text>
+                  </TouchableOpacity>
+                ) : null}
+                <Text style={styles.helperText}>Or paste an image link</Text>
                 <TextInput
                   value={newProduct.imageUrl}
                   onChangeText={(t) => setNewProduct((f) => ({ ...f, imageUrl: t }))}
-                  placeholder="Image URL (optional)"
+                  placeholder="https://…"
                   style={styles.input}
+                  autoCapitalize="none"
+                  autoCorrect={false}
                 />
                 <TextInput
                   value={newProduct.price}
@@ -465,6 +580,11 @@ export function StoreProductsScreen() {
                     <View key={p.id} style={styles.productCard}>
                       <View style={{ flex: 1 }}>
                         <Text style={styles.productName}>{p.name}</Text>
+                        {p.description ? (
+                          <Text style={styles.productDesc} numberOfLines={2}>
+                            {p.description}
+                          </Text>
+                        ) : null}
                         <Text style={styles.productMeta}>
                           Rs {p.price} · Stock: {Number(p.stock)}{' '}
                           {p.isOutOfStock ? '(Out)' : ''}
@@ -504,6 +624,11 @@ export function StoreProductsScreen() {
                   <View key={p.id} style={styles.productCard}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.productName}>{p.name}</Text>
+                      {p.description ? (
+                        <Text style={styles.productDesc} numberOfLines={2}>
+                          {p.description}
+                        </Text>
+                      ) : null}
                       <Text style={styles.productMeta}>
                         Rs {p.price} · Stock: {Number(p.stock)}
                       </Text>
@@ -711,6 +836,63 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     color: '#0ea5e9',
+  },
+  productDesc: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  inputMultiline: {
+    minHeight: 72,
+    paddingTop: 10,
+    marginBottom: 8,
+  },
+  previewWrap: {
+    marginBottom: 8,
+  },
+  previewImage: {
+    width: '100%',
+    height: 140,
+    borderRadius: 12,
+    backgroundColor: '#f1f5f9',
+    marginBottom: 6,
+  },
+  galleryButton: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#0f172a',
+    paddingVertical: 10,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  galleryButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0f172a',
+  },
+  helperText: {
+    fontSize: 11,
+    color: '#94a3b8',
+    marginBottom: 4,
+  },
+  hint: {
+    fontSize: 11,
+    color: '#94a3b8',
+    marginBottom: 4,
+  },
+  linkMuted: {
+    fontSize: 12,
+    color: '#64748b',
+    fontWeight: '500',
+  },
+  textLinkBtn: {
+    alignSelf: 'flex-start',
+  },
+  textLink: {
+    fontSize: 12,
+    color: '#0ea5e9',
+    fontWeight: '500',
   },
 });
 

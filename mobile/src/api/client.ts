@@ -26,6 +26,11 @@ function resolveBackendUrl() {
 
 const backendUrl = resolveBackendUrl();
 
+/** Same base URL used by `api` (includes `/api/v1`). */
+export function getBackendBaseUrl(): string {
+  return backendUrl;
+}
+
 export const api = axios.create({
   baseURL: backendUrl,
   withCredentials: false
