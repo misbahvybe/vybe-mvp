@@ -1,19 +1,4 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Patch,
-  Post,
-  UseGuards,
-  UseInterceptors,
-  UploadedFile,
-  BadRequestException,
-  Req,
-} from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
-import type { Request } from 'express';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { StoresService } from '../stores/stores.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -21,7 +6,6 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '@prisma/client';
-import { multerImageFileOptions, publicUploadedImageUrl } from '../../common/uploads/image-multer';
 import { CreatePartnerDto } from './dto/create-partner.dto';
 import { CreateProductCategoryDto } from '../stores/dto/create-product-category.dto';
 import { UpdateProductCategoryDto } from '../stores/dto/update-product-category.dto';
@@ -36,16 +20,6 @@ export class AdminController {
     private readonly admin: AdminService,
     private readonly stores: StoresService,
   ) {}
-
-  /** Product / store images for admin web PWA (same disk path as store-owner uploads). */
-  @Post('uploads/image')
-  @UseInterceptors(FileInterceptor('file', multerImageFileOptions()))
-  uploadMenuImage(@UploadedFile() file: Express.Multer.File | undefined, @Req() req: Request) {
-    if (!file) {
-      throw new BadRequestException('Upload a JPEG, PNG, GIF, or WebP image (max 5 MB)');
-    }
-    return { imageUrl: publicUploadedImageUrl(req, file.filename) };
-  }
 
   @Post('partners')
   async createPartner(@CurrentUser() user: User, @Body() dto: CreatePartnerDto) {

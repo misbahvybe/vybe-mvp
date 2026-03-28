@@ -2,17 +2,15 @@
 
 import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
-import { uploadMenuImageFile, type ImageUploadRole } from '@/services/uploadImage';
+import { uploadMenuImageFile } from '@/services/uploadImage';
 
 export function GalleryImageInput({
   value,
   onChange,
-  uploadRole,
   idPrefix = 'gallery',
 }: {
   value: string;
   onChange: (url: string) => void;
-  uploadRole: ImageUploadRole;
   /** Unique prefix for input id when multiple fields on one page */
   idPrefix?: string;
 }) {
@@ -29,7 +27,7 @@ export function GalleryImageInput({
     }
     setUploading(true);
     try {
-      const url = await uploadMenuImageFile(file, uploadRole);
+      const url = await uploadMenuImageFile(file);
       onChange(url);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Upload failed');

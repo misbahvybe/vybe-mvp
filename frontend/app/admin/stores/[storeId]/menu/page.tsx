@@ -275,7 +275,6 @@ export default function AdminStoreMenuPage() {
                 <span className="block text-xs font-medium text-slate-600 mb-1">Product image</span>
                 <GalleryImageInput
                   idPrefix="admin-new-product"
-                  uploadRole="admin"
                   value={newProduct.imageUrl}
                   onChange={(url) => setNewProduct((x) => ({ ...x, imageUrl: url }))}
                 />
@@ -342,7 +341,6 @@ export default function AdminStoreMenuPage() {
                                 <span className="block text-xs font-medium text-slate-600 mb-1">Product image</span>
                                 <GalleryImageInput
                                   idPrefix={`admin-edit-${editingId ?? 'p'}`}
-                                  uploadRole="admin"
                                   value={editForm.imageUrl}
                                   onChange={(url) => setEditForm((f) => ({ ...f, imageUrl: url }))}
                                 />

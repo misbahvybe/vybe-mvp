@@ -1,20 +1,4 @@
-import {
-  Get,
-  Post,
-  Patch,
-  Delete,
-  Body,
-  Param,
-  Controller,
-  UseGuards,
-  UseInterceptors,
-  UploadedFile,
-  BadRequestException,
-  Req,
-} from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
-import type { Request } from 'express';
-import { multerImageFileOptions, publicUploadedImageUrl } from '../../common/uploads/image-multer';
+import { Get, Post, Patch, Delete, Body, Param, Controller, UseGuards } from '@nestjs/common';
 import { StoresService } from './stores.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -41,16 +25,6 @@ export class StoreOwnerController {
   @Patch('store')
   async updateStore(@CurrentUser() user: User, @Body() dto: UpdateStoreDto) {
     return this.stores.updateStore(user.id, dto);
-  }
-
-  /** Product or store banner image; saved under `/uploads/products/`. Set `API_PUBLIC_URL` on deploy so URLs are absolute. */
-  @Post('uploads/image')
-  @UseInterceptors(FileInterceptor('file', multerImageFileOptions()))
-  uploadImage(@UploadedFile() file: Express.Multer.File | undefined, @Req() req: Request) {
-    if (!file) {
-      throw new BadRequestException('Upload a JPEG, PNG, GIF, or WebP image (max 5 MB)');
-    }
-    return { imageUrl: publicUploadedImageUrl(req, file.filename) };
   }
 
   @Get('earnings')

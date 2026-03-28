@@ -525,7 +525,6 @@ function StoreProductsTab({
             <span className="block text-xs font-medium text-slate-600 mb-1">Product image</span>
             <GalleryImageInput
               idPrefix={`store-edit-${editingProductId ?? 'p'}`}
-              uploadRole="store-owner"
               value={editProduct.imageUrl}
               onChange={(url) => setEditProduct((f) => ({ ...f, imageUrl: url }))}
             />
@@ -582,7 +581,6 @@ function StoreProductsTab({
             <span className="block text-xs font-medium text-slate-600 mb-1">Product image</span>
             <GalleryImageInput
               idPrefix="store-new-product"
-              uploadRole="store-owner"
               value={newProduct.imageUrl}
               onChange={(url) => setNewProduct({ ...newProduct, imageUrl: url })}
             />
@@ -788,7 +786,6 @@ function StoreSettingsTab({
           <label className="block text-sm font-medium text-slate-700 mb-1">Store photo (listing)</label>
           <GalleryImageInput
             idPrefix="store-settings-banner"
-            uploadRole="store-owner"
             value={form.imageUrl}
             onChange={(url) => setForm((f) => ({ ...f, imageUrl: url }))}
           />

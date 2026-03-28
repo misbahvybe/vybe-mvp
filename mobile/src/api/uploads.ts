@@ -8,13 +8,13 @@ function guessMimeAndName(localUri: string): { name: string; type: string } {
   return { name: 'photo.jpg', type: 'image/jpeg' };
 }
 
-/** Uploads a gallery image; returns public `imageUrl` from the API. */
+/** Uploads a gallery image; returns public `imageUrl` from the API (ADMIN or STORE_OWNER JWT). */
 export async function uploadStoreOwnerImage(localUri: string, token: string): Promise<string> {
   const base = getBackendBaseUrl();
   const { name, type } = guessMimeAndName(localUri);
   const form = new FormData();
   form.append('file', { uri: localUri, name, type } as unknown as Blob);
-  const res = await fetch(`${base}/store-owner/uploads/image`, {
+  const res = await fetch(`${base}/uploads/image`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
     body: form,

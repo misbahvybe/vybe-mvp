@@ -36,8 +36,10 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'vybe_user',
       partialize: (s) => ({ user: s.user, token: s.token }),
-      onRehydrateStorage: () => () => {
+      onRehydrateStorage: () => (state, err) => {
         useAuthStore.getState().setHasHydrated(true);
+        if (err || typeof window === 'undefined' || !state?.token) return;
+        localStorage.setItem('vybe_token', state.token);
       },
     }
   )

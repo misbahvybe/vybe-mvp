@@ -1,4 +1,4 @@
-export type ImageUploadRole = 'admin' | 'store-owner';
+import { useAuthStore } from '@/store/authStore';
 
 function apiBaseUrl(): string {
   let base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
@@ -8,13 +8,17 @@ function apiBaseUrl(): string {
   return base.replace(/\/$/, '');
 }
 
-/** Multipart upload; uses fetch so default JSON Content-Type is not applied. */
-export async function uploadMenuImageFile(file: File, role: ImageUploadRole): Promise<string> {
+function bearerToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return useAuthStore.getState().token ?? localStorage.getItem('vybe_token');
+}
+
+/** Multipart upload (ADMIN or STORE_OWNER). Uses fetch so JSON Content-Type is not applied. */
+export async function uploadMenuImageFile(file: File): Promise<string> {
   const form = new FormData();
   form.append('file', file);
-  const path = role === 'admin' ? '/admin/uploads/image' : '/store-owner/uploads/image';
-  const token = typeof window !== 'undefined' ? localStorage.getItem('vybe_token') : null;
-  const res = await fetch(`${apiBaseUrl()}${path}`, {
+  const token = bearerToken();
+  const res = await fetch(`${apiBaseUrl()}/uploads/image`, {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: form,
