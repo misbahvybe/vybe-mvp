@@ -6,14 +6,25 @@
     "orientation": "portrait",
     "scheme": "vybe",
     "userInterfaceStyle": "light",
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.vybecode.vybemobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
-    "android": {},
+    "android": {
+      "package": "com.vybecode.vybemobile"
+    },
     "web": {},
     "extra": {
-      "backendUrl": "http://localhost:4000/api/v1"
+      "backendUrl": "https://vybe-mvp-production.up.railway.app/api/v1",
+      "eas": {
+        "projectId": "056526de-fc59-43f4-9a47-01109ed5c365"
+      }
     }
   }
 }

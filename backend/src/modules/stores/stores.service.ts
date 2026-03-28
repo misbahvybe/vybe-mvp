@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { Decimal } from '@prisma/client/runtime/library';
 import { UpdateStoreDto } from './dto/update-store.dto';
@@ -242,5 +242,114 @@ export class StoresService {
       ...store,
       isOpenNow: this.isStoreOpen(store),
     };
+  }
+
+  private async requireStore(storeId: string) {
+    const store = await this.prisma.store.findUnique({ where: { id: storeId } });
+    if (!store) throw new BadRequestException('Store not found');
+    return store;
+  }
+
+  async adminGetCategories(storeId: string) {
+    await this.requireStore(storeId);
+    return this.prisma.productCategory.findMany({
+      where: { storeId },
+      orderBy: { sortOrder: 'asc' },
+      include: { products: true },
+    });
+  }
+
+  async adminCreateCategory(storeId: string, dto: CreateProductCategoryDto) {
+    await this.requireStore(storeId);
+    return this.prisma.productCategory.create({
+      data: { storeId, name: dto.name, sortOrder: dto.sortOrder ?? 0 },
+    });
+  }
+
+  async adminUpdateCategory(storeId: string, categoryId: string, dto: UpdateProductCategoryDto) {
+    await this.requireStore(storeId);
+    const cat = await this.prisma.productCategory.findFirst({ where: { id: categoryId, storeId } });
+    if (!cat) throw new BadRequestException('Category not found');
+    return this.prisma.productCategory.update({
+      where: { id: categoryId },
+      data: { ...(dto.name !== undefined && { name: dto.name }), ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }) },
+    });
+  }
+
+  async adminDeleteCategory(storeId: string, categoryId: string) {
+    await this.requireStore(storeId);
+    const cat = await this.prisma.productCategory.findFirst({ where: { id: categoryId, storeId } });
+    if (!cat) throw new BadRequestException('Category not found');
+    await this.prisma.product.updateMany({ where: { productCategoryId: categoryId }, data: { productCategoryId: null } });
+    return this.prisma.productCategory.delete({ where: { id: categoryId } });
+  }
+
+  async adminGetProducts(storeId: string) {
+    await this.requireStore(storeId);
+    return this.prisma.product.findMany({
+      where: { storeId },
+      include: { category: true },
+      orderBy: [{ category: { sortOrder: 'asc' } }, { name: 'asc' }],
+    });
+  }
+
+  async adminCreateProduct(storeId: string, dto: CreateProductDto) {
+    await this.requireStore(storeId);
+    if (dto.productCategoryId) {
+      const cat = await this.prisma.productCategory.findFirst({ where: { id: dto.productCategoryId, storeId } });
+      if (!cat) throw new BadRequestException('Category not found');
+    }
+    return this.prisma.product.create({
+      data: {
+        storeId,
+        name: dto.name,
+        description: dto.description,
+        price: new Decimal(dto.price),
+        stock: dto.stock ?? 999,
+        isAvailable: dto.isAvailable ?? true,
+        imageUrl: dto.imageUrl,
+        productCategoryId: dto.productCategoryId || null,
+      },
+    });
+  }
+
+  async adminUpdateProduct(storeId: string, productId: string, dto: UpdateProductDto) {
+    await this.requireStore(storeId);
+    const prod = await this.prisma.product.findFirst({ where: { id: productId, storeId } });
+    if (!prod) throw new BadRequestException('Product not found');
+    if (dto.productCategoryId !== undefined && dto.productCategoryId) {
+      const cat = await this.prisma.productCategory.findFirst({ where: { id: dto.productCategoryId, storeId } });
+      if (!cat) throw new BadRequestException('Category not found');
+    }
+    const data: Record<string, unknown> = {};
+    if (dto.name !== undefined) data.name = dto.name;
+    if (dto.description !== undefined) data.description = dto.description;
+    if (dto.price !== undefined) data.price = new Decimal(dto.price);
+    if (dto.stock !== undefined) {
+      data.stock = new Decimal(dto.stock);
+      data.isOutOfStock = dto.stock <= 0;
+    }
+    if (dto.isAvailable !== undefined) data.isAvailable = dto.isAvailable;
+    if (dto.imageUrl !== undefined) data.imageUrl = dto.imageUrl;
+    if (dto.productCategoryId !== undefined) data.productCategoryId = dto.productCategoryId || null;
+    if (dto.isAvailable === false) data.isOutOfStock = true;
+    return this.prisma.product.update({ where: { id: productId }, data });
+  }
+
+  async adminDeleteProduct(storeId: string, productId: string) {
+    await this.requireStore(storeId);
+    const prod = await this.prisma.product.findFirst({ where: { id: productId, storeId } });
+    if (!prod) throw new BadRequestException('Product not found');
+    return this.prisma.product.delete({ where: { id: productId } });
+  }
+
+  async adminSetProductOutOfStock(storeId: string, productId: string, isOutOfStock: boolean) {
+    await this.requireStore(storeId);
+    const prod = await this.prisma.product.findFirst({ where: { id: productId, storeId } });
+    if (!prod) throw new BadRequestException('Product not found');
+    return this.prisma.product.update({
+      where: { id: productId },
+      data: { isOutOfStock, isAvailable: !isOutOfStock },
+    });
   }
 }

@@ -43,7 +43,7 @@ export default function AdminStoresPage() {
                   <th className="text-left p-3 font-medium">Hours</th>
                   <th className="text-right p-3 font-medium">Orders Today</th>
                   <th className="text-right p-3 font-medium">Revenue Today</th>
-                  <th className="p-3"></th>
+                  <th className="text-right p-3 font-medium">Menu</th>
                 </tr>
               </thead>
               <tbody>
@@ -58,8 +58,13 @@ export default function AdminStoresPage() {
                     <td className="p-3">{s.openingTime && s.closingTime ? `${s.openingTime}–${s.closingTime}` : '—'}</td>
                     <td className="p-3 text-right">{s.ordersToday}</td>
                     <td className="p-3 text-right">Rs {s.revenueToday.toLocaleString()}</td>
-                    <td className="p-3">
-                      <span className="text-slate-400 text-sm">—</span>
+                    <td className="p-3 text-right">
+                      <Link
+                        href={`/admin/stores/${s.id}/menu`}
+                        className="text-primary text-sm font-medium inline-flex items-center gap-1"
+                      >
+                        Menu <ChevronRight className="w-4 h-4" />
+                      </Link>
                     </td>
                   </tr>
                 ))}
