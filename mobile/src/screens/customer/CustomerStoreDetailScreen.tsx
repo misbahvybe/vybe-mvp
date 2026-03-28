@@ -8,8 +8,12 @@ import {
   FlatList
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '@api/client';
 import { useCartStore } from '@store/cart';
+import { CustomerScreenShell } from '@components/customer/CustomerScreenShell';
+import { VybeButton } from '@components/ui/VybeButton';
+import { tokens } from '@theme/tokens';
 
 interface Product {
   id: string;
@@ -33,6 +37,7 @@ interface Store {
 export function CustomerStoreDetailScreen() {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
+  const insets = useSafeAreaInsets();
   const id: string = route.params?.id;
 
   const [store, setStore] = useState<Store | null>(null);
@@ -41,6 +46,9 @@ export function CustomerStoreDetailScreen() {
   const addItem = useCartStore((s) => s.addItem);
   const updateQty = useCartStore((s) => s.updateQty);
   const { items, storeId, total } = useCartStore();
+
+  const goCart = () =>
+    navigation.getParent()?.navigate('CartTab', { screen: 'Cart' });
 
   useEffect(() => {
     if (!id) return;
@@ -54,31 +62,47 @@ export function CustomerStoreDetailScreen() {
 
   if (loading) {
     return (
-      <View style={styles.centerRoot}>
-        <ActivityIndicator color="#0ea5e9" />
-      </View>
+      <CustomerScreenShell
+        title="Store"
+        showBack
+        onBack={() => navigation.goBack()}
+        scrollable={false}
+        bottomPadding="nav"
+      >
+        <View style={styles.centerFlex}>
+          <ActivityIndicator color={tokens.accent} />
+        </View>
+      </CustomerScreenShell>
     );
   }
 
   if (!store) {
     return (
-      <View style={styles.centerRoot}>
-        <Text style={styles.emptyText}>Store not found</Text>
-      </View>
+      <CustomerScreenShell
+        title="Store"
+        showBack
+        onBack={() => navigation.goBack()}
+        bottomPadding="nav"
+      >
+        <View style={styles.centerFlex}>
+          <Text style={styles.emptyText}>Store not found</Text>
+        </View>
+      </CustomerScreenShell>
     );
   }
 
   const isSameStoreCart = storeId === store.id && items.length > 0;
+  const bottomInset = Math.max(insets.bottom, 8);
 
   return (
-    <View style={styles.root}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.back}>&lt; Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>{store.name}</Text>
-      </View>
-      <View style={styles.body}>
+    <CustomerScreenShell
+      title={store.name}
+      showBack
+      onBack={() => navigation.goBack()}
+      scrollable={false}
+      bottomPadding="none"
+    >
+      <View style={styles.inner}>
         {store.description ? (
           <Text style={styles.description}>{store.description}</Text>
         ) : null}
@@ -94,7 +118,7 @@ export function CustomerStoreDetailScreen() {
         <FlatList
           data={store.products.filter((p) => p.isAvailable !== false)}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingBottom: 96, gap: 12 }}
+          contentContainerStyle={{ paddingBottom: 160, gap: 12, paddingHorizontal: 16, paddingTop: 8 }}
           renderItem={({ item }) => {
             const qty =
               isSameStoreCart && items.find((i) => i.productId === item.id)?.quantityKg
@@ -102,12 +126,7 @@ export function CustomerStoreDetailScreen() {
                 : 0;
             const available = !item.isOutOfStock && store.isOpenNow !== false;
             return (
-              <View
-                style={[
-                  styles.productCard,
-                  !available && { opacity: 0.6 }
-                ]}
-              >
+              <View style={[styles.productCard, !available && { opacity: 0.6 }]}>
                 <View style={styles.productInfo}>
                   <Text style={styles.productName}>{item.name}</Text>
                   <Text style={styles.productPrice}>Rs {Number(item.price).toFixed(0)}</Text>
@@ -146,79 +165,52 @@ export function CustomerStoreDetailScreen() {
             );
           }}
         />
+
+        <View style={[styles.bottomBar, { paddingBottom: bottomInset + 8 }]}>
+          {store.isOpenNow === false ? (
+            <VybeButton
+              title="Store closed – orders unavailable"
+              variant="primary"
+              fullWidth
+              disabled
+            />
+          ) : isSameStoreCart ? (
+            <>
+              <View style={styles.cartSummary}>
+                <Text style={styles.cartSummaryLabel}>Cart total</Text>
+                <Text style={styles.cartSummaryValue}>Rs {total().toFixed(0)}</Text>
+              </View>
+              <VybeButton title="View Cart" variant="accent" fullWidth onPress={goCart} />
+            </>
+          ) : (
+            <VybeButton title="View Cart" variant="accent" fullWidth onPress={goCart} />
+          )}
+        </View>
       </View>
-      <View style={styles.bottomBar}>
-        {store.isOpenNow === false ? (
-          <TouchableOpacity style={[styles.primaryButton, styles.primaryButtonDisabled]} disabled>
-            <Text style={styles.primaryButtonText}>Store closed – orders unavailable</Text>
-          </TouchableOpacity>
-        ) : isSameStoreCart ? (
-          <>
-            <View style={styles.cartSummary}>
-              <Text style={styles.cartSummaryLabel}>Cart total</Text>
-              <Text style={styles.cartSummaryValue}>Rs {total().toFixed(0)}</Text>
-            </View>
-            <TouchableOpacity
-              style={styles.primaryButton}
-              onPress={() => navigation.navigate('Cart')}
-            >
-              <Text style={styles.primaryButtonText}>View Cart</Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          <TouchableOpacity
-            style={styles.primaryButton}
-            onPress={() => navigation.navigate('Cart')}
-          >
-            <Text style={styles.primaryButtonText}>View Cart</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-    </View>
+    </CustomerScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: '#f8fafc'
+  inner: {
+    flex: 1
   },
-  centerRoot: {
+  centerFlex: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8fafc'
+    paddingHorizontal: 24
   },
-  header: {
-    paddingTop: 40,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e2e8f0'
-  },
-  back: {
-    color: '#0ea5e9',
+  emptyText: {
     fontSize: 14,
-    fontWeight: '500'
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0f172a'
-  },
-  body: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 12
+    color: tokens.slate500
   },
   description: {
     fontSize: 13,
-    color: '#64748b',
-    marginBottom: 8
+    color: tokens.slate500,
+    marginBottom: 8,
+    paddingHorizontal: 16,
+    paddingTop: 8
   },
   bannerClosed: {
     borderRadius: 12,
@@ -226,6 +218,7 @@ const styles = StyleSheet.create({
     borderColor: '#facc15',
     backgroundColor: '#fefce8',
     padding: 12,
+    marginHorizontal: 16,
     marginBottom: 8
   },
   bannerTitle: {
@@ -241,14 +234,10 @@ const styles = StyleSheet.create({
   productCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 16,
-    backgroundColor: '#ffffff',
+    borderRadius: tokens.radiusCard,
+    backgroundColor: tokens.surface,
     padding: 12,
-    shadowColor: '#020617',
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 1
+    ...tokens.shadowSoft
   },
   productInfo: {
     flex: 1
@@ -256,13 +245,13 @@ const styles = StyleSheet.create({
   productName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#0f172a'
+    color: tokens.slate800
   },
   productPrice: {
     marginTop: 2,
     fontSize: 14,
     fontWeight: '600',
-    color: '#f97316'
+    color: tokens.accent
   },
   productActions: {
     flexDirection: 'row',
@@ -278,34 +267,34 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#e2e8f0',
+    backgroundColor: tokens.slate200,
     justifyContent: 'center',
     alignItems: 'center'
   },
   qtyButtonText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#0f172a'
+    color: tokens.slate800
   },
   qtyText: {
     width: 20,
     textAlign: 'center',
     fontSize: 14,
     fontWeight: '600',
-    color: '#0f172a'
+    color: tokens.slate800
   },
   addButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#f97316',
+    backgroundColor: tokens.accent,
     justifyContent: 'center',
     alignItems: 'center'
   },
   addButtonText: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#ffffff'
+    color: tokens.white
   },
   bottomBar: {
     position: 'absolute',
@@ -313,51 +302,29 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     paddingHorizontal: 16,
-    paddingBottom: 16,
     paddingTop: 8,
-    backgroundColor: '#f8fafc',
-    gap: 8
+    backgroundColor: tokens.slate50,
+    gap: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: tokens.slate200
   },
   cartSummary: {
-    borderRadius: 16,
-    backgroundColor: '#ffffff',
+    borderRadius: tokens.radiusCard,
+    backgroundColor: tokens.surface,
     padding: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    shadowColor: '#020617',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2
+    ...tokens.shadowSoft
   },
   cartSummaryLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#0f172a'
+    color: tokens.slate800
   },
   cartSummaryValue: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#f97316'
-  },
-  primaryButton: {
-    borderRadius: 999,
-    backgroundColor: '#0f172a',
-    paddingVertical: 14,
-    alignItems: 'center'
-  },
-  primaryButtonDisabled: {
-    backgroundColor: '#94a3b8'
-  },
-  primaryButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#facc15'
-  },
-  emptyText: {
-    fontSize: 14,
-    color: '#64748b'
+    color: tokens.accent
   }
 });
-

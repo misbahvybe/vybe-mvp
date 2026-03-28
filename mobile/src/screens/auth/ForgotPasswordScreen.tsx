@@ -21,7 +21,7 @@ export function ForgotPasswordScreen() {
     setLoading(true);
     try {
       await api.post('/auth/login/request-otp', { phone: phone.trim() });
-      Alert.alert('OTP sent', 'We sent a login code to your phone.');
+      Alert.alert('OTP sent', 'We sent a login code to your WhatsApp.');
       navigation.navigate('LoginOtp', { phone: phone.trim() });
     } catch (e: any) {
       const msg = e?.response?.data?.message ?? 'Failed to send OTP';
@@ -36,7 +36,7 @@ export function ForgotPasswordScreen() {
       <View style={styles.card}>
         <Text style={styles.title}>Login with OTP</Text>
         <Text style={styles.subtitle}>
-          Enter your registered phone and we&apos;ll send a 6-digit login code.
+          Enter your registered WhatsApp number and we&apos;ll send a 6-digit login code.
         </Text>
         <TextInput
           style={styles.input}

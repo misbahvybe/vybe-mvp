@@ -34,7 +34,7 @@ This document explains how every user flow works end-to-end in the Vybe delivery
 2. User taps **Continue**.
 3. **Backend:** `POST /auth/signup`
    - Creates user with role `CUSTOMER`, hashed password.
-   - Generates OTP, stores it (hashed), sends via SMS (or logs to console if no SMS config).
+   - Generates OTP, stores it (hashed), sends via WhatsApp Cloud API (or logs to console in development if WhatsApp is not configured).
    - Returns: `{ message, userId, phone, expiresAt }`.
 4. Frontend shows OTP input screen.
 5. User enters 6-digit OTP.
@@ -419,7 +419,7 @@ You look fundable.
 
 
 - **Signup:** OTP sent after form submit. Code stored hashed in DB, expires in ~3 minutes.
-- **Send:** Via `SMS_PROVIDER_URL` + `SMS_API_KEY` if configured; otherwise logged to backend console.
+- **Send:** Via Meta WhatsApp Cloud API (`WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_OTP_TEMPLATE_NAME`); in development only, if unset, OTP is logged to the backend console. Production requires WhatsApp configuration.
 - **Verify:** `POST /auth/verify-otp` marks user as verified and returns JWT.
 
 ---

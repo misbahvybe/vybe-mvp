@@ -11,6 +11,8 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { api } from '@api/client';
+import { PartnerScreenShell } from '@components/partner/PartnerScreenShell';
+import { tokens } from '@theme/tokens';
 
 interface Category {
   id: string;
@@ -171,17 +173,11 @@ export function StoreProductsScreen() {
   const uncategorized = products.filter((p) => !p.productCategoryId);
 
   return (
-    <View style={styles.root}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.back}>&lt; Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Products</Text>
-      </View>
+    <PartnerScreenShell title="Products" scrollable={false} bottomPadding="nav">
       <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 24 }}>
         {loading ? (
           <View style={styles.center}>
-            <ActivityIndicator color="#0ea5e9" />
+            <ActivityIndicator color={tokens.accent} />
           </View>
         ) : (
           <View style={{ gap: 16 }}>
@@ -540,40 +536,15 @@ export function StoreProductsScreen() {
           </View>
         )}
       </ScrollView>
-    </View>
+    </PartnerScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  header: {
-    paddingTop: 40,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e2e8f0',
-  },
-  back: {
-    color: '#0ea5e9',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0f172a',
-  },
   body: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingTop: 8,
   },
   center: {
     flex: 1,

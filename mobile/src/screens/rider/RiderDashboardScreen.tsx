@@ -1,8 +1,25 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, Linking, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ActivityIndicator,
+  ScrollView,
+  Linking,
+  Alert,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RiderHomeStackParamList } from '@navigation/RiderTabs';
 import { useAuthStore } from '@store/auth';
 import { api } from '@api/client';
+import { PartnerScreenShell } from '@components/partner/PartnerScreenShell';
+import { tokens } from '@theme/tokens';
 
 interface RiderDashboard {
   isAvailable: boolean;
@@ -31,13 +48,18 @@ function googleMapsUrl(lat?: number, lng?: number, address?: string): string {
   return 'https://www.google.com/maps';
 }
 
+type RiderNav = NativeStackNavigationProp<RiderHomeStackParamList>;
+
 export function RiderDashboardScreen() {
   const user = useAuthStore((s) => s.user);
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<RiderNav>();
   const [dashboard, setDashboard] = useState<RiderDashboard | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [withdrawSubmitting, setWithdrawSubmitting] = useState(false);
 
   const fetchData = useCallback(() => {
     Promise.all([
@@ -81,27 +103,31 @@ export function RiderDashboardScreen() {
     }
   };
 
-  const requestWithdraw = () => {
-    const suggested = dashboard?.todayEarnings ?? 0;
-    const amountStr = prompt?.('Withdraw amount (PKR)', String(suggested));
-    if (!amountStr) return;
-    const amount = Number(amountStr);
+  const openWithdrawModal = () => {
+    setWithdrawAmount(String(dashboard?.todayEarnings ?? 0));
+    setWithdrawOpen(true);
+  };
+
+  const submitWithdraw = async () => {
+    const amount = Number(withdrawAmount);
     if (!amount || amount <= 0) {
       Alert.alert('Invalid amount', 'Enter a valid amount');
       return;
     }
-    (async () => {
-      try {
-        await api.post('/withdraw/request', { amount });
-        Alert.alert(
-          'Request submitted',
-          'Withdraw request submitted. Admin will process within 24 hours.'
-        );
-      } catch (e: any) {
-        const msg = e?.response?.data?.message ?? 'Failed to submit withdraw request';
-        Alert.alert('Error', String(msg));
-      }
-    })();
+    setWithdrawSubmitting(true);
+    try {
+      await api.post('/withdraw/request', { amount });
+      setWithdrawOpen(false);
+      Alert.alert(
+        'Request submitted',
+        'Withdraw request submitted. Admin will process within 24 hours.',
+      );
+    } catch (e: any) {
+      const msg = e?.response?.data?.message ?? 'Failed to submit withdraw request';
+      Alert.alert('Error', String(msg));
+    } finally {
+      setWithdrawSubmitting(false);
+    }
   };
 
   const active = orders.filter((o) =>
@@ -114,13 +140,14 @@ export function RiderDashboardScreen() {
   const sortedActive = [...active].sort(sortOrder);
   const activeOrder = sortedActive[0];
 
+  const goEarnings = () =>
+    navigation.getParent()?.navigate('RiderEarningsTab', { screen: 'RiderEarnings' });
+  const goOrders = () => navigation.navigate('RiderOrders');
+
   return (
-    <View style={styles.root}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Rider Dashboard</Text>
+    <PartnerScreenShell title="Rider" scrollable={false} bottomPadding="nav">
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <Text style={styles.headerSubtitle}>Welcome, {user?.name ?? 'Rider'}!</Text>
-      </View>
-      <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.statusRow}>
           <Text style={styles.statusLabel}>Status</Text>
           <TouchableOpacity
@@ -157,14 +184,11 @@ export function RiderDashboardScreen() {
                   : `${Number(dashboard?.todayEarnings ?? 0).toLocaleString()} PKR`}
               </Text>
             </View>
-            <TouchableOpacity style={styles.primaryButton} onPress={requestWithdraw}>
+            <TouchableOpacity style={styles.primaryButton} onPress={openWithdrawModal}>
               <Text style={styles.primaryButtonText}>Request Withdraw</Text>
             </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            style={styles.card}
-            onPress={() => navigation.navigate('RiderEarnings')}
-          >
+          <TouchableOpacity style={styles.card} onPress={goEarnings}>
             <Text style={styles.cardLabel}>Earnings</Text>
             <Text style={styles.cardValue}>
               {loading ? '—' : dashboard?.completedToday ?? 0}
@@ -177,7 +201,7 @@ export function RiderDashboardScreen() {
           <Text style={styles.sectionTitle}>Active order</Text>
           {loading ? (
             <View style={styles.center}>
-              <ActivityIndicator color="#0ea5e9" />
+              <ActivityIndicator color={tokens.accent} />
             </View>
           ) : !activeOrder ? (
             <View style={styles.emptyCard}>
@@ -188,9 +212,14 @@ export function RiderDashboardScreen() {
             </View>
           ) : (
             <View style={styles.activeCard}>
-              <Text style={styles.activeTitle}>
-                Order #{activeOrder.id.slice(-8).toUpperCase()}
-              </Text>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('RiderOrderDetail', { id: activeOrder.id })}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.activeTitle}>
+                  Order #{activeOrder.id.slice(-8).toUpperCase()}
+                </Text>
+              </TouchableOpacity>
               <Text style={styles.activeSubTitle}>
                 {activeOrder.store?.name ?? 'Store'} →{' '}
                 {activeOrder.customer?.name ?? 'Customer'}
@@ -277,46 +306,64 @@ export function RiderDashboardScreen() {
                   </>
                 )}
               </View>
+              <TouchableOpacity style={styles.linkButton} onPress={goOrders}>
+                <Text style={styles.linkButtonText}>View all orders</Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 style={styles.linkButton}
-                onPress={() => navigation.navigate('RiderOrders')}
+                onPress={() => navigation.navigate('RiderOrderDetail', { id: activeOrder.id })}
               >
-                <Text style={styles.linkButtonText}>View all orders</Text>
+                <Text style={styles.linkButtonText}>Open order details</Text>
               </TouchableOpacity>
             </View>
           )}
         </View>
       </ScrollView>
-    </View>
+
+      <Modal visible={withdrawOpen} transparent animationType="fade" onRequestClose={() => setWithdrawOpen(false)}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalBackdrop}
+        >
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Withdraw amount (PKR)</Text>
+            <TextInput
+              value={withdrawAmount}
+              onChangeText={setWithdrawAmount}
+              keyboardType="decimal-pad"
+              style={styles.modalInput}
+              placeholder="Amount"
+            />
+            <TouchableOpacity
+              style={[styles.primaryButton, withdrawSubmitting && { opacity: 0.6 }]}
+              disabled={withdrawSubmitting}
+              onPress={submitWithdraw}
+            >
+              {withdrawSubmitting ? (
+                <ActivityIndicator color="#000000" />
+              ) : (
+                <Text style={styles.primaryButtonText}>Submit request</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.secondaryButton} onPress={() => setWithdrawOpen(false)}>
+              <Text style={styles.secondaryButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </PartnerScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: '#f8fafc'
-  },
-  header: {
-    paddingTop: 40,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e2e8f0'
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#0f172a'
-  },
   headerSubtitle: {
-    marginTop: 4,
-    fontSize: 13,
-    color: '#64748b'
+    fontSize: 14,
+    color: tokens.slate600,
+    marginBottom: 12
   },
   scroll: {
     paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingTop: 4,
     paddingBottom: 24
   },
   statusRow: {
@@ -393,6 +440,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#0f172a'
+  },
+  cardHint: {
+    marginTop: 4,
+    fontSize: 11,
+    color: '#94a3b8'
   },
   primaryButton: {
     marginTop: 8,
@@ -488,6 +540,32 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
     color: '#0ea5e9'
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15,23,42,0.5)',
+    justifyContent: 'center',
+    padding: 24
+  },
+  modalCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 16
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 10
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 16,
+    color: '#0f172a',
+    marginBottom: 12
   }
 });
 

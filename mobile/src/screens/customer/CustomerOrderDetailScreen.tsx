@@ -1,7 +1,17 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ActivityIndicator,
+  ScrollView,
+  Alert,
+} from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { api } from '@api/client';
+import { CustomerScreenShell } from '@components/customer/CustomerScreenShell';
+import { VybeButton } from '@components/ui/VybeButton';
+import { tokens } from '@theme/tokens';
 
 interface OrderItem {
   id: string;
@@ -13,12 +23,28 @@ interface OrderItem {
 interface OrderDetail {
   id: string;
   orderStatus: string;
+  cancellationReason?: string | null;
   createdAt: string;
   totalAmount: number;
   store?: { name: string };
   address?: { fullAddress: string };
+  rider?: { name: string; phone: string } | null;
+  statusHistory?: { status: string; createdAt: string; changedByUserId: string | null }[];
+  allowedTransitions?: string[];
   items: OrderItem[];
 }
+
+const STATUS_LABELS: Record<string, string> = {
+  PENDING: 'Pending',
+  STORE_ACCEPTED: 'Accepted by store',
+  STORE_REJECTED: 'Rejected by store',
+  READY_FOR_PICKUP: 'Ready for pickup',
+  RIDER_ASSIGNED: 'Rider assigned',
+  RIDER_ACCEPTED: 'Rider accepted',
+  PICKED_UP: 'Picked up',
+  DELIVERED: 'Delivered',
+  CANCELLED: 'Cancelled',
+};
 
 export function CustomerOrderDetailScreen() {
   const route = useRoute<any>();
@@ -26,9 +52,22 @@ export function CustomerOrderDetailScreen() {
   const id: string = route.params?.id;
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const fetchOrder = useCallback(() => {
+    if (!id) return;
+    api
+      .get<OrderDetail>(`/orders/${id}`)
+      .then((res) => setOrder(res.data))
+      .catch(() => setOrder(null));
+  }, [id]);
 
   useEffect(() => {
-    if (!id) return;
+    if (!id) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     api
       .get<OrderDetail>(`/orders/${id}`)
       .then((res) => setOrder(res.data))
@@ -36,46 +75,126 @@ export function CustomerOrderDetailScreen() {
       .finally(() => setLoading(false));
   }, [id]);
 
+  const updateStatus = async (status: string) => {
+    if (!order) return;
+    setActionLoading(true);
+    try {
+      await api.patch(`/orders/${order.id}/status`, { status });
+      fetchOrder();
+    } catch (e: any) {
+      const msg = e?.response?.data?.message ?? 'Failed to update order';
+      Alert.alert('Error', String(msg));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   if (loading) {
     return (
-      <View style={styles.centerRoot}>
-        <ActivityIndicator color="#0ea5e9" />
-      </View>
+      <CustomerScreenShell
+        title="Order"
+        showBack
+        onBack={() => navigation.goBack()}
+        bottomPadding="nav"
+      >
+        <View style={styles.centerRoot}>
+          <ActivityIndicator color={tokens.accent} />
+        </View>
+      </CustomerScreenShell>
     );
   }
 
   if (!order) {
     return (
-      <View style={styles.centerRoot}>
-        <Text style={styles.empty}>Order not found.</Text>
-      </View>
+      <CustomerScreenShell
+        title="Order"
+        showBack
+        onBack={() => navigation.goBack()}
+        bottomPadding="nav"
+      >
+        <View style={styles.centerRoot}>
+          <Text style={styles.empty}>Order not found.</Text>
+        </View>
+      </CustomerScreenShell>
     );
   }
 
   const formatDate = (d: string) =>
     new Date(d).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
 
+  const allowed = order.allowedTransitions ?? [];
+
   return (
-    <View style={styles.root}>
-      <View style={styles.header}>
-        <Text style={styles.back} onPress={() => navigation.goBack()}>
-          &lt; Back
-        </Text>
-        <Text style={styles.headerTitle}>Order details</Text>
-      </View>
-      <ScrollView contentContainerStyle={styles.scroll}>
+    <CustomerScreenShell
+      title="Order details"
+      showBack
+      onBack={() => navigation.goBack()}
+      bottomPadding="nav"
+    >
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.card}>
           <Text style={styles.muted}>Order #{order.id.slice(-8).toUpperCase()}</Text>
           <Text style={styles.title}>{order.store?.name ?? 'Order'}</Text>
           <Text style={styles.muted}>{formatDate(order.createdAt)}</Text>
-          <Text style={styles.status}>{order.orderStatus}</Text>
+          <Text style={styles.status}>{STATUS_LABELS[order.orderStatus] ?? order.orderStatus}</Text>
+          {order.cancellationReason ? (
+            <Text style={styles.cancelNote}>Reason: {order.cancellationReason}</Text>
+          ) : null}
         </View>
+
+        {allowed.includes('CANCELLED') && (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Actions</Text>
+            <VybeButton
+              title="Cancel order"
+              variant="outline"
+              loading={actionLoading}
+              disabled={actionLoading}
+              onPress={() => {
+                Alert.alert('Cancel order', 'Are you sure you want to cancel this order?', [
+                  { text: 'No', style: 'cancel' },
+                  {
+                    text: 'Yes, cancel',
+                    style: 'destructive',
+                    onPress: () => updateStatus('CANCELLED'),
+                  },
+                ]);
+              }}
+            />
+          </View>
+        )}
+
         {order.address && (
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Delivery address</Text>
-            <Text style={styles.body}>{order.address.fullAddress}</Text>
+            <Text style={styles.bodyText}>{order.address.fullAddress}</Text>
           </View>
         )}
+
+        {order.rider && (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Rider</Text>
+            <Text style={styles.bodyText}>
+              {order.rider.name} — {order.rider.phone}
+            </Text>
+          </View>
+        )}
+
+        {order.statusHistory && order.statusHistory.length > 0 && (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Order progress</Text>
+            {order.statusHistory.map((h, idx) => (
+              <View key={`${h.status}-${idx}`} style={styles.historyRow}>
+                <Text style={styles.historyDot}>•</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.historyTitle}>{STATUS_LABELS[h.status] ?? h.status}</Text>
+                  <Text style={styles.mutedSmall}>{formatDate(h.createdAt)}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Products</Text>
           {order.items.map((item) => {
@@ -91,77 +210,65 @@ export function CustomerOrderDetailScreen() {
           })}
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>
-              Rs {Number(order.totalAmount).toFixed(0)}
-            </Text>
+            <Text style={styles.totalValue}>Rs {Number(order.totalAmount).toFixed(0)}</Text>
           </View>
         </View>
       </ScrollView>
-    </View>
+    </CustomerScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#f8fafc' },
+  scroll: { paddingTop: 8, paddingBottom: 32 },
   centerRoot: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8fafc'
+    paddingTop: 48,
   },
-  header: {
-    paddingTop: 40,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e2e8f0'
-  },
-  back: { color: '#0ea5e9', fontSize: 14, fontWeight: '500' },
-  headerTitle: { marginTop: 4, fontSize: 18, fontWeight: '700', color: '#0f172a' },
-  scroll: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24, gap: 12 },
+  empty: { fontSize: 14, color: tokens.slate500 },
   card: {
-    borderRadius: 16,
-    backgroundColor: '#ffffff',
+    borderRadius: tokens.radiusCard,
+    backgroundColor: tokens.surface,
     padding: 16,
-    shadowColor: '#020617',
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 1,
-    marginBottom: 12
+    ...tokens.shadowSoft,
+    marginBottom: 12,
+    marginHorizontal: 16,
   },
-  title: { fontSize: 16, fontWeight: '700', color: '#0f172a', marginTop: 4 },
-  muted: { fontSize: 13, color: '#94a3b8' },
+  title: { fontSize: 16, fontWeight: '700', color: tokens.slate800, marginTop: 4 },
+  muted: { fontSize: 13, color: tokens.slate400 },
+  mutedSmall: { fontSize: 11, color: tokens.slate400, marginTop: 2 },
   status: {
     marginTop: 8,
     alignSelf: 'flex-start',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: tokens.slate200,
     fontSize: 12,
     fontWeight: '500',
-    color: '#0f172a'
+    color: tokens.slate800,
   },
-  sectionTitle: { fontSize: 14, fontWeight: '600', color: '#0f172a', marginBottom: 4 },
-  body: { fontSize: 13, color: '#4b5563' },
+  cancelNote: { marginTop: 8, fontSize: 13, color: '#b91c1c' },
+  sectionTitle: { fontSize: 14, fontWeight: '600', color: tokens.slate800, marginBottom: 8 },
+  bodyText: { fontSize: 13, color: tokens.slate600, lineHeight: 18 },
   itemRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingVertical: 4,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e5e7eb'
+    borderBottomColor: tokens.slate200,
   },
-  itemText: { fontSize: 13, color: '#0f172a' },
-  itemAmount: { fontSize: 13, fontWeight: '600', color: '#f97316' },
+  itemText: { fontSize: 13, color: tokens.slate800 },
+  itemAmount: { fontSize: 13, fontWeight: '600', color: tokens.accent },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 8
+    marginTop: 8,
   },
-  totalLabel: { fontSize: 14, fontWeight: '700', color: '#0f172a' },
-  totalValue: { fontSize: 16, fontWeight: '700', color: '#f97316' },
-  empty: { fontSize: 14, color: '#6b7280' }
+  totalLabel: { fontSize: 14, fontWeight: '700', color: tokens.slate800 },
+  totalValue: { fontSize: 16, fontWeight: '700', color: tokens.accent },
+  historyRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  historyDot: { fontSize: 20, color: tokens.accent, lineHeight: 22 },
+  historyTitle: { fontSize: 13, fontWeight: '600', color: tokens.slate800 },
 });
-

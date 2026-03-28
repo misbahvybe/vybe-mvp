@@ -12,7 +12,11 @@ module.exports = function (api) {
             '@api': './src/api',
             '@store': './src/store',
             '@screens': './src/screens',
-            '@navigation': './src/navigation'
+            '@navigation': './src/navigation',
+            '@theme': './src/theme',
+            '@components': './src/components',
+            '@contexts': './src/contexts',
+            '@constants': './src/constants'
           }
         }
       ]

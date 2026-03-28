@@ -1,14 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ActivityIndicator,
-  TouchableOpacity,
-  ScrollView,
-} from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { api } from '@api/client';
+import { PartnerScreenShell } from '@components/partner/PartnerScreenShell';
+import { tokens } from '@theme/tokens';
 
 interface RiderEarningsToday {
   orders: number;
@@ -34,7 +28,6 @@ interface RiderEarningsResponse {
 }
 
 export function RiderEarningsScreen() {
-  const navigation = useNavigation<any>();
   const [data, setData] = useState<RiderEarningsResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -48,23 +41,17 @@ export function RiderEarningsScreen() {
   }, []);
 
   return (
-    <View style={styles.root}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.back}>&lt; Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Earnings</Text>
-      </View>
+    <PartnerScreenShell title="Earnings" bottomPadding="nav">
       {loading ? (
         <View style={[styles.body, styles.center]}>
-          <ActivityIndicator color="#0ea5e9" />
+          <ActivityIndicator color={tokens.accent} />
         </View>
       ) : !data ? (
         <View style={[styles.body, styles.center]}>
           <Text style={styles.emptyText}>Unable to load earnings.</Text>
         </View>
       ) : (
-        <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 24 }}>
+        <View style={styles.body}>
           <View style={styles.cardsRow}>
             <View style={styles.card}>
               <Text style={styles.cardLabel}>Today</Text>
@@ -120,42 +107,17 @@ export function RiderEarningsScreen() {
               </View>
             )}
           </View>
-        </ScrollView>
+        </View>
       )}
-    </View>
+    </PartnerScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  header: {
-    paddingTop: 40,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e2e8f0',
-  },
-  back: {
-    color: '#0ea5e9',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0f172a',
-  },
   body: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingTop: 8,
   },
   center: {
     justifyContent: 'center',
@@ -168,18 +130,14 @@ const styles = StyleSheet.create({
   },
   card: {
     flex: 1,
-    borderRadius: 16,
-    backgroundColor: '#ffffff',
+    borderRadius: tokens.radiusCard,
+    backgroundColor: tokens.surface,
     padding: 14,
-    shadowColor: '#020617',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
+    ...tokens.shadowSoft,
   },
   cardLabel: {
     fontSize: 12,
-    color: '#64748b',
+    color: tokens.slate500,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
     marginBottom: 4,
@@ -187,12 +145,12 @@ const styles = StyleSheet.create({
   cardValue: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#0f172a',
+    color: tokens.slate800,
   },
   cardHint: {
     marginTop: 4,
     fontSize: 11,
-    color: '#94a3b8',
+    color: tokens.slate400,
   },
   section: {
     marginTop: 8,
@@ -200,48 +158,45 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#64748b',
+    color: tokens.slate500,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
     marginBottom: 8,
   },
   emptyCard: {
-    borderRadius: 16,
-    backgroundColor: '#ffffff',
+    borderRadius: tokens.radiusCard,
+    backgroundColor: tokens.surface,
     padding: 16,
     alignItems: 'center',
+    ...tokens.shadowSoft,
   },
   emptyText: {
     fontSize: 13,
-    color: '#94a3b8',
+    color: tokens.slate400,
   },
   historyCard: {
-    borderRadius: 16,
-    backgroundColor: '#ffffff',
+    borderRadius: tokens.radiusCard,
+    backgroundColor: tokens.surface,
     padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    shadowColor: '#020617',
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 1,
+    ...tokens.shadowSoft,
   },
   historyOrderId: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#0f172a',
+    color: tokens.slate800,
   },
   historyDate: {
     marginTop: 2,
     fontSize: 11,
-    color: '#94a3b8',
+    color: tokens.slate400,
   },
   historyAmount: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#16a34a',
+    color: tokens.accent,
   },
 });
 

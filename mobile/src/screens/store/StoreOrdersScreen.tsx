@@ -2,6 +2,8 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, FlatList, TouchableOpacity, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { api } from '@api/client';
+import { PartnerScreenShell } from '@components/partner/PartnerScreenShell';
+import { tokens } from '@theme/tokens';
 
 const POLL_INTERVAL_MS = 15000;
 
@@ -69,20 +71,19 @@ export function StoreOrdersScreen() {
   const delivered = orders.filter((o) => o.orderStatus === 'DELIVERED');
 
   return (
-    <View style={styles.root}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.back}>&lt; Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Orders</Text>
-      </View>
+    <PartnerScreenShell title="Orders" scrollable={false} bottomPadding="nav">
       <View style={styles.body}>
         {loading ? (
           <View style={styles.center}>
-            <ActivityIndicator color="#0ea5e9" />
+            <ActivityIndicator color={tokens.accent} />
           </View>
         ) : (
           <FlatList
+            data={[]}
+            keyExtractor={() => '_'}
+            renderItem={() => null}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.listContent}
             ListHeaderComponent={
               <View style={{ gap: 16 }}>
                 <Section
@@ -90,6 +91,7 @@ export function StoreOrdersScreen() {
                   emptyText="No new orders"
                   orders={pending}
                   actionLoadingId={actionLoadingId}
+                  onOpenDetail={(id) => navigation.navigate('StoreOrderDetail', { id })}
                   onAccept={(id) => updateOrderStatus(id, 'STORE_ACCEPTED')}
                   onReject={(id) => updateOrderStatus(id, 'STORE_REJECTED')}
                 />
@@ -98,26 +100,27 @@ export function StoreOrdersScreen() {
                   emptyText="None"
                   orders={preparing}
                   actionLoadingId={actionLoadingId}
+                  onOpenDetail={(id) => navigation.navigate('StoreOrderDetail', { id })}
                   onMarkReady={(id) => updateOrderStatus(id, 'READY_FOR_PICKUP')}
                 />
                 <Section
                   title="Ready for Pickup"
                   emptyText="None"
                   orders={ready}
+                  onOpenDetail={(id) => navigation.navigate('StoreOrderDetail', { id })}
                 />
                 <Section
                   title="Completed"
                   emptyText="No completed orders yet"
                   orders={delivered.slice(0, 10)}
+                  onOpenDetail={(id) => navigation.navigate('StoreOrderDetail', { id })}
                 />
               </View>
             }
-            data={[]}
-            renderItem={null}
           />
         )}
       </View>
-    </View>
+    </PartnerScreenShell>
   );
 }
 
@@ -126,6 +129,7 @@ interface SectionProps {
   emptyText: string;
   orders: Order[];
   actionLoadingId?: string | null;
+  onOpenDetail?: (id: string) => void;
   onAccept?: (id: string) => void;
   onReject?: (id: string) => void;
   onMarkReady?: (id: string) => void;
@@ -136,6 +140,7 @@ function Section({
   emptyText,
   orders,
   actionLoadingId,
+  onOpenDetail,
   onAccept,
   onReject,
   onMarkReady
@@ -151,7 +156,12 @@ function Section({
         <View style={{ gap: 8 }}>
           {orders.map((o) => (
             <View key={o.id} style={styles.orderCard}>
-              <View style={{ flex: 1 }}>
+              <TouchableOpacity
+                style={{ flex: 1 }}
+                activeOpacity={0.75}
+                onPress={() => onOpenDetail?.(o.id)}
+                disabled={!onOpenDetail}
+              >
                 <View style={styles.orderHeaderRow}>
                   <Text style={styles.orderId}>#{o.id.slice(-8).toUpperCase()}</Text>
                   <Text style={styles.orderTime}>{timeAgo(o.createdAt)}</Text>
@@ -159,7 +169,8 @@ function Section({
                 <Text style={styles.orderSummary}>
                   {o.items.length} items · {Number(o.totalAmount).toLocaleString()} PKR
                 </Text>
-              </View>
+                {onOpenDetail ? <Text style={styles.openDetailHint}>Tap for details</Text> : null}
+              </TouchableOpacity>
               {(onAccept || onReject || onMarkReady) && (
                 <View style={styles.orderActions}>
                   {onAccept && (
@@ -208,35 +219,14 @@ function Section({
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: '#f8fafc'
-  },
-  header: {
-    paddingTop: 40,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e2e8f0'
-  },
-  back: {
-    color: '#0ea5e9',
-    fontSize: 14,
-    fontWeight: '500'
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0f172a'
-  },
   body: {
     flex: 1,
     paddingHorizontal: 16,
     paddingTop: 12
+  },
+  listContent: {
+    paddingBottom: 24,
+    flexGrow: 1
   },
   center: {
     flex: 1,
@@ -295,6 +285,12 @@ const styles = StyleSheet.create({
   orderSummary: {
     fontSize: 13,
     color: '#64748b'
+  },
+  openDetailHint: {
+    fontSize: 11,
+    color: '#94a3b8',
+    marginTop: 6,
+    fontWeight: '500',
   },
   orderActions: {
     flexDirection: 'column',

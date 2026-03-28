@@ -35,7 +35,7 @@ npm run start:dev
 - **Admin:** `admin@vybe.pk` / `Admin123!` → `/admin`
 - **Store Owner:** `store@vybe.pk` / `Store123!` → `/store/dashboard`
 
-**OTP (dev):** Without SMS config, OTP codes are printed in the backend console.
+**OTP:** Production uses Meta **WhatsApp Cloud API** (see `backend/.env.example`: `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_OTP_TEMPLATE_NAME` and an approved template). Without those, OTP codes are logged in the backend console (dev only).
 
 ---
 

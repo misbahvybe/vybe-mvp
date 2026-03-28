@@ -6,14 +6,20 @@ import { useAuthStore } from '@store/auth';
 export function LoginScreen() {
   const navigation = useNavigation<any>();
   const login = useAuthStore((s) => s.login);
+  const partnerLogin = useAuthStore((s) => s.partnerLogin);
   const loading = useAuthStore((s) => s.loading);
   const [emailOrPhone, setEmailOrPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [partnerMode, setPartnerMode] = useState(false);
 
   const handleLogin = async () => {
     if (!emailOrPhone || !password) return;
     try {
-      await login(emailOrPhone.trim(), password);
+      if (partnerMode) {
+        await partnerLogin(emailOrPhone.trim(), password);
+      } else {
+        await login(emailOrPhone.trim(), password);
+      }
     } catch (e: any) {
       const msg =
         e?.response?.data?.message ?? 'Invalid email/phone or password';
@@ -25,7 +31,20 @@ export function LoginScreen() {
     <View style={styles.root}>
       <View style={styles.card}>
         <Text style={styles.title}>Login</Text>
-        <Text style={styles.subtitle}>Enter your email or phone and password</Text>
+        <Text style={styles.subtitle}>
+          {partnerMode
+            ? 'Store owner, rider, or admin (partner portal)'
+            : 'Customer — email or phone and password'}
+        </Text>
+        <TouchableOpacity
+          style={styles.modeRow}
+          onPress={() => setPartnerMode(!partnerMode)}
+          accessibilityRole="button"
+        >
+          <Text style={styles.modeText}>
+            {partnerMode ? 'Switch to customer login' : 'I am store owner / rider / admin'}
+          </Text>
+        </TouchableOpacity>
         <TextInput
           style={styles.input}
           placeholder="admin@vybe.pk or 03000000000"
@@ -94,7 +113,17 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 14,
     color: '#64748b',
-    marginBottom: 16
+    marginBottom: 10
+  },
+  modeRow: {
+    marginBottom: 14,
+    paddingVertical: 8,
+  },
+  modeText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#7c3aed',
+    textDecorationLine: 'underline',
   },
   input: {
     borderWidth: 1,

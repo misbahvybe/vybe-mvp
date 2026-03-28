@@ -17,12 +17,36 @@
     ],
     "baseUrl": ".",
     "paths": {
-      "@api/*": ["src/api/*"],
-      "@store/*": ["src/store/*"],
-      "@screens/*": ["src/screens/*"],
-      "@navigation/*": ["src/navigation/*"]
+      "@api/*": [
+        "src/api/*"
+      ],
+      "@store/*": [
+        "src/store/*"
+      ],
+      "@screens/*": [
+        "src/screens/*"
+      ],
+      "@navigation/*": [
+        "src/navigation/*"
+      ],
+      "@theme/*": [
+        "src/theme/*"
+      ],
+      "@components/*": [
+        "src/components/*"
+      ],
+      "@contexts/*": [
+        "src/contexts/*"
+      ],
+      "@constants/*": [
+        "src/constants/*"
+      ]
     }
   },
-  "include": ["src", "index.tsx"]
+  "include": [
+    "src",
+    "index.tsx"
+  ],
+  "extends": "expo/tsconfig.base.json"
 }
 

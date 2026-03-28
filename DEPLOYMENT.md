@@ -36,9 +36,10 @@ JWT_EXPIRES_IN=7d
 OTP_EXPIRY_MINUTES=3
 OTP_MAX_ATTEMPTS=5
 
-# SMS – OTP (optional; if empty, OTP logged to console)
-SMS_PROVIDER_URL=
-SMS_API_KEY=
+# WhatsApp – OTP (Meta Cloud API; required in production — see backend/.env.example)
+WHATSAPP_ACCESS_TOKEN=
+WHATSAPP_PHONE_NUMBER_ID=
+WHATSAPP_OTP_TEMPLATE_NAME=
 
 # Geocoding for address picker
 GEOAPIFY_API_KEY=
@@ -104,7 +105,7 @@ Do **not** set a custom Start Command in Railway – let the Dockerfile CMD run.
 | Feature | Without Keys | With Keys |
 |---------|--------------|-----------|
 | Customer signup | ✅ | ✅ |
-| OTP verification | ✅ (logged to backend console) | ✅ (SMS sent) |
+| OTP verification | ✅ (logged to backend console in dev only) | ✅ (WhatsApp template) |
 | Login | ✅ | ✅ |
 | Browse stores, cart, checkout | ✅ | ✅ |
 | Cash on Delivery | ✅ | ✅ |

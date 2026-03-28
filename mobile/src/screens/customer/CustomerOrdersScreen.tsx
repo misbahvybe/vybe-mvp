@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, FlatList, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { api } from '@api/client';
+import { CustomerScreenShell } from '@components/customer/CustomerScreenShell';
+import { tokens } from '@theme/tokens';
 
 interface OrderItem {
   product: { name: string };
@@ -39,17 +41,11 @@ export function CustomerOrdersScreen() {
     });
 
   return (
-    <View style={styles.root}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.back}>&lt; Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>My Orders</Text>
-      </View>
+    <CustomerScreenShell title="My Orders" scrollable={false} bottomPadding="nav">
       <View style={styles.body}>
         {loading ? (
           <View style={styles.center}>
-            <ActivityIndicator color="#0ea5e9" />
+            <ActivityIndicator color={tokens.accent} />
           </View>
         ) : orders.length === 0 ? (
           <View style={styles.center}>
@@ -59,7 +55,7 @@ export function CustomerOrdersScreen() {
           <FlatList
             data={orders}
             keyExtractor={(o) => o.id}
-            contentContainerStyle={{ paddingBottom: 16, gap: 10 }}
+            contentContainerStyle={{ paddingBottom: 16, gap: 10, paddingHorizontal: 16, paddingTop: 8 }}
             renderItem={({ item }) => (
               <TouchableOpacity
                 style={styles.card}
@@ -78,52 +74,33 @@ export function CustomerOrdersScreen() {
           />
         )}
       </View>
-    </View>
+    </CustomerScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#f8fafc' },
-  header: {
-    paddingTop: 40,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e2e8f0'
-  },
-  back: { color: '#0ea5e9', fontSize: 14, fontWeight: '500' },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: '#0f172a' },
-  body: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
+  body: { flex: 1 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  empty: { fontSize: 14, color: '#64748b' },
+  empty: { fontSize: 14, color: tokens.slate500 },
   card: {
-    borderRadius: 16,
-    backgroundColor: '#ffffff',
+    borderRadius: tokens.radiusCard,
+    backgroundColor: tokens.surface,
     padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    shadowColor: '#020617',
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 1
+    ...tokens.shadowSoft
   },
-  cardTitle: { fontSize: 14, fontWeight: '600', color: '#0f172a' },
-  cardDate: { fontSize: 12, color: '#94a3b8', marginTop: 2 },
-  cardAmount: { marginTop: 2, fontSize: 13, fontWeight: '600', color: '#f97316' },
+  cardTitle: { fontSize: 14, fontWeight: '600', color: tokens.slate800 },
+  cardDate: { fontSize: 12, color: tokens.slate400, marginTop: 2 },
+  cardAmount: { marginTop: 2, fontSize: 13, fontWeight: '600', color: tokens.accent },
   status: {
     fontSize: 11,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 999,
-    backgroundColor: '#e5e7eb',
-    color: '#0f172a',
+    backgroundColor: tokens.slate200,
+    color: tokens.slate800,
     fontWeight: '500'
   }
 });
-

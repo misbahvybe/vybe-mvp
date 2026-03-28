@@ -2,35 +2,30 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useCartStore } from '@store/cart';
+import { CustomerScreenShell } from '@components/customer/CustomerScreenShell';
+import { VybeButton } from '@components/ui/VybeButton';
+import { tokens } from '@theme/tokens';
 
 export function CustomerCartScreen() {
   const navigation = useNavigation<any>();
   const { items, updateQty, total } = useCartStore();
   const totalAmount = total();
 
+  const goBrowse = () =>
+    navigation.getParent()?.navigate('HomeTab', { screen: 'CustomerHome' });
+
   return (
-    <View style={styles.root}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.back}>&lt; Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Cart</Text>
-      </View>
+    <CustomerScreenShell title="My Cart" scrollable={false} bottomPadding="nav">
       <View style={styles.body}>
         {items.length === 0 ? (
           <View style={styles.center}>
             <Text style={styles.emptyText}>Your cart is empty</Text>
-            <TouchableOpacity
-              style={styles.primaryButton}
-              onPress={() => navigation.navigate('CustomerHome')}
-            >
-              <Text style={styles.primaryButtonText}>Browse stores</Text>
-            </TouchableOpacity>
+            <VybeButton title="Browse stores" variant="accent" onPress={goBrowse} />
           </View>
         ) : (
           <>
             <FlatList
-              contentContainerStyle={{ paddingBottom: 24, gap: 12 }}
+              contentContainerStyle={{ paddingBottom: 16, gap: 12, paddingHorizontal: 16, paddingTop: 8 }}
               data={items}
               keyExtractor={(item) => item.productId}
               renderItem={({ item }) => (
@@ -63,73 +58,44 @@ export function CustomerCartScreen() {
               <Text style={styles.totalText}>
                 Total amount Rs {totalAmount.toFixed(0)}
               </Text>
-              <TouchableOpacity
-                style={styles.primaryButton}
+              <VybeButton
+                title="Checkout"
+                variant="accent"
+                size="lg"
+                fullWidth
                 onPress={() => navigation.navigate('Checkout')}
-              >
-                <Text style={styles.primaryButtonText}>Checkout</Text>
-              </TouchableOpacity>
+              />
             </View>
           </>
         )}
       </View>
-    </View>
+    </CustomerScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: '#f8fafc'
-  },
-  header: {
-    paddingTop: 40,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e2e8f0'
-  },
-  back: {
-    color: '#0ea5e9',
-    fontSize: 14,
-    fontWeight: '500'
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0f172a'
-  },
   body: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 12
+    flex: 1
   },
   center: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 12
+    gap: 16,
+    paddingHorizontal: 24
   },
   emptyText: {
     fontSize: 14,
-    color: '#64748b'
+    color: tokens.slate500
   },
   itemCard: {
-    borderRadius: 16,
-    backgroundColor: '#ffffff',
+    borderRadius: tokens.radiusCard,
+    backgroundColor: tokens.surface,
     padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    shadowColor: '#020617',
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 1
+    ...tokens.shadowSoft
   },
   itemInfo: {
     flex: 1
@@ -137,13 +103,13 @@ const styles = StyleSheet.create({
   itemName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#0f172a'
+    color: tokens.slate800
   },
   itemPrice: {
     marginTop: 2,
     fontSize: 13,
     fontWeight: '600',
-    color: '#f97316'
+    color: tokens.accent
   },
   qtyControls: {
     flexDirection: 'row',
@@ -154,41 +120,34 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#e2e8f0',
+    backgroundColor: tokens.slate200,
     justifyContent: 'center',
     alignItems: 'center'
   },
   qtyButtonText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#0f172a'
+    color: tokens.slate800
   },
   qtyText: {
     width: 26,
     textAlign: 'center',
     fontSize: 14,
     fontWeight: '600',
-    color: '#0f172a'
+    color: tokens.slate800
   },
   footer: {
-    marginTop: 12,
-    gap: 8
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+    gap: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: tokens.slate200,
+    backgroundColor: tokens.surface
   },
   totalText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#0f172a'
-  },
-  primaryButton: {
-    borderRadius: 999,
-    backgroundColor: '#0f172a',
-    paddingVertical: 14,
-    alignItems: 'center'
-  },
-  primaryButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#facc15'
+    color: tokens.slate800
   }
 });
-

@@ -36,7 +36,7 @@ export function SignupScreen() {
         password,
         confirmPassword,
       });
-      Alert.alert('Signup', data.message ?? 'OTP sent to your phone');
+      Alert.alert('Signup', data.message ?? 'OTP sent to your WhatsApp');
       navigation.navigate('SignupOtp', { phone: data.phone ?? phone.trim() });
     } catch (e: any) {
       const msg = e?.response?.data?.message ?? 'Failed to sign up';

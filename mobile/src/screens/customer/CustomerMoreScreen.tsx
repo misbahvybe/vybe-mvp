@@ -2,18 +2,28 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useAuthStore } from '@store/auth';
+import { CustomerScreenShell } from '@components/customer/CustomerScreenShell';
+import { VybeButton } from '@components/ui/VybeButton';
+import { tokens } from '@theme/tokens';
 
 export function CustomerMoreScreen() {
   const navigation = useNavigation<any>();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
 
+  const goWallet = () =>
+    navigation.getParent()?.navigate('WalletTab', { screen: 'CustomerWallet' });
+  const goOrders = () =>
+    navigation.getParent()?.navigate('OrdersTab', { screen: 'CustomerOrders' });
+
   return (
-    <View style={styles.root}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Profile</Text>
-      </View>
-      <ScrollView contentContainerStyle={styles.scroll}>
+    <CustomerScreenShell title="More" scrollable={false}>
+      <ScrollView
+        style={{ flex: 1 }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={styles.scroll}
+      >
         {user && (
           <View style={styles.profileCard}>
             <View style={styles.avatar}>
@@ -21,6 +31,7 @@ export function CustomerMoreScreen() {
             </View>
             <Text style={styles.name}>{user.name}</Text>
             <Text style={styles.phone}>{user.phone}</Text>
+            {user.email ? <Text style={styles.email}>{user.email}</Text> : null}
           </View>
         )}
         <View style={styles.menuCard}>
@@ -32,35 +43,42 @@ export function CustomerMoreScreen() {
             label="Delivery Addresses"
             onPress={() => navigation.navigate('CustomerAddresses')}
           />
-          <MenuItem
-            label="Wallet"
-            onPress={() => navigation.navigate('CustomerWallet')}
-          />
+          <MenuItem label="Wallet" onPress={goWallet} />
           <MenuItem
             label="Payment Methods"
             onPress={() => navigation.navigate('CustomerPaymentMethods')}
           />
+          <MenuItem label="My Orders" onPress={goOrders} />
           <MenuItem
-            label="My Orders"
-            onPress={() => navigation.navigate('CustomerOrders')}
+            label="Change password"
+            onPress={() => navigation.navigate('CustomerMorePassword')}
+          />
+          <MenuItem
+            label="Refer friends"
+            onPress={() => navigation.navigate('CustomerRefer')}
+            isLast
           />
         </View>
-        <TouchableOpacity
-          style={styles.logoutButton}
-          onPress={() => {
-            logout();
-          }}
-        >
-          <Text style={styles.logoutText}>Log out</Text>
-        </TouchableOpacity>
+        <VybeButton title="Log out" variant="primary" fullWidth onPress={() => logout()} />
       </ScrollView>
-    </View>
+    </CustomerScreenShell>
   );
 }
 
-function MenuItem({ label, onPress }: { label: string; onPress: () => void }) {
+function MenuItem({
+  label,
+  onPress,
+  isLast
+}: {
+  label: string;
+  onPress: () => void;
+  isLast?: boolean;
+}) {
   return (
-    <TouchableOpacity style={styles.menuItem} onPress={onPress}>
+    <TouchableOpacity
+      style={[styles.menuItem, isLast && styles.menuItemLast]}
+      onPress={onPress}
+    >
       <Text style={styles.menuLabel}>{label}</Text>
       <Text style={styles.menuChevron}>›</Text>
     </TouchableOpacity>
@@ -68,42 +86,33 @@ function MenuItem({ label, onPress }: { label: string; onPress: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#f8fafc' },
-  header: {
-    paddingTop: 40,
+  scroll: {
     paddingHorizontal: 16,
-    paddingBottom: 12,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e2e8f0'
+    paddingTop: 8,
+    paddingBottom: 24,
+    gap: 16
   },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: '#0f172a' },
-  scroll: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 32 },
   profileCard: {
     alignItems: 'center',
-    marginBottom: 16
+    marginBottom: 4
   },
   avatar: {
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: '#0f172a',
+    backgroundColor: tokens.primaryDark,
     alignItems: 'center',
     justifyContent: 'center'
   },
-  avatarText: { fontSize: 32, fontWeight: '700', color: '#facc15' },
-  name: { marginTop: 8, fontSize: 16, fontWeight: '600', color: '#0f172a' },
-  phone: { marginTop: 2, fontSize: 13, color: '#64748b' },
+  avatarText: { fontSize: 32, fontWeight: '700', color: tokens.accent },
+  name: { marginTop: 8, fontSize: 16, fontWeight: '600', color: tokens.slate800 },
+  phone: { marginTop: 2, fontSize: 13, color: tokens.slate500 },
+  email: { marginTop: 4, fontSize: 12, color: tokens.slate400 },
   menuCard: {
-    borderRadius: 16,
-    backgroundColor: '#ffffff',
+    borderRadius: tokens.radiusCard,
+    backgroundColor: tokens.surface,
     paddingVertical: 4,
-    marginTop: 12,
-    shadowColor: '#020617',
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 1
+    ...tokens.shadowSoft
   },
   menuItem: {
     flexDirection: 'row',
@@ -112,17 +121,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e5e7eb'
+    borderBottomColor: tokens.slate200
   },
-  menuLabel: { fontSize: 14, color: '#0f172a', fontWeight: '500' },
-  menuChevron: { fontSize: 16, color: '#cbd5e1' },
-  logoutButton: {
-    marginTop: 24,
-    borderRadius: 999,
-    backgroundColor: '#0f172a',
-    paddingVertical: 12,
-    alignItems: 'center'
+  menuItemLast: {
+    borderBottomWidth: 0
   },
-  logoutText: { fontSize: 14, fontWeight: '600', color: '#facc15' }
+  menuLabel: { fontSize: 14, color: tokens.slate800, fontWeight: '500' },
+  menuChevron: { fontSize: 16, color: tokens.slate300 }
 });
-

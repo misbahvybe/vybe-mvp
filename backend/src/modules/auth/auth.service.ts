@@ -42,7 +42,7 @@ export class AuthService {
     });
     const { expiresAt } = await this.otp.createAndSend(dto.phone);
     return {
-      message: 'OTP sent to your phone',
+      message: 'OTP sent to your WhatsApp',
       userId: user.id,
       phone: user.phone,
       expiresAt: expiresAt.toISOString(),
@@ -82,7 +82,7 @@ export class AuthService {
     }
     const { expiresAt } = await this.otp.createAndSend(phone);
     return {
-      message: 'OTP sent',
+      message: 'OTP sent to your WhatsApp',
       phone: normalized,
       expiresAt: expiresAt.toISOString(),
     };

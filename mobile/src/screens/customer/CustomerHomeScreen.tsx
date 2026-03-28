@@ -1,15 +1,33 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+  type ImageSourcePropType
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { Search } from 'lucide-react-native';
 import { useAuthStore } from '@store/auth';
+import { CustomerScreenShell } from '@components/customer/CustomerScreenShell';
+import { WebPublicImages } from '@constants/images';
+import { tokens } from '@theme/tokens';
 
-const CATEGORY_CARDS = [
-  { id: 'food', label: 'Food' },
-  { id: 'grocery', label: 'Grocery' },
-  { id: 'medicine', label: 'Medicine' },
-  { id: 'ride', label: 'Ride', comingSoon: true },
-  { id: 'courier', label: 'Courier', comingSoon: true },
-  { id: 'wallet', label: 'Crypto Wallet' }
+type CategoryId = 'food' | 'grocery' | 'medicine' | 'ride' | 'courier' | 'wallet';
+
+const CATEGORY_CARDS: {
+  id: CategoryId;
+  label: string;
+  image: ImageSourcePropType;
+  comingSoon?: boolean;
+}[] = [
+  { id: 'food', label: 'Food', image: WebPublicImages.foodPlate },
+  { id: 'grocery', label: 'Grocery', image: WebPublicImages.groceryBasket },
+  { id: 'medicine', label: 'Medicine', image: WebPublicImages.medicineBox },
+  { id: 'ride', label: 'Ride', image: WebPublicImages.deliveryScooter, comingSoon: true },
+  { id: 'courier', label: 'Courier', image: WebPublicImages.deliveryPackage, comingSoon: true },
+  { id: 'wallet', label: 'Crypto Wallet', image: WebPublicImages.wallet }
 ];
 
 export function CustomerHomeScreen() {
@@ -17,10 +35,34 @@ export function CustomerHomeScreen() {
   const navigation = useNavigation<any>();
   const firstName = user?.name?.split(' ')[0] ?? user?.name ?? 'Customer';
 
+  const openProfile = () =>
+    navigation.getParent()?.navigate('MoreTab', { screen: 'CustomerProfile' });
+
   return (
-    <View style={styles.root}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.appTitle}>VYBE</Text>
+    <CustomerScreenShell
+      title="VYBE"
+      rightAction={
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('CustomerSearch')}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel="Search stores"
+          >
+            <Search color={tokens.white} size={22} strokeWidth={2} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={openProfile}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel="Account"
+          >
+            <Image source={WebPublicImages.userAvatar} style={styles.avatarSm} />
+          </TouchableOpacity>
+        </View>
+      }
+    >
+      <View style={styles.pad}>
         <Text style={styles.title}>Hi, {firstName}</Text>
         <Text style={styles.subtitle}>What would you like to order today?</Text>
 
@@ -37,7 +79,7 @@ export function CustomerHomeScreen() {
             const onPress = () => {
               if (comingSoon) return;
               if (cat.id === 'wallet') {
-                navigation.navigate('CustomerStores');
+                navigation.getParent()?.navigate('WalletTab', { screen: 'CustomerWallet' });
                 return;
               }
               navigation.navigate('CustomerCategory', {
@@ -51,42 +93,46 @@ export function CustomerHomeScreen() {
                 style={[styles.card, comingSoon && styles.cardDisabled]}
                 disabled={comingSoon}
                 onPress={onPress}
+                activeOpacity={0.85}
               >
+                <Image source={cat.image} style={styles.cardImage} resizeMode="contain" />
                 <Text style={styles.cardLabel}>{cat.label}</Text>
                 {comingSoon && <Text style={styles.badge}>Coming soon</Text>}
               </TouchableOpacity>
             );
           })}
         </View>
-      </ScrollView>
-    </View>
+      </View>
+    </CustomerScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: '#f8fafc'
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12
   },
-  scroll: {
-    paddingTop: 32,
+  avatarSm: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)'
+  },
+  pad: {
     paddingHorizontal: 16,
-    paddingBottom: 32
-  },
-  appTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#020617',
-    marginBottom: 16
+    paddingTop: 8,
+    paddingBottom: 8
   },
   title: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#0f172a'
+    color: tokens.slate800
   },
   subtitle: {
     fontSize: 14,
-    color: '#64748b',
+    color: tokens.slate500,
     marginTop: 4,
     marginBottom: 20
   },
@@ -99,12 +145,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#64748b'
+    color: tokens.slate500
   },
   link: {
     fontSize: 13,
-    color: '#f97316',
-    fontWeight: '500'
+    color: tokens.accent,
+    fontWeight: '600'
   },
   grid: {
     flexDirection: 'row',
@@ -113,34 +159,36 @@ const styles = StyleSheet.create({
   },
   card: {
     width: '48%',
-    borderRadius: 16,
-    backgroundColor: '#ffffff',
-    paddingVertical: 20,
+    borderRadius: tokens.radiusCard,
+    backgroundColor: tokens.surface,
+    paddingVertical: 16,
     paddingHorizontal: 12,
-    shadowColor: '#020617',
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2
+    alignItems: 'center',
+    ...tokens.shadowSoft
   },
   cardDisabled: {
     opacity: 0.5
   },
+  cardImage: {
+    width: 64,
+    height: 64,
+    marginBottom: 8
+  },
   cardLabel: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#0f172a'
+    color: tokens.slate800,
+    textAlign: 'center'
   },
   badge: {
     marginTop: 8,
-    alignSelf: 'flex-start',
+    alignSelf: 'center',
     fontSize: 10,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 999,
-    backgroundColor: '#e2e8f0',
-    color: '#475569',
+    backgroundColor: tokens.slate200,
+    color: tokens.slate600,
     fontWeight: '500'
   }
 });
-

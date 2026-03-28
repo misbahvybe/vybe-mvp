@@ -56,7 +56,7 @@ export function LoginOtpScreen() {
       <View style={styles.card}>
         <Text style={styles.title}>Enter login code</Text>
         <Text style={styles.subtitle}>
-          We sent a 6-digit code to {phone}. Enter it below to login.
+          We sent a 6-digit code to your WhatsApp ({phone}). Enter it below to login.
         </Text>
         <TextInput
           style={styles.input}

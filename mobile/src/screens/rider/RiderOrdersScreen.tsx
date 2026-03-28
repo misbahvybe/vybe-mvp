@@ -1,7 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, FlatList, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RiderHomeStackParamList } from '@navigation/RiderTabs';
 import { api } from '@api/client';
+import { PartnerScreenShell } from '@components/partner/PartnerScreenShell';
+import { tokens } from '@theme/tokens';
 
 interface Order {
   id: string;
@@ -13,8 +17,10 @@ interface Order {
 
 const DELIVERY_FEE = 150;
 
+type Nav = NativeStackNavigationProp<RiderHomeStackParamList>;
+
 export function RiderOrdersScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<Nav>();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -36,27 +42,33 @@ export function RiderOrdersScreen() {
   const completed = orders.filter((o) => o.orderStatus === 'DELIVERED');
 
   return (
-    <View style={styles.root}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.back}>&lt; Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Rider Orders</Text>
-      </View>
+    <PartnerScreenShell
+      title="Orders"
+      scrollable={false}
+      bottomPadding="nav"
+      showBack={navigation.canGoBack()}
+      onBack={() => navigation.goBack()}
+    >
       <View style={styles.body}>
         {loading ? (
           <View style={styles.center}>
-            <ActivityIndicator color="#0ea5e9" />
+            <ActivityIndicator color={tokens.accent} />
           </View>
         ) : (
           <FlatList
             ListHeaderComponent={
               <View style={{ gap: 16 }}>
-                <Section title="Active / Assigned" emptyText="No active orders" orders={active} />
+                <Section
+                  title="Active / Assigned"
+                  emptyText="No active orders"
+                  orders={active}
+                  onSelectOrder={(o) => navigation.navigate('RiderOrderDetail', { id: o.id })}
+                />
                 <Section
                   title="Completed (Delivered)"
                   emptyText="No completed orders yet"
                   orders={completed}
+                  onSelectOrder={(o) => navigation.navigate('RiderOrderDetail', { id: o.id })}
                 />
               </View>
             }
@@ -65,7 +77,7 @@ export function RiderOrdersScreen() {
           />
         )}
       </View>
-    </View>
+    </PartnerScreenShell>
   );
 }
 
@@ -73,9 +85,10 @@ interface SectionProps {
   title: string;
   emptyText: string;
   orders: Order[];
+  onSelectOrder: (o: Order) => void;
 }
 
-function Section({ title, emptyText, orders }: SectionProps) {
+function Section({ title, emptyText, orders, onSelectOrder }: SectionProps) {
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -86,7 +99,12 @@ function Section({ title, emptyText, orders }: SectionProps) {
       ) : (
         <View style={{ gap: 8 }}>
           {orders.map((o) => (
-            <View key={o.id} style={styles.orderCard}>
+            <TouchableOpacity
+              key={o.id}
+              style={styles.orderCard}
+              activeOpacity={0.85}
+              onPress={() => onSelectOrder(o)}
+            >
               <View>
                 <Text style={styles.orderId}>#{o.id.slice(-8).toUpperCase()}</Text>
                 <Text style={styles.orderStore}>{o.store?.name ?? 'Store'}</Text>
@@ -95,7 +113,7 @@ function Section({ title, emptyText, orders }: SectionProps) {
                 <Text style={styles.badge}>{o.orderStatus}</Text>
                 <Text style={styles.orderAmount}>{DELIVERY_FEE} PKR</Text>
               </View>
-            </View>
+            </TouchableOpacity>
           ))}
         </View>
       )}
@@ -104,35 +122,10 @@ function Section({ title, emptyText, orders }: SectionProps) {
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: '#f8fafc'
-  },
-  header: {
-    paddingTop: 40,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e2e8f0'
-  },
-  back: {
-    color: '#0ea5e9',
-    fontSize: 14,
-    fontWeight: '500'
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0f172a'
-  },
   body: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingTop: 12
+    paddingTop: 8
   },
   center: {
     flex: 1,
@@ -145,43 +138,40 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#64748b',
+    color: tokens.slate500,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
     marginBottom: 6
   },
   sectionCard: {
-    borderRadius: 16,
-    backgroundColor: '#ffffff',
+    borderRadius: tokens.radiusCard,
+    backgroundColor: tokens.surface,
     padding: 12,
-    alignItems: 'center'
+    alignItems: 'center',
+    ...tokens.shadowSoft
   },
   sectionEmpty: {
     fontSize: 13,
-    color: '#94a3b8'
+    color: tokens.slate400
   },
   orderCard: {
-    borderRadius: 16,
-    backgroundColor: '#ffffff',
+    borderRadius: tokens.radiusCard,
+    backgroundColor: tokens.surface,
     padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    shadowColor: '#020617',
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 1
+    ...tokens.shadowSoft
   },
   orderId: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#0f172a'
+    color: tokens.slate800
   },
   orderStore: {
     marginTop: 2,
     fontSize: 13,
-    color: '#64748b'
+    color: tokens.slate500
   },
   badge: {
     paddingHorizontal: 8,
@@ -189,14 +179,13 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     fontSize: 11,
     fontWeight: '500',
-    color: '#0f172a',
-    backgroundColor: '#e5e7eb'
+    color: tokens.slate800,
+    backgroundColor: tokens.slate200
   },
   orderAmount: {
     marginTop: 4,
     fontSize: 13,
     fontWeight: '600',
-    color: '#f97316'
+    color: tokens.accent
   }
 });
-

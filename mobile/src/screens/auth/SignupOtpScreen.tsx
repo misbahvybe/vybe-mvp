@@ -43,9 +43,9 @@ export function SignupOtpScreen() {
   return (
     <View style={styles.root}>
       <View style={styles.card}>
-        <Text style={styles.title}>Verify your phone</Text>
+        <Text style={styles.title}>Verify WhatsApp</Text>
         <Text style={styles.subtitle}>
-          We sent a 6-digit code to {phone}. Enter it below to complete signup.
+          We sent a 6-digit code to your WhatsApp ({phone}). Enter it below to complete signup.
         </Text>
         <TextInput
           style={styles.input}

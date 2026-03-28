@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TextInput, ActivityIndicator, Alert } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { api } from '@api/client';
+import { CustomerScreenShell } from '@components/customer/CustomerScreenShell';
+import { VybeButton } from '@components/ui/VybeButton';
+import { tokens } from '@theme/tokens';
 
 interface Address {
   id: string;
@@ -70,101 +73,87 @@ export function CustomerAddressFormScreen() {
 
   if (initialLoading) {
     return (
-      <View style={styles.centerRoot}>
-        <ActivityIndicator color="#0ea5e9" />
-      </View>
+      <CustomerScreenShell
+        title={id ? 'Edit address' : 'Add address'}
+        showBack
+        onBack={() => navigation.goBack()}
+        bottomPadding="nav"
+      >
+        <View style={styles.centerRoot}>
+          <ActivityIndicator color={tokens.accent} />
+        </View>
+      </CustomerScreenShell>
     );
   }
 
   return (
-    <View style={styles.root}>
-      <View style={styles.header}>
-        <Text style={styles.back} onPress={() => navigation.goBack()}>
-          &lt; Back
-        </Text>
-        <Text style={styles.headerTitle}>{id ? 'Edit address' : 'Add address'}</Text>
-      </View>
+    <CustomerScreenShell
+      title={id ? 'Edit address' : 'Add address'}
+      showBack
+      onBack={() => navigation.goBack()}
+      bottomPadding="nav"
+    >
       <View style={styles.body}>
         <View style={styles.card}>
           <Text style={styles.label}>Label</Text>
           <TextInput
             style={styles.input}
             placeholder="Home, Office, etc."
+            placeholderTextColor={tokens.slate400}
             value={form.label}
             onChangeText={(text) => setForm((f) => ({ ...f, label: text }))}
           />
           <Text style={styles.label}>Full address</Text>
           <TextInput
-            style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
+            style={[styles.input, styles.inputMultiline]}
             multiline
             placeholder="Street, area, city..."
+            placeholderTextColor={tokens.slate400}
             value={form.fullAddress}
             onChangeText={(text) => setForm((f) => ({ ...f, fullAddress: text }))}
           />
-          <TouchableOpacity style={styles.saveButton} onPress={save} disabled={loading}>
-            {loading ? (
-              <ActivityIndicator color="#000000" />
-            ) : (
-              <Text style={styles.saveButtonText}>{id ? 'Save changes' : 'Add address'}</Text>
-            )}
-          </TouchableOpacity>
+          <VybeButton
+            title={id ? 'Save changes' : 'Add address'}
+            variant="accent"
+            fullWidth
+            loading={loading}
+            onPress={save}
+            style={{ marginTop: 16 }}
+          />
         </View>
       </View>
-    </View>
+    </CustomerScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#f8fafc' },
   centerRoot: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8fafc'
+    paddingTop: 48
   },
-  header: {
-    paddingTop: 40,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e2e8f0'
-  },
-  back: { color: '#0ea5e9', fontSize: 14, fontWeight: '500' },
-  headerTitle: { marginTop: 4, fontSize: 18, fontWeight: '700', color: '#0f172a' },
   body: { flex: 1, paddingHorizontal: 16, paddingTop: 16 },
   card: {
-    borderRadius: 16,
-    backgroundColor: '#ffffff',
+    borderRadius: tokens.radiusCard,
+    backgroundColor: tokens.surface,
     padding: 16,
-    shadowColor: '#020617',
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 1
+    ...tokens.shadowSoft
   },
-  label: { marginTop: 8, fontSize: 13, color: '#64748b' },
+  label: { marginTop: 8, fontSize: 13, color: tokens.slate500 },
   input: {
     marginTop: 4,
-    borderRadius: 999,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: tokens.slate300,
     paddingHorizontal: 14,
     paddingVertical: 10,
     fontSize: 14,
-    color: '#0f172a'
+    color: tokens.slate800,
+    backgroundColor: tokens.surface
   },
-  saveButton: {
-    marginTop: 16,
-    borderRadius: 999,
-    backgroundColor: '#0f172a',
-    paddingVertical: 12,
-    alignItems: 'center'
-  },
-  saveButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#facc15'
+  inputMultiline: {
+    height: 80,
+    textAlignVertical: 'top'
   }
 });
-

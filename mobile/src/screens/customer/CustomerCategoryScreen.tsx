@@ -1,7 +1,17 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { View, Text, StyleSheet, TextInput, ActivityIndicator, FlatList, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  ActivityIndicator,
+  FlatList,
+  TouchableOpacity
+} from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { api } from '@api/client';
+import { CustomerScreenShell } from '@components/customer/CustomerScreenShell';
+import { tokens } from '@theme/tokens';
 
 interface StoreSummary {
   id: string;
@@ -20,10 +30,6 @@ export function CustomerCategoryScreen() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-
-  useEffect(() => {
-    navigation.setOptions?.({ headerShown: false });
-  }, [navigation]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 300);
@@ -51,24 +57,24 @@ export function CustomerCategoryScreen() {
   }, [stores, debouncedSearch]);
 
   return (
-    <View style={styles.root}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.back}>&lt; Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>{title}</Text>
-      </View>
+    <CustomerScreenShell
+      title={title}
+      showBack
+      onBack={() => navigation.goBack()}
+      scrollable={false}
+      bottomPadding="nav"
+    >
       <View style={styles.body}>
         <TextInput
           style={styles.search}
           placeholder="Search stores..."
-          placeholderTextColor="#94a3b8"
+          placeholderTextColor={tokens.slate400}
           value={search}
           onChangeText={setSearch}
         />
         {loading ? (
           <View style={styles.center}>
-            <ActivityIndicator color="#0ea5e9" />
+            <ActivityIndicator color={tokens.accent} />
           </View>
         ) : filteredStores.length === 0 ? (
           <View style={styles.center}>
@@ -104,50 +110,26 @@ export function CustomerCategoryScreen() {
           />
         )}
       </View>
-    </View>
+    </CustomerScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: '#f8fafc'
-  },
-  header: {
-    paddingTop: 40,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e2e8f0'
-  },
-  back: {
-    color: '#0ea5e9',
-    fontSize: 14,
-    fontWeight: '500'
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0f172a'
-  },
   body: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingTop: 12
+    paddingTop: 8
   },
   search: {
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: tokens.slate300,
     paddingHorizontal: 16,
     paddingVertical: 10,
     fontSize: 14,
-    color: '#0f172a',
-    marginBottom: 12
+    color: tokens.slate800,
+    marginBottom: 12,
+    backgroundColor: tokens.surface
   },
   center: {
     flex: 1,
@@ -157,12 +139,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#64748b',
+    color: tokens.slate500,
     marginBottom: 4
   },
   emptyText: {
     fontSize: 13,
-    color: '#94a3b8'
+    color: tokens.slate400
   },
   list: {
     paddingBottom: 24,
@@ -170,32 +152,27 @@ const styles = StyleSheet.create({
   },
   card: {
     flex: 1,
-    borderRadius: 16,
-    backgroundColor: '#ffffff',
+    borderRadius: tokens.radiusCard,
+    backgroundColor: tokens.surface,
     padding: 10,
-    shadowColor: '#020617',
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2
+    ...tokens.shadowSoft
   },
   cardImagePlaceholder: {
     width: '100%',
     aspectRatio: 1,
     borderRadius: 12,
-    backgroundColor: '#e2e8f0',
+    backgroundColor: tokens.slate200,
     marginBottom: 8
   },
   cardName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#0f172a'
+    color: tokens.slate800
   },
   cardPrice: {
     marginTop: 2,
     fontSize: 13,
     fontWeight: '600',
-    color: '#f97316'
+    color: tokens.accent
   }
 });
-

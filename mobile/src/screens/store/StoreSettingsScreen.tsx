@@ -9,8 +9,9 @@ import {
   TextInput,
   Alert,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
 import { api } from '@api/client';
+import { PartnerScreenShell } from '@components/partner/PartnerScreenShell';
+import { tokens } from '@theme/tokens';
 
 interface StoreInfo {
   id: string;
@@ -28,7 +29,6 @@ interface StoreInfo {
 }
 
 export function StoreSettingsScreen() {
-  const navigation = useNavigation<any>();
   const [store, setStore] = useState<StoreInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -93,16 +93,10 @@ export function StoreSettingsScreen() {
   };
 
   return (
-    <View style={styles.root}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.back}>&lt; Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Store settings</Text>
-      </View>
+    <PartnerScreenShell title="Store settings" scrollable={false} bottomPadding="nav">
       {loading ? (
         <View style={[styles.body, styles.center]}>
-          <ActivityIndicator color="#0ea5e9" />
+          <ActivityIndicator color={tokens.accent} />
         </View>
       ) : (
         <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 24 }}>
@@ -228,7 +222,7 @@ export function StoreSettingsScreen() {
           </View>
         </ScrollView>
       )}
-    </View>
+    </PartnerScreenShell>
   );
 }
 
@@ -266,35 +260,10 @@ function Field({
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  header: {
-    paddingTop: 40,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e2e8f0',
-  },
-  back: {
-    color: '#0ea5e9',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0f172a',
-  },
   body: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingTop: 8,
   },
   center: {
     justifyContent: 'center',

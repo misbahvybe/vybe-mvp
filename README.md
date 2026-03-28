@@ -7,7 +7,7 @@ Production-grade MVP for a Lahore-based delivery platform (Customer, Rider, Stor
 - **Frontend:** Next.js 14 (App Router), TypeScript, TailwindCSS, Zustand, Axios, PWA
 - **Backend:** NestJS, TypeScript, PostgreSQL (Neon), Prisma, JWT, RBAC
 - **Maps:** OpenStreetMap, Leaflet, Geoapify
-- **OTP:** SMS-based, hashed storage, 3-min expiry, rate limited
+- **OTP:** WhatsApp (Meta Cloud API template), hashed storage, 3-min expiry, rate limited
 
 ## Quick Start
 

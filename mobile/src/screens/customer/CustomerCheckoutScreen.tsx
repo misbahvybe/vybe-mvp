@@ -1,19 +1,37 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, FlatList, Alert, Linking } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+  Linking
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { api } from '@api/client';
 import { useCartStore } from '@store/cart';
 import { useAuthStore } from '@store/auth';
+import { CustomerScreenShell } from '@components/customer/CustomerScreenShell';
+import { VybeButton } from '@components/ui/VybeButton';
+import { tokens } from '@theme/tokens';
 
 const DELIVERY_FEE = 150;
 const SERVICE_FEE = 23.49;
 
-type PaymentOption = 'cod' | 'xpay';
+type PaymentMode = 'cod' | 'xpay' | 'card';
 
 interface Address {
   id: string;
   label?: string | null;
   fullAddress: string;
+  isDefault?: boolean;
+}
+
+interface SavedCard {
+  id: string;
+  last4: string;
+  brand: string;
   isDefault?: boolean;
 }
 
@@ -26,7 +44,9 @@ export function CustomerCheckoutScreen() {
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
-  const [paymentOption, setPaymentOption] = useState<PaymentOption>('cod');
+  const [paymentMode, setPaymentMode] = useState<PaymentMode>('cod');
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const [savedCards, setSavedCards] = useState<SavedCard[]>([]);
   const [paymentOptions, setPaymentOptions] = useState<{ stripe: boolean; xpay: boolean }>({
     stripe: false,
     xpay: false
@@ -34,6 +54,16 @@ export function CustomerCheckoutScreen() {
 
   useEffect(() => {
     if (!token) return;
+    api
+      .get<SavedCard[]>('/users/me/payment-methods')
+      .then((r) => {
+        const list = r.data ?? [];
+        setSavedCards(list);
+        const def = list.find((c) => c.isDefault) ?? list[0];
+        if (def) setSelectedCardId(def.id);
+      })
+      .catch(() => setSavedCards([]));
+
     api
       .get<Address[]>('/users/me/addresses')
       .then((res) => {
@@ -54,15 +84,21 @@ export function CustomerCheckoutScreen() {
   }, [token]);
 
   const canPlaceOrder =
-    !!selectedAddressId && !!storeId && items.length > 0 && addresses.length > 0 && !loading;
+    !!selectedAddressId &&
+    !!storeId &&
+    items.length > 0 &&
+    addresses.length > 0 &&
+    !loading &&
+    (paymentMode !== 'card' || !!selectedCardId);
 
   const placeOrder = async () => {
     if (!canPlaceOrder) {
       return;
     }
     setLoading(true);
+    let orderId: string | undefined;
     try {
-      if (paymentOption === 'xpay' && paymentOptions.xpay) {
+      if (paymentMode === 'xpay' && paymentOptions.xpay) {
         const { data } = await api.post<{ redirectUrl: string }>('/orders/prepare-xpay', {
           storeId,
           addressId: selectedAddressId,
@@ -79,23 +115,40 @@ export function CustomerCheckoutScreen() {
         return;
       }
 
-      const payload = {
+      const baseItems = items.map((i) => ({
+        productId: i.productId,
+        quantity: i.quantityKg,
+        price: i.unitPrice
+      }));
+
+      const payload: Record<string, unknown> = {
         storeId,
         addressId: selectedAddressId,
-        items: items.map((i) => ({
-          productId: i.productId,
-          quantity: i.quantityKg,
-          price: i.unitPrice
-        })),
-        paymentMethod: 'COD' as const
+        items: baseItems,
+        paymentMethod: paymentMode === 'card' ? 'CARD' : 'COD',
       };
+      if (paymentMode === 'card' && selectedCardId) {
+        payload.paymentMethodId = selectedCardId;
+      }
+
       const res = await api.post<{ id: string }>('/orders', payload);
+      orderId = res.data?.id;
       clearCart();
       Alert.alert('Order placed', 'Your order has been placed successfully.', [
         {
           text: 'View order',
-          onPress: () => navigation.navigate('CustomerHome')
-        }
+          onPress: () => {
+            if (orderId) {
+              navigation.getParent()?.navigate('OrdersTab', {
+                screen: 'CustomerOrderDetail',
+                params: { id: orderId }
+              });
+            } else {
+              navigation.getParent()?.navigate('OrdersTab', { screen: 'CustomerOrders' });
+            }
+          }
+        },
+        { text: 'OK', style: 'cancel' }
       ]);
     } catch (e: any) {
       const msg = e?.response?.data?.message ?? 'Failed to place order';
@@ -107,36 +160,48 @@ export function CustomerCheckoutScreen() {
 
   if (initialLoading) {
     return (
-      <View style={styles.centerRoot}>
-        <ActivityIndicator color="#0ea5e9" />
-      </View>
+      <CustomerScreenShell
+        title="Checkout"
+        showBack
+        onBack={() => navigation.goBack()}
+        bottomPadding="nav"
+      >
+        <View style={styles.centerRoot}>
+          <ActivityIndicator color={tokens.accent} />
+        </View>
+      </CustomerScreenShell>
     );
   }
 
   return (
-    <View style={styles.root}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.back}>&lt; Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Checkout</Text>
-      </View>
+    <CustomerScreenShell
+      title="Checkout"
+      showBack
+      onBack={() => navigation.goBack()}
+      bottomPadding="nav"
+    >
       <View style={styles.body}>
         <Text style={styles.sectionTitle}>Delivery address</Text>
         {addresses.length === 0 ? (
           <View style={styles.card}>
             <Text style={styles.text}>
-              No saved address. Please add an address from the web app to place orders in the mobile
-              app for now.
+              No saved address. Add one from More → Delivery addresses, then return to checkout.
             </Text>
+            <VybeButton
+              title="Open addresses"
+              variant="outline"
+              size="md"
+              style={{ marginTop: 12 }}
+              onPress={() =>
+                navigation.getParent()?.navigate('MoreTab', { screen: 'CustomerAddresses' })
+              }
+            />
           </View>
         ) : (
-          <FlatList
-            data={addresses}
-            keyExtractor={(a) => a.id}
-            contentContainerStyle={{ gap: 8, marginBottom: 12 }}
-            renderItem={({ item }) => (
+          <View style={{ gap: 8, marginBottom: 12 }}>
+            {addresses.map((item) => (
               <TouchableOpacity
+                key={item.id}
                 onPress={() => setSelectedAddressId(item.id)}
                 style={[
                   styles.card,
@@ -146,32 +211,56 @@ export function CustomerCheckoutScreen() {
                 <Text style={styles.addressLabel}>{item.label || 'Address'}</Text>
                 <Text style={styles.addressText}>{item.fullAddress}</Text>
               </TouchableOpacity>
-            )}
-          />
+            ))}
+          </View>
         )}
 
         <Text style={styles.sectionTitle}>Payment method</Text>
         <View style={styles.card}>
           <TouchableOpacity
-            style={[
-              styles.paymentOption,
-              paymentOption === 'cod' && styles.paymentOptionSelected
-            ]}
-            onPress={() => setPaymentOption('cod')}
+            style={[styles.paymentOption, paymentMode === 'cod' && styles.paymentOptionSelected]}
+            onPress={() => setPaymentMode('cod')}
           >
             <Text style={styles.paymentTitle}>Cash on Delivery</Text>
             <Text style={styles.paymentSub}>Pay when you receive</Text>
           </TouchableOpacity>
+          {savedCards.length > 0 && (
+            <>
+              <Text style={[styles.paymentSub, { marginTop: 12, marginBottom: 6 }]}>
+                Saved card (charged as paid order)
+              </Text>
+              {savedCards.map((c) => (
+                <TouchableOpacity
+                  key={c.id}
+                  style={[
+                    styles.paymentOption,
+                    paymentMode === 'card' && selectedCardId === c.id && styles.paymentOptionSelected,
+                  ]}
+                  onPress={() => {
+                    setPaymentMode('card');
+                    setSelectedCardId(c.id);
+                  }}
+                >
+                  <Text style={styles.paymentTitle}>
+                    {c.brand} •••• {c.last4}
+                    {c.isDefault ? '  (default)' : ''}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </>
+          )}
+          {paymentOptions.stripe && savedCards.length === 0 && (
+            <Text style={[styles.paymentSub, { marginTop: 8 }]}>
+              Add a card under More → Payment methods (test cards supported on backend).
+            </Text>
+          )}
           {paymentOptions.xpay && (
             <TouchableOpacity
-              style={[
-                styles.paymentOption,
-                paymentOption === 'xpay' && styles.paymentOptionSelected
-              ]}
-              onPress={() => setPaymentOption('xpay')}
+              style={[styles.paymentOption, paymentMode === 'xpay' && styles.paymentOptionSelected]}
+              onPress={() => setPaymentMode('xpay')}
             >
               <Text style={styles.paymentTitle}>Card / Wallet (XPay)</Text>
-              <Text style={styles.paymentSub}>Secure card or mobile wallet payment</Text>
+              <Text style={styles.paymentSub}>Opens payment page in your browser</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -208,96 +297,69 @@ export function CustomerCheckoutScreen() {
           </View>
         </View>
 
-        <TouchableOpacity
-          style={[
-            styles.primaryButton,
-            !canPlaceOrder && styles.primaryButtonDisabled
-          ]}
+        <VybeButton
+          title={
+            paymentMode === 'xpay'
+              ? 'Pay with XPay'
+              : paymentMode === 'card'
+                ? 'Pay with saved card'
+                : 'Place order (Cash on Delivery)'
+          }
+          variant="accent"
+          size="lg"
+          fullWidth
+          loading={loading}
           disabled={!canPlaceOrder}
           onPress={placeOrder}
-        >
-          {loading ? <ActivityIndicator color="#000000" /> : (
-            <Text style={styles.primaryButtonText}>
-              {paymentOption === 'xpay' ? 'Pay with XPay' : 'Place order (Cash on Delivery)'}
-            </Text>
-          )}
-        </TouchableOpacity>
+          style={{ marginTop: 12 }}
+        />
       </View>
-    </View>
+    </CustomerScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: '#f8fafc'
-  },
   centerRoot: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8fafc'
-  },
-  header: {
-    paddingTop: 40,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e2e8f0'
-  },
-  back: {
-    color: '#0ea5e9',
-    fontSize: 14,
-    fontWeight: '500'
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0f172a'
+    paddingTop: 48
   },
   body: {
-    flex: 1,
     paddingHorizontal: 16,
-    paddingTop: 12
+    paddingTop: 12,
+    paddingBottom: 24
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#0f172a',
+    color: tokens.slate800,
     marginBottom: 6
   },
   card: {
-    borderRadius: 16,
-    backgroundColor: '#ffffff',
+    borderRadius: tokens.radiusCard,
+    backgroundColor: tokens.surface,
     padding: 12,
     marginBottom: 8,
-    shadowColor: '#020617',
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 1
+    ...tokens.shadowSoft
   },
   cardSelected: {
     borderWidth: 1.5,
-    borderColor: '#0ea5e9'
+    borderColor: tokens.accent
   },
   addressLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#0f172a',
+    color: tokens.slate800,
     marginBottom: 2
   },
   addressText: {
     fontSize: 13,
-    color: '#64748b'
+    color: tokens.slate500
   },
   text: {
     fontSize: 13,
-    color: '#64748b'
+    color: tokens.slate500
   },
   summaryRow: {
     flexDirection: 'row',
@@ -305,45 +367,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 4,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e2e8f0'
+    borderBottomColor: tokens.slate200
   },
   summaryText: {
     fontSize: 13,
-    color: '#0f172a'
+    color: tokens.slate800
   },
   summaryLabel: {
     fontSize: 13,
-    color: '#64748b'
+    color: tokens.slate500
   },
   summaryValue: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#0f172a'
+    color: tokens.slate800
   },
   summaryTotalLabel: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#0f172a'
+    color: tokens.slate800
   },
   summaryTotalValue: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#f97316'
-  },
-  primaryButton: {
-    marginTop: 12,
-    borderRadius: 999,
-    backgroundColor: '#0f172a',
-    paddingVertical: 14,
-    alignItems: 'center'
-  },
-  primaryButtonDisabled: {
-    backgroundColor: '#94a3b8'
-  },
-  primaryButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#facc15'
+    color: tokens.accent
   },
   paymentOption: {
     paddingVertical: 8
@@ -351,7 +398,7 @@ const styles = StyleSheet.create({
   paymentOptionSelected: {
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#0ea5e9',
+    borderColor: tokens.accent,
     paddingHorizontal: 8,
     paddingVertical: 8,
     marginHorizontal: -4
@@ -359,11 +406,11 @@ const styles = StyleSheet.create({
   paymentTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#0f172a'
+    color: tokens.slate800
   },
   paymentSub: {
     fontSize: 12,
-    color: '#64748b',
+    color: tokens.slate500,
     marginTop: 2
   }
 });
