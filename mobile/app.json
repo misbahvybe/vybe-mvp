@@ -29,6 +29,7 @@
       ]
     ],
     "extra": {
+      "geoapifyApiKey": "",
       "backendUrl": "https://vybe-mvp-production.up.railway.app/api/v1",
       "eas": {
         "projectId": "056526de-fc59-43f4-9a47-01109ed5c365"
