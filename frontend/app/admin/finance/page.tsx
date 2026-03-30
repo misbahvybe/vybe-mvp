@@ -20,6 +20,7 @@ interface Finance {
     totalCommission: number;
     totalServiceFees: number;
     totalDeliveryFees: number;
+    riderCost: number;
     cancellationLoss: number;
     cancelledOrders: number;
   };
@@ -71,7 +72,7 @@ export default function AdminFinancePage() {
       ['Platform Commission (15%)', finance?.today.platformCommission ?? 0, finance?.month.totalCommission ?? 0],
       ['Service Fees', finance?.today.serviceFeesCollected ?? 0, finance?.month.totalServiceFees ?? 0],
       ['Delivery Fees', finance?.today.deliveryFeesCollected ?? 0, finance?.month.totalDeliveryFees ?? 0],
-      ['Rider Cost', finance?.today.riderCost ?? 0, '-'],
+      ['Rider Cost', finance?.today.riderCost ?? 0, finance?.month.riderCost ?? 0],
       ['Net Platform Revenue', finance?.today.netPlatformRevenue ?? 0, '-'],
       ['Cancellations', '-', finance?.month.cancelledOrders ?? 0],
       ['Cancellation Loss', '-', finance?.month.cancellationLoss ?? 0],
@@ -154,6 +155,10 @@ export default function AdminFinancePage() {
             <div className="flex justify-between">
               <span className="text-slate-600">Total Delivery Fees</span>
               <span className="font-semibold">Rs {(finance?.month.totalDeliveryFees ?? 0).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between text-red-600">
+              <span>Rider Cost</span>
+              <span className="font-semibold">-Rs {(finance?.month.riderCost ?? 0).toLocaleString()}</span>
             </div>
             <div className="flex justify-between text-red-600">
               <span>Cancellations</span>

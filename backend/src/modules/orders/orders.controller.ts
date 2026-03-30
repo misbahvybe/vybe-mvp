@@ -22,7 +22,7 @@ export class OrdersController {
     @Query('pendingId') pendingId: string,
     @Query('xIntentId') xIntentId: string,
     @Query('intent_id') intentIdAlt: string,
-    @Query('status') status: string,
+    @Query('status') _status: string,
     @Res() res: Response,
   ) {
     const intentId = xIntentId || intentIdAlt;

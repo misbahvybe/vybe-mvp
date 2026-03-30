@@ -1,6 +1,5 @@
 import {
   Injectable,
-  ForbiddenException,
   ConflictException,
   NotFoundException,
   BadRequestException,
@@ -47,7 +46,7 @@ export class AdminService {
     return { user: { id: user.id, name: user.name, email: user.email, role: user.role }, inviteLink };
   }
 
-  async listPartners(adminId: string) {
+  async listPartners() {
     const users = await this.prisma.user.findMany({
       where: { role: { in: [Role.RIDER, Role.STORE_OWNER] } },
       select: { id: true, name: true, email: true, phone: true, role: true, isActive: true, passwordSet: true, createdAt: true, invitationExpiresAt: true },
@@ -125,14 +124,6 @@ export class AdminService {
     const readyForPickup = statusCounts.READY_FOR_PICKUP ?? 0;
     const outForDelivery = (statusCounts.RIDER_ASSIGNED ?? 0) + (statusCounts.RIDER_ACCEPTED ?? 0) + (statusCounts.PICKED_UP ?? 0);
 
-    const totalServiceFee = await this.prisma.order.aggregate({
-      where: { orderStatus: 'DELIVERED' },
-      _sum: { serviceFee: true },
-    });
-    const totalDeliveryFee = await this.prisma.order.aggregate({
-      where: { orderStatus: 'DELIVERED' },
-      _sum: { deliveryFee: true },
-    });
     const totalRiderCost = await this.prisma.riderEarning.aggregate({ _sum: { earningAmount: true } });
     const avgOrderValue = deliveredWithHistory.length > 0
       ? deliveredWithHistory.reduce((s, o) => s + Number(o.totalAmount ?? 0), 0) / deliveredWithHistory.length
@@ -349,6 +340,7 @@ export class AdminService {
         totalCommission: monthCommission,
         totalServiceFees: monthServiceFees,
         totalDeliveryFees: monthDeliveryFees,
+        riderCost: Number(monthRiderCost._sum.earningAmount ?? 0),
         cancellationLoss: Number(cancelledMonthValue._sum.subtotalAmount ?? 0),
         cancelledOrders: cancelledMonth,
       },

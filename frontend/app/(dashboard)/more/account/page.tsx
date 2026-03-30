@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { StickyHeader } from '@/components/layout/StickyHeader';
 import { ContentPanel } from '@/components/layout/ContentPanel';
 import { Card } from '@/components/ui/Card';

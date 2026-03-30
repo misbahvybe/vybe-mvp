@@ -118,7 +118,7 @@ export default function AdminPricingPage() {
     }
   };
 
-  const saveStoreOverride = async (storeId: string) => {
+  const saveStoreCommission = async (storeId: string) => {
     const raw = storeEdits[storeId]?.trim();
     let body: { commissionPercentOverride: number | null };
     if (raw === '') {
@@ -126,7 +126,7 @@ export default function AdminPricingPage() {
     } else {
       const n = Number(raw);
       if (Number.isNaN(n) || n < 0 || n > 100) {
-        setMessage('Override must be empty (platform rules) or 0–100.');
+        setMessage('Leave empty for category default, or enter a commission between 0 and 100.');
         return;
       }
       body = { commissionPercentOverride: n };
@@ -160,8 +160,8 @@ export default function AdminPricingPage() {
       <h1 className="text-2xl font-bold text-slate-800 mb-1">Pricing &amp; commission</h1>
       <p className="text-sm text-slate-600 mb-4">
         Platform commission by store category (slug matches{' '}
-        <code className="bg-slate-100 px-1 rounded">StoreCategory.name</code> in lowercase). Store
-        override wins over category rules.
+        <code className="bg-slate-100 px-1 rounded">StoreCategory.name</code> in lowercase). A
+        custom rate for a store replaces the category default for that store only.
       </p>
       {message && (
         <p className="text-sm mb-4 text-slate-700 bg-slate-100 border border-slate-200 rounded-lg px-3 py-2">
@@ -253,15 +253,15 @@ export default function AdminPricingPage() {
         </div>
       </Card>
 
-      <h2 className="text-lg font-semibold text-slate-800 mb-2">Per-store override</h2>
+      <h2 className="text-lg font-semibold text-slate-800 mb-2">Per-store commission</h2>
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-50">
               <tr>
                 <th className="text-left p-3 font-medium">Store</th>
-                <th className="text-left p-3 font-medium w-44">Override %</th>
-                <th className="text-left p-3 font-medium text-slate-500">Leave empty = use category rules</th>
+                <th className="text-left p-3 font-medium w-44">Custom % (this store)</th>
+                <th className="text-left p-3 font-medium text-slate-500">Leave empty = category default</th>
                 <th className="text-right p-3 font-medium w-36">Action</th>
               </tr>
             </thead>
@@ -285,8 +285,8 @@ export default function AdminPricingPage() {
                   </td>
                   <td className="p-3 text-slate-500 text-xs">
                     {s.commissionPercentOverride != null
-                      ? `Current saved: ${s.commissionPercentOverride}%`
-                      : 'Using platform category rules'}
+                      ? `Using custom rate: ${s.commissionPercentOverride}%`
+                      : 'Using category default'}
                   </td>
                   <td className="p-3 text-right">
                     <Button
@@ -294,7 +294,7 @@ export default function AdminPricingPage() {
                       size="sm"
                       variant="outline"
                       loading={saving === `st:${s.id}`}
-                      onClick={() => saveStoreOverride(s.id)}
+                      onClick={() => saveStoreCommission(s.id)}
                     >
                       Save
                     </Button>

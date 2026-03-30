@@ -29,8 +29,8 @@ export class AdminController {
   }
 
   @Get('partners')
-  async listPartners(@CurrentUser() _user: User) {
-    return this.admin.listPartners(_user.id);
+  async listPartners() {
+    return this.admin.listPartners();
   }
 
   @Get('metrics')

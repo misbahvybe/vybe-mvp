@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { useAuthStore } from '@/store/authStore';
 import { StickyHeader } from '@/components/layout/StickyHeader';
 import { ContentPanel } from '@/components/layout/ContentPanel';
@@ -60,7 +59,6 @@ export default function RiderOrderDetailPage() {
   const params = useParams();
   const router = useRouter();
   const token = useAuthStore((s) => s.token);
-  const user = useAuthStore((s) => s.user);
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(false);
 

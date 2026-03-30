@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { useAuthStore } from '@/store/authStore';
 import { StickyHeader } from '@/components/layout/StickyHeader';
 import { ContentPanel } from '@/components/layout/ContentPanel';
 import { Card } from '@/components/ui/Card';
@@ -59,7 +58,6 @@ function googleMapsUrl(lat?: number | string, lng?: number | string, address?: s
 }
 
 export default function RiderDashboardPage() {
-  const user = useAuthStore((s) => s.user);
   const [tab, setTab] = useState<'dashboard' | 'earnings'>('dashboard');
   const [orders, setOrders] = useState<Order[]>([]);
   const [dashboard, setDashboard] = useState<RiderDashboard | null>(null);

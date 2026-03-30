@@ -46,7 +46,6 @@ interface Order {
 type Tab = 'orders' | 'products' | 'earnings' | 'settings';
 
 export default function StoreDashboardPage() {
-  const user = useAuthStore((s) => s.user);
   const token = useAuthStore((s) => s.token);
   const [tab, setTab] = useState<Tab>('orders');
   const [orders, setOrders] = useState<Order[]>([]);

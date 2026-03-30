@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import api from '@/services/api';
 

@@ -160,7 +160,7 @@ model Store {
   isOpen       Boolean  @default(true) @map("is_open")
   openingTime  String?  @map("opening_time")   // HH:mm e.g. "09:00"
   closingTime  String?  @map("closing_time")   // HH:mm e.g. "22:00"
-  /// If set, overrides platform default commission % for this store (0–100).
+  /// Optional custom commission % for this store only (0–100). If null, category default applies.
   commissionPercentOverride Decimal? @map("commission_percent_override") @db.Decimal(5, 2)
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")

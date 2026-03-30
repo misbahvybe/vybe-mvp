@@ -5,10 +5,6 @@ import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import {
   Package,
-  TrendingUp,
-  Bike,
-  Store,
-  Clock,
   AlertTriangle,
   DollarSign,
   ChevronRight,

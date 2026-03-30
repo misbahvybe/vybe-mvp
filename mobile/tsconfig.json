@@ -4,6 +4,8 @@
     "module": "esnext",
     "jsx": "react-native",
     "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,

@@ -34,7 +34,7 @@ interface StoreInfo {
 
 export function StoreSettingsScreen() {
   const token = useAuthStore((s) => s.token);
-  const [store, setStore] = useState<StoreInfo | null>(null);
+  const [, setStore] = useState<StoreInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);

@@ -38,6 +38,7 @@ interface FinanceResponse {
     totalCommission: number;
     totalServiceFees: number;
     totalDeliveryFees: number;
+    riderCost: number;
     cancellationLoss: number;
     cancelledOrders: number;
   };
@@ -106,7 +107,7 @@ export function AdminFinanceDetailScreen(props?: AdminFinanceDetailScreenProps) 
       ['Platform Commission (15%)', data.today.platformCommission, data.month.totalCommission],
       ['Service Fees', data.today.serviceFeesCollected, data.month.totalServiceFees],
       ['Delivery Fees', data.today.deliveryFeesCollected, data.month.totalDeliveryFees],
-      ['Rider Cost', data.today.riderCost, '-'],
+      ['Rider Cost', data.today.riderCost, data.month.riderCost],
       ['Net Platform Revenue', data.today.netPlatformRevenue, '-'],
       ['Cancellations', '-', data.month.cancelledOrders],
       ['Cancellation Loss', '-', data.month.cancellationLoss],
@@ -189,6 +190,7 @@ export function AdminFinanceDetailScreen(props?: AdminFinanceDetailScreenProps) 
           <Row label="Commission" value={data.month.totalCommission} />
           <Row label="Service fees" value={data.month.totalServiceFees} />
           <Row label="Delivery fees" value={data.month.totalDeliveryFees} />
+          <Row label="Rider cost" value={data.month.riderCost} />
           <Row label="Cancelled orders" value={data.month.cancelledOrders} plain />
           <Row label="Cancellation loss (subtotal)" value={data.month.cancellationLoss} />
 

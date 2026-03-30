@@ -18,7 +18,6 @@ export function LoginOtpScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<LoginOtpRoute>();
   const { phone } = route.params ?? { phone: '' };
-  const setAuthState = useAuthStore();
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
 

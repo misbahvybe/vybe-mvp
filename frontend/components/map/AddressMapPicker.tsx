@@ -19,8 +19,8 @@ export function AddressMapPicker({
   const containerRef = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [lat, setLat] = useState(initialLat);
-  const [lng, setLng] = useState(initialLng);
+  const [, setLat] = useState(initialLat);
+  const [, setLng] = useState(initialLng);
   const mapRef = useRef<{ map: L.Map; marker: L.Marker } | null>(null);
 
   const fetchAddress = useCallback(

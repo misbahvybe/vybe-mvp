@@ -1,5 +1,4 @@
 import { IsString, IsNumber, IsOptional, IsBoolean, Min, Max } from 'class-validator';
-import { Type } from 'class-transformer';
 
 export class CreateAddressDto {
   @IsOptional()

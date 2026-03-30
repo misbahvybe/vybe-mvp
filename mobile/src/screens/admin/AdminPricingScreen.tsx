@@ -130,7 +130,7 @@ export function AdminPricingScreen() {
     }
   };
 
-  const saveStoreOverride = async (storeId: string) => {
+  const saveStoreCommission = async (storeId: string) => {
     const raw = storeEdits[storeId]?.trim();
     let body: { commissionPercentOverride: number | null };
     if (raw === '') {
@@ -184,8 +184,8 @@ export function AdminPricingScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         <Text style={styles.hint}>
-          Category slug must match StoreCategory name in lowercase (e.g. food, grocery). Store
-          override beats category rules.
+          Category slug must match StoreCategory name in lowercase (e.g. food, grocery). A custom
+          rate for a store replaces the category default for that store only.
         </Text>
 
         <Text style={styles.sectionTitle}>Category defaults</Text>
@@ -247,25 +247,27 @@ export function AdminPricingScreen() {
           />
         </View>
 
-        <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Per-store override</Text>
-        <Text style={styles.hintSmall}>Empty field + Save clears override (use category rules).</Text>
+        <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Per-store commission</Text>
+        <Text style={styles.hintSmall}>
+          Leave empty and tap Save to use the category default for that store.
+        </Text>
         {stores.map((s) => (
           <View key={s.id} style={styles.card}>
             <Text style={styles.storeName}>{s.name}</Text>
             {s.commissionPercentOverride != null && (
-              <Text style={styles.meta}>Saved: {s.commissionPercentOverride}%</Text>
+              <Text style={styles.meta}>Custom rate: {s.commissionPercentOverride}%</Text>
             )}
             <View style={styles.row}>
               <TextInput
                 style={styles.input}
                 keyboardType="decimal-pad"
-                placeholder="Override %"
+                placeholder="% for this store"
                 value={storeEdits[s.id] ?? ''}
                 onChangeText={(t) => setStoreEdits((prev) => ({ ...prev, [s.id]: t }))}
               />
               <TouchableOpacity
                 style={styles.saveBtn}
-                onPress={() => saveStoreOverride(s.id)}
+                onPress={() => saveStoreCommission(s.id)}
                 disabled={saving === `st:${s.id}`}
               >
                 {saving === `st:${s.id}` ? (

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
-import { Store, ChevronRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import api from '@/services/api';
 
 interface StoreRow {

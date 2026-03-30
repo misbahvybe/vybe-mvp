@@ -12,7 +12,7 @@ const FALLBACK_PRODUCT_IMAGE =
   'https://images.unsplash.com/photo-1542838132-92c53300491e?w=400&auto=format&fit=crop&q=60&ixlib=rb-4.1.0';
 
 export default function CartPage() {
-  const { items, updateQty, removeItem, total } = useCartStore();
+  const { items, updateQty, total } = useCartStore();
   const totalAmount = total();
 
   return (
