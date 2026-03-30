@@ -144,7 +144,12 @@ export function RiderOrderDetailScreen() {
           <Text style={styles.bold}>{order.store?.name ?? 'Store'}</Text>
           <Text style={styles.body}>{order.store?.address ?? '—'}</Text>
           {order.store?.phone ? (
-            <TouchableOpacity onPress={() => Linking.openURL(`tel:${order.store.phone}`)}>
+            <TouchableOpacity
+              onPress={() => {
+                const p = order.store?.phone;
+                if (p) void Linking.openURL(`tel:${p}`);
+              }}
+            >
               <Text style={styles.link}>Call store</Text>
             </TouchableOpacity>
           ) : null}
@@ -164,7 +169,12 @@ export function RiderOrderDetailScreen() {
           <Text style={styles.bold}>{order.customer?.name ?? 'Customer'}</Text>
           <Text style={styles.body}>{order.address?.fullAddress ?? '—'}</Text>
           {order.customer?.phone ? (
-            <TouchableOpacity onPress={() => Linking.openURL(`tel:${order.customer.phone}`)}>
+            <TouchableOpacity
+              onPress={() => {
+                const p = order.customer?.phone;
+                if (p) void Linking.openURL(`tel:${p}`);
+              }}
+            >
               <Text style={styles.link}>Call customer</Text>
             </TouchableOpacity>
           ) : null}

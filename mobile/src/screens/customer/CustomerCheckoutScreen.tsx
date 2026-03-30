@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -16,8 +16,15 @@ import { CustomerScreenShell } from '@components/customer/CustomerScreenShell';
 import { VybeButton } from '@components/ui/VybeButton';
 import { tokens } from '@theme/tokens';
 
-const DELIVERY_FEE = 150;
-const SERVICE_FEE = 23.49;
+type OrderQuote = {
+  subtotal: string;
+  deliveryDistanceKm: string;
+  deliveryFee: string;
+  serviceFee: string;
+  gstAmount: string;
+  cardProcessingAmount: string;
+  totalAmount: string;
+};
 
 type PaymentMode = 'cod' | 'xpay' | 'card';
 
@@ -51,6 +58,17 @@ export function CustomerCheckoutScreen() {
     stripe: false,
     xpay: false
   });
+  const [quote, setQuote] = useState<OrderQuote | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+
+  const paymentMethodForQuote = paymentMode === 'cod' ? 'COD' : 'CARD';
+  const cartKey = useMemo(
+    () =>
+      JSON.stringify(
+        items.map((i) => ({ productId: i.productId, quantity: i.quantityKg, price: i.unitPrice }))
+      ),
+    [items]
+  );
 
   useEffect(() => {
     if (!token) return;
@@ -82,6 +100,38 @@ export function CustomerCheckoutScreen() {
       .then((r) => setPaymentOptions(r.data ?? { stripe: false, xpay: false }))
       .catch(() => {});
   }, [token]);
+
+  useEffect(() => {
+    if (!token || !storeId || !selectedAddressId || items.length === 0) {
+      setQuote(null);
+      return;
+    }
+    let cancelled = false;
+    setQuoteLoading(true);
+    api
+      .post<OrderQuote>('/orders/quote', {
+        storeId,
+        addressId: selectedAddressId,
+        items: items.map((i) => ({
+          productId: i.productId,
+          quantity: i.quantityKg,
+          price: i.unitPrice
+        })),
+        paymentMethod: paymentMethodForQuote
+      })
+      .then((r) => {
+        if (!cancelled) setQuote(r.data ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setQuote(null);
+      })
+      .finally(() => {
+        if (!cancelled) setQuoteLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token, storeId, selectedAddressId, cartKey, paymentMethodForQuote, items.length]);
 
   const canPlaceOrder =
     !!selectedAddressId &&
@@ -279,20 +329,44 @@ export function CustomerCheckoutScreen() {
           ))}
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Subtotal</Text>
-            <Text style={styles.summaryValue}>Rs {total().toFixed(0)}</Text>
+            <Text style={styles.summaryValue}>
+              Rs {quote ? Number(quote.subtotal).toFixed(0) : total().toFixed(0)}
+            </Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Delivery fee</Text>
-            <Text style={styles.summaryValue}>Rs {DELIVERY_FEE}</Text>
+            <Text style={styles.summaryValue}>
+              {quoteLoading ? '…' : quote ? `Rs ${Number(quote.deliveryFee).toFixed(0)}` : '—'}
+            </Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Service fee</Text>
-            <Text style={styles.summaryValue}>Rs {SERVICE_FEE}</Text>
+            <Text style={styles.summaryValue}>
+              {quoteLoading ? '…' : quote ? `Rs ${Number(quote.serviceFee).toFixed(2)}` : '—'}
+            </Text>
           </View>
+          {quote && Number(quote.gstAmount) > 0 && (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>GST (COD)</Text>
+              <Text style={styles.summaryValue}>Rs {Number(quote.gstAmount).toFixed(2)}</Text>
+            </View>
+          )}
+          {quote && Number(quote.cardProcessingAmount) > 0 && (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Card processing</Text>
+              <Text style={styles.summaryValue}>
+                Rs {Number(quote.cardProcessingAmount).toFixed(2)}
+              </Text>
+            </View>
+          )}
           <View style={[styles.summaryRow, { marginTop: 6 }]}>
             <Text style={styles.summaryTotalLabel}>Total</Text>
             <Text style={styles.summaryTotalValue}>
-              Rs {(total() + DELIVERY_FEE + SERVICE_FEE).toFixed(0)}
+              {quoteLoading
+                ? '…'
+                : quote
+                  ? `Rs ${Number(quote.totalAmount).toFixed(0)}`
+                  : `Rs ${total().toFixed(0)}`}
             </Text>
           </View>
         </View>

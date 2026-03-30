@@ -16,6 +16,7 @@ import {
   Settings,
   Menu,
   X,
+  Percent,
 } from 'lucide-react';
 
 const NAV = [
@@ -26,6 +27,7 @@ const NAV = [
   { href: '/admin/partners', label: 'Partners', icon: UserPlus },
   { href: '/admin/users', label: 'Users', icon: Users },
   { href: '/admin/finance', label: 'Finance', icon: Wallet },
+  { href: '/admin/pricing', label: 'Pricing', icon: Percent },
   { href: '/admin/metrics', label: 'Metrics', icon: BarChart3 },
   { href: '/admin/settings', label: 'Settings', icon: Settings },
 ];

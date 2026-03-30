@@ -2,10 +2,12 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, FlatList, TouchableOpacity, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { api } from '@api/client';
+import { useAuthStore } from '@store/auth';
+import { useOrdersRealtime } from '@hooks/useOrdersRealtime';
 import { PartnerScreenShell } from '@components/partner/PartnerScreenShell';
 import { tokens } from '@theme/tokens';
 
-const POLL_INTERVAL_MS = 15000;
+const POLL_INTERVAL_MS = 120000;
 
 interface OrderItem {
   product: { name: string };
@@ -31,6 +33,9 @@ function timeAgo(d: string) {
 
 export function StoreOrdersScreen() {
   const navigation = useNavigation<any>();
+  const token = useAuthStore((s) => s.token);
+  const user = useAuthStore((s) => s.user);
+  const [myStoreId, setMyStoreId] = useState<string | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
@@ -46,6 +51,22 @@ export function StoreOrdersScreen() {
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
+
+  useEffect(() => {
+    if (!token || user?.role !== 'STORE_OWNER') return;
+    api
+      .get<{ id: string }>('/store-owner/store')
+      .then((r) => setMyStoreId(r.data?.id ?? null))
+      .catch(() => setMyStoreId(null));
+  }, [token, user?.role]);
+
+  useOrdersRealtime(
+    !!token && user?.role === 'STORE_OWNER' && !!myStoreId,
+    token,
+    'STORE_OWNER',
+    myStoreId,
+    fetchOrders,
+  );
 
   useEffect(() => {
     const id = setInterval(fetchOrders, POLL_INTERVAL_MS);

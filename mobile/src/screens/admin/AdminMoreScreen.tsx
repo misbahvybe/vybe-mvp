@@ -31,6 +31,7 @@ export function AdminMoreScreen() {
           <MenuRow label="Riders" onPress={() => navigation.navigate('AdminRiders')} />
           <MenuRow label="Partners" onPress={() => navigation.navigate('AdminPartners')} />
           <MenuRow label="Metrics" onPress={() => navigation.navigate('AdminMetrics')} />
+          <MenuRow label="Pricing & commission" onPress={() => navigation.navigate('AdminPricing')} />
           <MenuRow
             label="Settings"
             onPress={() => navigation.navigate('AdminSettings')}

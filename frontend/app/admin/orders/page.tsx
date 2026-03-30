@@ -6,6 +6,8 @@ import { useSearchParams } from 'next/navigation';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import api from '@/services/api';
+import { useAuthStore } from '@/store/authStore';
+import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
 
 interface Order {
   id: string;
@@ -42,6 +44,7 @@ const OUT_FOR_DELIVERY = ['RIDER_ASSIGNED', 'RIDER_ACCEPTED', 'PICKED_UP'];
 
 function AdminOrdersContent() {
   const searchParams = useSearchParams();
+  const token = useAuthStore((s) => s.token);
   const statusFilter = searchParams?.get('status') ?? '';
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,6 +62,8 @@ function AdminOrdersContent() {
       .then((r) => setRiders(r.data ?? []))
       .catch(() => setRiders([]));
   }, [fetchOrders]);
+
+  useOrdersRealtime(!!token, token, 'ADMIN', undefined, fetchOrders);
 
   const filtered = orders.filter((o) => {
     if (!statusFilter) return true;

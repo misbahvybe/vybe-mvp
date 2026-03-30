@@ -160,6 +160,8 @@ model Store {
   isOpen       Boolean  @default(true) @map("is_open")
   openingTime  String?  @map("opening_time")   // HH:mm e.g. "09:00"
   closingTime  String?  @map("closing_time")   // HH:mm e.g. "22:00"
+  /// If set, overrides platform default commission % for this store (0–100).
+  commissionPercentOverride Decimal? @map("commission_percent_override") @db.Decimal(5, 2)
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
@@ -182,6 +184,14 @@ model StoreCategory {
   name String @unique
 
   stores StoreToCategory[]
+}
+
+/// Default platform commission % per vertical (slug = StoreCategory.name: food, grocery, medicine).
+model PlatformCategoryCommission {
+  id                String   @id @default(uuid())
+  categorySlug      String   @unique @map("category_slug")
+  commissionPercent Decimal  @map("commission_percent") @db.Decimal(5, 2)
+  updatedAt         DateTime @updatedAt @map("updated_at")
 }
 
 model StoreToCategory {
@@ -248,8 +258,17 @@ model Order {
   subtotalAmount   Decimal       @map("subtotal_amount") @db.Decimal(10, 2)
   deliveryFee      Decimal       @default(0) @map("delivery_fee") @db.Decimal(10, 2)
   serviceFee       Decimal       @default(0) @map("service_fee") @db.Decimal(10, 2)
+  /// COD: 18% GST on (subtotal + delivery + service). Card: 0.
+  gstAmount        Decimal       @default(0) @map("gst_amount") @db.Decimal(10, 2)
+  /// Card: 5% processing on (subtotal + delivery + service). COD: 0.
+  cardProcessingAmount Decimal   @default(0) @map("card_processing_amount") @db.Decimal(10, 2)
   totalAmount      Decimal       @map("total_amount") @db.Decimal(10, 2)
   commissionAmount Decimal       @default(0) @map("commission_amount") @db.Decimal(10, 2)
+  /// Commission % applied to subtotal at checkout (snapshot).
+  commissionPercentSnapshot Decimal? @map("commission_percent_snapshot") @db.Decimal(5, 2)
+  deliveryDistanceKm Decimal?    @map("delivery_distance_km") @db.Decimal(10, 4)
+  /// Target completion time for SLA countdown (e.g. placedAt + 45m).
+  slaDeadlineAt    DateTime?     @map("sla_deadline_at")
   paymentMethod   PaymentMethod  @default(COD) @map("payment_method")
   paymentStatus   PaymentStatus  @default(PENDING) @map("payment_status")
   orderStatus     OrderStatus   @default(PENDING) @map("order_status")

@@ -15,12 +15,51 @@ interface OrderDetail {
   cancellationReason?: string | null;
   createdAt: string;
   totalAmount: number;
+  subtotalAmount?: number;
+  deliveryFee?: number;
+  serviceFee?: number;
+  gstAmount?: number;
+  cardProcessingAmount?: number;
+  paymentMethod?: string;
+  slaDeadlineAt?: string | null;
   store?: { name: string };
   address?: { fullAddress: string };
   rider?: { name: string; phone: string } | null;
   statusHistory?: { status: string; createdAt: string; changedByUserId: string | null }[];
   allowedTransitions?: string[];
   items: { id: string; product: { name: string }; quantity: number; price: number }[];
+}
+
+function SlaCountdown({ deadlineIso }: { deadlineIso: string | null | undefined }) {
+  const [remainingMs, setRemainingMs] = useState<number | null>(null);
+  useEffect(() => {
+    if (!deadlineIso) {
+      setRemainingMs(null);
+      return;
+    }
+    const tick = () => setRemainingMs(new Date(deadlineIso).getTime() - Date.now());
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [deadlineIso]);
+  if (!deadlineIso || remainingMs === null) return null;
+  if (remainingMs <= 0) {
+    return (
+      <p className="text-amber-800 text-sm mt-2 font-medium">
+        SLA target time has passed — contact support if the order is still open.
+      </p>
+    );
+  }
+  const m = Math.floor(remainingMs / 60000);
+  const s = Math.floor((remainingMs % 60000) / 1000);
+  return (
+    <p className="text-sm text-slate-600 mt-2">
+      Target completion: {new Date(deadlineIso).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}{' '}
+      <span className="text-primary font-medium tabular-nums">
+        ({m}m {s}s left)
+      </span>
+    </p>
+  );
 }
 
 const CANCELLATION_LABELS: Record<string, string> = {
@@ -130,7 +169,10 @@ export default function OrderDetailPage() {
             {STATUS_LABELS[order.orderStatus] ?? order.orderStatus}
           </span>
           {order.orderStatus !== 'DELIVERED' && order.orderStatus !== 'CANCELLED' && order.orderStatus !== 'STORE_REJECTED' && (
-            <p className="text-xs text-slate-500 mt-2">Fast delivery</p>
+            <>
+              <p className="text-xs text-slate-500 mt-2">Fast delivery</p>
+              <SlaCountdown deadlineIso={order.slaDeadlineAt} />
+            </>
           )}
           {order.cancellationReason && (
             <p className="text-sm text-red-600 mt-2">Reason: {CANCELLATION_LABELS[order.cancellationReason] ?? order.cancellationReason}</p>
@@ -308,6 +350,39 @@ export default function OrderDetailPage() {
               </div>
             );
           })}
+          {order.subtotalAmount != null && (
+            <div className="flex justify-between py-1 text-slate-600 text-sm">
+              <span>Subtotal</span>
+              <span>Rs {Number(order.subtotalAmount).toFixed(0)}</span>
+            </div>
+          )}
+          {order.deliveryFee != null && Number(order.deliveryFee) > 0 && (
+            <div className="flex justify-between py-1 text-slate-600 text-sm">
+              <span>Delivery</span>
+              <span>Rs {Number(order.deliveryFee).toFixed(0)}</span>
+            </div>
+          )}
+          {order.serviceFee != null && Number(order.serviceFee) > 0 && (
+            <div className="flex justify-between py-1 text-slate-600 text-sm">
+              <span>Service fee</span>
+              <span>Rs {Number(order.serviceFee).toFixed(2)}</span>
+            </div>
+          )}
+          {order.gstAmount != null && Number(order.gstAmount) > 0 && (
+            <div className="flex justify-between py-1 text-slate-600 text-sm">
+              <span>GST (COD)</span>
+              <span>Rs {Number(order.gstAmount).toFixed(2)}</span>
+            </div>
+          )}
+          {order.cardProcessingAmount != null && Number(order.cardProcessingAmount) > 0 && (
+            <div className="flex justify-between py-1 text-slate-600 text-sm">
+              <span>Card processing</span>
+              <span>Rs {Number(order.cardProcessingAmount).toFixed(2)}</span>
+            </div>
+          )}
+          {order.paymentMethod && (
+            <p className="text-xs text-slate-500 pt-1">Payment: {order.paymentMethod}</p>
+          )}
           <div className="flex justify-between pt-3 font-bold text-slate-800">
             <span>Total</span>
             <span className="text-accent">Rs {Number(order.totalAmount).toFixed(0)}</span>

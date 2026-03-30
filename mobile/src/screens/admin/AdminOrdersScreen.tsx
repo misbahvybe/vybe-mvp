@@ -15,6 +15,8 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { AdminOrdersStackParamList } from '@navigation/AdminTabs';
 import { api } from '@api/client';
+import { useAuthStore } from '@store/auth';
+import { useOrdersRealtime } from '@hooks/useOrdersRealtime';
 import { PartnerScreenShell } from '@components/partner/PartnerScreenShell';
 import { VybeButton } from '@components/ui/VybeButton';
 import { tokens } from '@theme/tokens';
@@ -59,6 +61,8 @@ type Nav = NativeStackNavigationProp<AdminOrdersStackParamList>;
 
 export function AdminOrdersScreen() {
   const navigation = useNavigation<Nav>();
+  const token = useAuthStore((s) => s.token);
+  const user = useAuthStore((s) => s.user);
   const [orders, setOrders] = useState<Order[]>([]);
   const [riders, setRiders] = useState<Rider[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,6 +86,14 @@ export function AdminOrdersScreen() {
       .then((r) => setRiders(r.data ?? []))
       .catch(() => setRiders([]));
   }, [fetchOrders]);
+
+  useOrdersRealtime(
+    !!token && user?.role === 'ADMIN',
+    token,
+    'ADMIN',
+    undefined,
+    fetchOrders,
+  );
 
   const filtered = useMemo(() => {
     return orders.filter((o) => {

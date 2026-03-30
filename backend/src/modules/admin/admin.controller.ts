@@ -11,6 +11,8 @@ import { CreateProductCategoryDto } from '../stores/dto/create-product-category.
 import { UpdateProductCategoryDto } from '../stores/dto/update-product-category.dto';
 import { CreateProductDto } from '../stores/dto/create-product.dto';
 import { UpdateProductDto } from '../stores/dto/update-product.dto';
+import { PatchPlatformCategoryCommissionDto } from './dto/patch-platform-category-commission.dto';
+import { UpdateStoreCommissionOverrideDto } from './dto/update-store-commission-override.dto';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -59,6 +61,27 @@ export class AdminController {
   @Get('finance')
   async getFinance(@CurrentUser() _user: User) {
     return this.admin.getFinance();
+  }
+
+  @Get('pricing/platform-category-commissions')
+  async listPlatformCategoryCommissions(@CurrentUser() _user: User) {
+    return this.admin.listPlatformCategoryCommissions();
+  }
+
+  @Patch('pricing/platform-category-commissions/:categorySlug')
+  async patchPlatformCategoryCommission(
+    @Param('categorySlug') categorySlug: string,
+    @Body() dto: PatchPlatformCategoryCommissionDto,
+  ) {
+    return this.admin.upsertPlatformCategoryCommission(categorySlug, dto.commissionPercent);
+  }
+
+  @Patch('stores/:storeId/commission-override')
+  async patchStoreCommissionOverride(
+    @Param('storeId') storeId: string,
+    @Body() dto: UpdateStoreCommissionOverrideDto,
+  ) {
+    return this.admin.setStoreCommissionOverride(storeId, dto.commissionPercentOverride);
   }
 
   @Get('metrics/charts')

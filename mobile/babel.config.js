@@ -17,7 +17,8 @@ module.exports = function (api) {
             '@components': './src/components',
             '@contexts': './src/contexts',
             '@constants': './src/constants',
-            '@lib': './src/lib'
+            '@lib': './src/lib',
+            '@hooks': './src/hooks'
           }
         }
       ]

@@ -31,7 +31,7 @@ function App() {
   return (
     <NetworkProvider>
       <SafeAreaProvider>
-        <NavigationContainer linking={linking}>
+        <NavigationContainer linking={linking as React.ComponentProps<typeof NavigationContainer>['linking']}>
           <AppNavigator />
           <OfflineOverlay />
           <StatusBar style="light" />

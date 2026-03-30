@@ -22,6 +22,7 @@ import { AdminPartnersListScreen } from '@screens/admin/AdminPartnersListScreen'
 import { AdminPartnerNewScreen } from '@screens/admin/AdminPartnerNewScreen';
 import { AdminMetricsDetailScreen } from '@screens/admin/AdminMetricsDetailScreen';
 import { AdminSettingsScreen } from '@screens/admin/AdminSettingsScreen';
+import { AdminPricingScreen } from '@screens/admin/AdminPricingScreen';
 
 function AdminFinanceTabScreen() {
   return <AdminFinanceDetailScreen hideBack />;
@@ -51,6 +52,7 @@ export type AdminMoreStackParamList = {
   AdminPartners: undefined;
   AdminPartnerNew: undefined;
   AdminMetrics: undefined;
+  AdminPricing: undefined;
   AdminSettings: undefined;
 };
 
@@ -111,6 +113,7 @@ function AdminMoreStackNavigator() {
       <MoreStack.Screen name="AdminPartners" component={AdminPartnersListScreen} />
       <MoreStack.Screen name="AdminPartnerNew" component={AdminPartnerNewScreen} />
       <MoreStack.Screen name="AdminMetrics" component={AdminMetricsDetailScreen} />
+      <MoreStack.Screen name="AdminPricing" component={AdminPricingScreen} />
       <MoreStack.Screen name="AdminSettings" component={AdminSettingsScreen} />
     </MoreStack.Navigator>
   );

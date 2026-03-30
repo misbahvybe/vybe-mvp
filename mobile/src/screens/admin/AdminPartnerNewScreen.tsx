@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
   },
   roleChipOn: { borderColor: tokens.accent, backgroundColor: 'rgba(250, 204, 21, 0.15)' },
   roleChipText: { fontSize: 14, fontWeight: '600', color: tokens.slate600 },
-  roleChipTextOn: { color: tokens.slate900 },
+  roleChipTextOn: { color: tokens.slate800 },
   switchRow: {
     flexDirection: 'row',
     alignItems: 'center',

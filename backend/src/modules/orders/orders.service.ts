@@ -3,18 +3,17 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { StripeService } from '../stripe/stripe.service';
 import { XPayService } from '../xpay/xpay.service';
-import { OrderStatus, Role } from '@prisma/client';
+import { OrderStatus, Product, Role } from '@prisma/client';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 import { PrepareXPayDto } from './dto/prepare-xpay.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { EditOrderItemDto } from './dto/edit-order-item.dto';
+import { OrderQuoteDto } from './dto/order-quote.dto';
 import { canTransition, getAllowedTransitions } from './order-state-machine';
 import { Decimal } from '@prisma/client/runtime/library';
-
-const PLATFORM_COMMISSION_PERCENT = 0.15; // 15% per pitch
-const DELIVERY_FEE = 150; // fixed PKR
-const SERVICE_FEE = 23.49; // Rs 23.49 per order per pitch
+import { PricingService } from '../pricing/pricing.service';
+import { OrdersGateway } from '../realtime/orders.gateway';
 
 @Injectable()
 export class OrdersService {
@@ -23,7 +22,84 @@ export class OrdersService {
     private readonly stripe: StripeService,
     private readonly xpay: XPayService,
     private readonly config: ConfigService,
+    private readonly pricing: PricingService,
+    private readonly ordersGateway: OrdersGateway,
   ) {}
+
+  /**
+   * Validates line items against catalog prices (anti-tamper) and optionally stock.
+   */
+  private async assertItemsAndSubtotal(
+    db: Pick<PrismaService, 'product'>,
+    storeId: string,
+    items: { productId: string; quantity: number; price?: number }[],
+    options: { checkStock: boolean },
+  ): Promise<{ subtotal: number; productById: Map<string, Product> }> {
+    const products = await db.product.findMany({
+      where: { id: { in: items.map((i) => i.productId) }, storeId },
+    });
+    const productById = new Map(products.map((p) => [p.id, p]));
+    let subtotal = 0;
+    for (const item of items) {
+      const prod = productById.get(item.productId);
+      if (!prod) throw new BadRequestException(`Product ${item.productId} not found`);
+      if (options.checkStock) {
+        const stock = Number(prod.stock);
+        if (prod.isOutOfStock || stock < item.quantity) {
+          throw new BadRequestException(
+            `Insufficient stock for ${prod.name}. Available: ${stock} ${stock === 0 ? '(out of stock)' : ''}`,
+          );
+        }
+      }
+      const serverPrice = Number(prod.price);
+      if (item.price != null && Math.abs(Number(item.price) - serverPrice) > 0.02) {
+        throw new BadRequestException(`Price mismatch for ${prod.name}`);
+      }
+      subtotal += item.quantity * serverPrice;
+    }
+    return { subtotal, productById };
+  }
+
+  async quote(customerId: string, dto: OrderQuoteDto) {
+    const address = await this.prisma.address.findFirst({
+      where: { id: dto.addressId, userId: customerId },
+    });
+    if (!address) throw new ForbiddenException('Address not found');
+    const store = await this.prisma.store.findFirst({
+      where: { id: dto.storeId, isApproved: true },
+    });
+    if (!store) throw new ForbiddenException('Store not found');
+    if (!this.isStoreOpen(store)) {
+      throw new BadRequestException('Store is closed. Please try again during business hours.');
+    }
+    const { subtotal } = await this.assertItemsAndSubtotal(this.prisma, dto.storeId, dto.items, {
+      checkStock: false,
+    });
+    const useCard = dto.paymentMethod === 'CARD';
+    const q = await this.pricing.buildQuote({
+      storeId: dto.storeId,
+      addressLat: Number(address.latitude),
+      addressLng: Number(address.longitude),
+      storeLat: store.latitude != null ? Number(store.latitude) : null,
+      storeLng: store.longitude != null ? Number(store.longitude) : null,
+      subtotal,
+      paymentMethod: useCard ? 'CARD' : 'COD',
+    });
+    return {
+      subtotal: q.subtotal.toFixed(2),
+      deliveryDistanceKm: q.deliveryDistanceKm.toFixed(4),
+      deliveryFee: q.deliveryFee.toFixed(2),
+      serviceFee: q.serviceFee.toFixed(2),
+      baseBeforeSurcharge: q.baseBeforeSurcharge.toFixed(2),
+      gstAmount: q.gstAmount.toFixed(2),
+      cardProcessingAmount: q.cardProcessingAmount.toFixed(2),
+      totalAmount: q.totalAmount.toFixed(2),
+      commissionPercent: q.commissionPercent.toFixed(2),
+      commissionAmount: q.commissionAmount.toFixed(2),
+      storeAmount: q.storeAmount.toFixed(2),
+      categorySlugUsed: q.categorySlugUsed,
+    };
+  }
 
   async createPaymentIntent(customerId: string, dto: CreatePaymentIntentDto) {
     if (this.xpay.isConfigured()) {
@@ -71,11 +147,19 @@ export class OrdersService {
       throw new BadRequestException('Store is closed. Please try again during business hours.');
     }
 
-    let subtotalAmount = 0;
-    for (const item of dto.items) {
-      subtotalAmount += item.quantity * item.price;
-    }
-    const totalAmount = subtotalAmount + DELIVERY_FEE + SERVICE_FEE;
+    const { subtotal: subtotalAmount } = await this.assertItemsAndSubtotal(this.prisma, dto.storeId, dto.items, {
+      checkStock: true,
+    });
+    const q = await this.pricing.buildQuote({
+      storeId: dto.storeId,
+      addressLat: Number(address.latitude),
+      addressLng: Number(address.longitude),
+      storeLat: store.latitude != null ? Number(store.latitude) : null,
+      storeLng: store.longitude != null ? Number(store.longitude) : null,
+      subtotal: subtotalAmount,
+      paymentMethod: 'CARD',
+    });
+    const totalAmount = Number(q.totalAmount);
 
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: customerId },
@@ -89,7 +173,7 @@ export class OrdersService {
         storeId: dto.storeId,
         addressId: dto.addressId,
         itemsJson: JSON.stringify(dto.items),
-        amountPkr: new Decimal(totalAmount),
+        amountPkr: q.totalAmount,
         status: 'PENDING',
         expiresAt,
       },
@@ -191,30 +275,23 @@ export class OrdersService {
       throw new BadRequestException('Store is closed. Please try again during business hours.');
     }
 
-    const order = await this.prisma.$transaction(async (tx) => {
-      const products = await tx.product.findMany({
-        where: { id: { in: dto.items.map((i) => i.productId) }, storeId: dto.storeId },
-      });
-      const productMap = new Map(products.map((p) => [p.id, p]));
-      for (const item of dto.items) {
-        const prod = productMap.get(item.productId);
-        if (!prod) throw new BadRequestException(`Product ${item.productId} not found`);
-        const stock = Number(prod.stock);
-        if (prod.isOutOfStock || stock < item.quantity) {
-          throw new BadRequestException(`Insufficient stock for ${prod.name}. Available: ${stock} ${stock === 0 ? '(out of stock)' : ''}`);
-        }
-      }
+    const useCard = dto.paymentMethod === 'CARD';
 
-      let subtotalAmount = 0;
-      for (const item of dto.items) {
-        subtotalAmount += item.quantity * item.price;
-      }
+    const order = await this.prisma.$transaction(async (tx) => {
+      const { subtotal: subtotalAmount, productById } = await this.assertItemsAndSubtotal(tx, dto.storeId, dto.items, {
+        checkStock: true,
+      });
       const subtotalDecimal = new Decimal(subtotalAmount);
-      const commissionAmount = subtotalDecimal.mul(PLATFORM_COMMISSION_PERCENT);
-      const storeAmount = subtotalDecimal.minus(commissionAmount);
-      const deliveryFeeDecimal = new Decimal(DELIVERY_FEE);
-      const serviceFeeDecimal = new Decimal(SERVICE_FEE);
-      const totalAmount = subtotalDecimal.add(deliveryFeeDecimal).add(serviceFeeDecimal);
+
+      const q = await this.pricing.buildQuote({
+        storeId: dto.storeId,
+        addressLat: Number(address.latitude),
+        addressLng: Number(address.longitude),
+        storeLat: store.latitude != null ? Number(store.latitude) : null,
+        storeLng: store.longitude != null ? Number(store.longitude) : null,
+        subtotal: subtotalAmount,
+        paymentMethod: useCard ? 'CARD' : 'COD',
+      });
 
       for (const item of dto.items) {
         await tx.product.update({
@@ -227,7 +304,6 @@ export class OrdersService {
         data: { isOutOfStock: true },
       });
 
-      const useCard = dto.paymentMethod === 'CARD';
       if (useCard) {
         if (dto.xpayIntentId && this.xpay.isConfigured()) {
           const verification = await this.xpay.verifyPayment(dto.xpayIntentId);
@@ -248,31 +324,41 @@ export class OrdersService {
         }
       }
 
+      const slaDeadlineAt = this.pricing.slaDeadlineFromNow();
       const o = await tx.order.create({
         data: {
           customerId,
           storeId: dto.storeId,
           addressId: dto.addressId,
           subtotalAmount: subtotalDecimal,
-          deliveryFee: deliveryFeeDecimal,
-          serviceFee: serviceFeeDecimal,
-          totalAmount,
-          commissionAmount,
+          deliveryFee: q.deliveryFee,
+          serviceFee: q.serviceFee,
+          gstAmount: q.gstAmount,
+          cardProcessingAmount: q.cardProcessingAmount,
+          totalAmount: q.totalAmount,
+          commissionAmount: q.commissionAmount,
+          commissionPercentSnapshot: q.commissionPercent,
+          deliveryDistanceKm: q.deliveryDistanceKm,
+          slaDeadlineAt,
           paymentMethod: useCard ? 'CARD' : 'COD',
           paymentStatus: useCard ? 'PAID' : 'PENDING',
           orderStatus: OrderStatus.PENDING,
           notes: dto.notes,
           items: {
-            create: dto.items.map((i) => ({
-              productId: i.productId,
-              quantity: new Decimal(i.quantity),
-              price: new Decimal(i.price),
-            })),
+            create: dto.items.map((i) => {
+              const prod = productById.get(i.productId)!;
+              return {
+                productId: i.productId,
+                quantity: new Decimal(i.quantity),
+                price: prod.price,
+              };
+            }),
           },
         },
         include: {
           address: true,
           store: true,
+          customer: { select: { name: true, phone: true } },
           items: { include: { product: true } },
         },
       });
@@ -285,12 +371,30 @@ export class OrdersService {
         data: {
           storeId: dto.storeId,
           orderId: o.id,
-          storeAmount,
-          commissionAmount,
+          storeAmount: q.storeAmount,
+          commissionAmount: q.commissionAmount,
         },
       });
 
       return o;
+    });
+
+    this.ordersGateway.emitOrderCreated({
+      id: order.id,
+      storeId: order.storeId,
+      orderStatus: order.orderStatus,
+      createdAt: order.createdAt.toISOString(),
+      totalAmount: order.totalAmount.toString(),
+      subtotalAmount: order.subtotalAmount.toString(),
+      deliveryFee: order.deliveryFee.toString(),
+      serviceFee: order.serviceFee.toString(),
+      gstAmount: order.gstAmount.toString(),
+      cardProcessingAmount: order.cardProcessingAmount.toString(),
+      slaDeadlineAt: order.slaDeadlineAt?.toISOString() ?? null,
+      customer: {
+        name: order.customer?.name ?? '',
+        phone: order.customer?.phone ?? '',
+      },
     });
 
     return order;
@@ -401,7 +505,7 @@ export class OrdersService {
         const riderEarning = await tx.riderEarning.findUnique({ where: { orderId } });
         if (!riderEarning) {
           const orderForFee = await tx.order.findUnique({ where: { id: orderId }, select: { deliveryFee: true } });
-          const fee = orderForFee?.deliveryFee ?? new Decimal(DELIVERY_FEE);
+          const fee = orderForFee?.deliveryFee ?? new Decimal(0);
           await tx.riderEarning.create({
             data: {
               riderId: o.riderId!,
@@ -589,11 +693,13 @@ export class OrdersService {
       throw new BadRequestException('Order must contain at least one item with positive amount');
     }
 
-    const newCommission = subtotalDecimal.mul(PLATFORM_COMMISSION_PERCENT);
-    const newStoreAmount = subtotalDecimal.minus(newCommission);
-    const deliveryFeeDecimal = order.deliveryFee;
-    const serviceFeeDecimal = order.serviceFee;
-    const newTotal = subtotalDecimal.add(deliveryFeeDecimal).add(serviceFeeDecimal);
+    const recomputed = this.pricing.recomputeFromSubtotal(
+      subtotalDecimal,
+      order.deliveryFee,
+      order.serviceFee,
+      order.paymentMethod,
+      order.commissionPercentSnapshot,
+    );
 
     await this.prisma.$transaction(async (tx) => {
       // Restore stock for removed quantity
@@ -615,8 +721,10 @@ export class OrdersService {
         where: { id: orderId },
         data: {
           subtotalAmount: subtotalDecimal,
-          commissionAmount: newCommission,
-          totalAmount: newTotal,
+          gstAmount: recomputed.gstAmount,
+          cardProcessingAmount: recomputed.cardProcessingAmount,
+          commissionAmount: recomputed.commissionAmount,
+          totalAmount: recomputed.totalAmount,
         },
       });
 
@@ -624,8 +732,8 @@ export class OrdersService {
         await tx.storeEarning.update({
           where: { id: order.storeEarning.id },
           data: {
-            storeAmount: newStoreAmount,
-            commissionAmount: newCommission,
+            storeAmount: recomputed.storeAmount,
+            commissionAmount: recomputed.commissionAmount,
           },
         });
       }

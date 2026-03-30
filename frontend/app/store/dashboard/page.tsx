@@ -19,8 +19,9 @@ import {
   CreditCard,
 } from 'lucide-react';
 import api from '@/services/api';
+import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
 
-const POLL_INTERVAL_MS = 15000;
+const POLL_INTERVAL_MS = 120000;
 
 function timeAgo(d: string) {
   const sec = Math.floor((Date.now() - new Date(d).getTime()) / 1000);
@@ -46,6 +47,7 @@ type Tab = 'orders' | 'products' | 'earnings' | 'settings';
 
 export default function StoreDashboardPage() {
   const user = useAuthStore((s) => s.user);
+  const token = useAuthStore((s) => s.token);
   const [tab, setTab] = useState<Tab>('orders');
   const [orders, setOrders] = useState<Order[]>([]);
   const [store, setStore] = useState<{
@@ -104,6 +106,14 @@ export default function StoreDashboardPage() {
     const id = setInterval(fetchOrders, POLL_INTERVAL_MS);
     return () => clearInterval(id);
   }, [tab, fetchOrders]);
+
+  useOrdersRealtime(
+    tab === 'orders' && !!store?.id && !!token,
+    token,
+    'STORE_OWNER',
+    store?.id ?? null,
+    fetchOrders,
+  );
 
   const updateOrderStatus = async (orderId: string, status: string) => {
     setActionLoading(orderId);

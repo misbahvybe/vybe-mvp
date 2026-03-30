@@ -10,6 +10,7 @@ import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 import { PrepareXPayDto } from './dto/prepare-xpay.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { EditOrderItemDto } from './dto/edit-order-item.dto';
+import { OrderQuoteDto } from './dto/order-quote.dto';
 
 @Controller('orders')
 export class OrdersController {
@@ -56,6 +57,12 @@ export class OrdersController {
   @Get('payment-options')
   async getPaymentOptions() {
     return this.orders.isCardPaymentAvailable();
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('quote')
+  async quote(@CurrentUser() user: User, @Body() dto: OrderQuoteDto) {
+    return this.orders.quote(user.id, dto);
   }
 
   @UseGuards(JwtAuthGuard)

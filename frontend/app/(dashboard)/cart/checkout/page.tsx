@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -20,8 +20,16 @@ const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
   : null;
 
-const DELIVERY_FEE = 150;
-const SERVICE_FEE = 23.49; // Rs 23.49 per order per pitch
+type OrderQuote = {
+  subtotal: string;
+  deliveryDistanceKm: string;
+  deliveryFee: string;
+  serviceFee: string;
+  baseBeforeSurcharge: string;
+  gstAmount: string;
+  cardProcessingAmount: string;
+  totalAmount: string;
+};
 
 type PaymentOption = 'cod' | 'xpay' | { type: 'card'; cardId: string };
 
@@ -37,6 +45,50 @@ function CheckoutContent() {
   const [paymentOptions, setPaymentOptions] = useState<{ stripe: boolean; xpay: boolean }>({ stripe: false, xpay: false });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [quote, setQuote] = useState<OrderQuote | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+
+  const paymentMethodForQuote =
+    paymentOption === null || paymentOption === 'cod' ? 'COD' : 'CARD';
+  const cartKey = useMemo(
+    () =>
+      JSON.stringify(
+        items.map((i) => ({ productId: i.productId, quantity: i.quantityKg, price: i.unitPrice })),
+      ),
+    [items],
+  );
+
+  useEffect(() => {
+    if (!token || !storeId || !selectedAddressId || items.length === 0) {
+      setQuote(null);
+      return;
+    }
+    let cancelled = false;
+    setQuoteLoading(true);
+    api
+      .post<OrderQuote>('/orders/quote', {
+        storeId,
+        addressId: selectedAddressId,
+        items: items.map((i) => ({
+          productId: i.productId,
+          quantity: i.quantityKg,
+          price: i.unitPrice,
+        })),
+        paymentMethod: paymentMethodForQuote,
+      })
+      .then((r) => {
+        if (!cancelled) setQuote(r.data ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setQuote(null);
+      })
+      .finally(() => {
+        if (!cancelled) setQuoteLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token, storeId, selectedAddressId, cartKey, paymentMethodForQuote, items.length]);
 
   useEffect(() => {
     const err = searchParams?.get('error');
@@ -114,7 +166,7 @@ function CheckoutContent() {
       if (paymentOption !== 'cod' && typeof paymentOption === 'object' && paymentOption.type === 'card') {
         if (stripePromise && paymentOptions.stripe) {
           try {
-            const amount = total() + DELIVERY_FEE + SERVICE_FEE;
+            const amount = quote ? Number(quote.totalAmount) : total();
             const { data: pi } = await api.post<{ clientSecret: string; paymentIntentId: string }>(
               '/orders/payment-intent',
               { amount, paymentMethodId: paymentOption.cardId }
@@ -280,20 +332,47 @@ function CheckoutContent() {
           ))}
           <div className="flex justify-between py-2 text-slate-600">
             <span>Subtotal</span>
-            <span>Rs {total().toFixed(0)}</span>
+            <span>Rs {quote ? Number(quote.subtotal).toFixed(0) : total().toFixed(0)}</span>
           </div>
           <div className="flex justify-between py-2 text-slate-600">
             <span>Delivery fee</span>
-            <span>Rs {DELIVERY_FEE}</span>
+            <span>
+              {quoteLoading ? '…' : quote ? `Rs ${Number(quote.deliveryFee).toFixed(0)}` : '—'}
+            </span>
           </div>
           <div className="flex justify-between py-2 text-slate-600">
             <span>Service fee</span>
-            <span>Rs {SERVICE_FEE}</span>
+            <span>
+              {quoteLoading ? '…' : quote ? `Rs ${Number(quote.serviceFee).toFixed(2)}` : '—'}
+            </span>
           </div>
+          {quote && Number(quote.gstAmount) > 0 && (
+            <div className="flex justify-between py-2 text-slate-600">
+              <span>GST (COD)</span>
+              <span>Rs {Number(quote.gstAmount).toFixed(2)}</span>
+            </div>
+          )}
+          {quote && Number(quote.cardProcessingAmount) > 0 && (
+            <div className="flex justify-between py-2 text-slate-600">
+              <span>Card processing</span>
+              <span>Rs {Number(quote.cardProcessingAmount).toFixed(2)}</span>
+            </div>
+          )}
+          {quote && (
+            <p className="text-xs text-slate-500 mt-1">
+              Distance ~{Number(quote.deliveryDistanceKm).toFixed(1)} km × rate (see platform settings)
+            </p>
+          )}
           <p className="text-xs text-slate-500 mt-2">Fast delivery</p>
           <div className="flex justify-between pt-3 font-bold text-slate-800">
             <span>Total</span>
-            <span className="text-accent">Rs {(total() + DELIVERY_FEE + SERVICE_FEE).toFixed(0)}</span>
+            <span className="text-accent">
+              {quoteLoading
+                ? '…'
+                : quote
+                  ? `Rs ${Number(quote.totalAmount).toFixed(0)}`
+                  : `Rs ${total().toFixed(0)}`}
+            </span>
           </div>
         </Card>
         {error && <p className="text-red-600 text-sm mb-4">{error}</p>}

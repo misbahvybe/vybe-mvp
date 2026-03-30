@@ -1,4 +1,10 @@
-import { Injectable, ForbiddenException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  ForbiddenException,
+  ConflictException,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { Role } from '@prisma/client';
 import { CreatePartnerDto } from './dto/create-partner.dto';
@@ -225,6 +231,8 @@ export class AdminService {
       ordersToday: s.orders.length,
       revenueToday: s.orders.filter((o) => o.orderStatus === 'DELIVERED').reduce((sum, o) => sum + Number(o.totalAmount), 0),
       isApproved: s.isApproved,
+      commissionPercentOverride:
+        s.commissionPercentOverride != null ? Number(s.commissionPercentOverride) : null,
     }));
   }
 
@@ -345,6 +353,34 @@ export class AdminService {
         cancelledOrders: cancelledMonth,
       },
     };
+  }
+
+  async listPlatformCategoryCommissions() {
+    return this.prisma.platformCategoryCommission.findMany({
+      orderBy: { categorySlug: 'asc' },
+    });
+  }
+
+  async upsertPlatformCategoryCommission(categorySlug: string, commissionPercent: number) {
+    const slug = categorySlug.trim().toLowerCase();
+    if (!/^[a-z0-9_-]+$/.test(slug)) {
+      throw new BadRequestException('Invalid category slug');
+    }
+    return this.prisma.platformCategoryCommission.upsert({
+      where: { categorySlug: slug },
+      create: { categorySlug: slug, commissionPercent },
+      update: { commissionPercent },
+    });
+  }
+
+  async setStoreCommissionOverride(storeId: string, commissionPercentOverride: number | null) {
+    const store = await this.prisma.store.findUnique({ where: { id: storeId } });
+    if (!store) throw new NotFoundException('Store not found');
+    return this.prisma.store.update({
+      where: { id: storeId },
+      data: { commissionPercentOverride },
+      select: { id: true, name: true, commissionPercentOverride: true },
+    });
   }
 
   async getMetricsCharts() {

@@ -31,6 +31,16 @@ export function getBackendBaseUrl(): string {
   return backendUrl;
 }
 
+/** Socket.IO uses the API host origin only (no `/api/v1` path). */
+export function getSocketOrigin(): string {
+  try {
+    const u = new URL(backendUrl);
+    return u.origin;
+  } catch {
+    return 'http://localhost:4000';
+  }
+}
+
 export const api = axios.create({
   baseURL: backendUrl,
   withCredentials: false
