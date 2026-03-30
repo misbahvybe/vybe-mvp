@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
 const unsplash = (id: string) =>
   `https://images.unsplash.com/photo-${id}?w=400&auto=format&fit=crop&q=60`;
 
-/** Full reset then only: admin, store1@vybe.pk, one rider, customer1 (see DEPLOYMENT.md). */
+/** Full reset then only: admin, store1@vybe.pk, one rider, customer1 (see README). */
 async function wipeAll() {
   await prisma.orderRiderChange.deleteMany({});
   await prisma.adminLog.deleteMany({});
@@ -30,7 +30,7 @@ async function wipeAll() {
 }
 
 async function main() {
-  console.log('🌱 Seeding Vybe — minimal accounts only (DEPLOYMENT.md)\n');
+  console.log('🌱 Seeding Vybe — minimal accounts only (see README)\n');
 
   await wipeAll();
   console.log('✓ Database wiped\n');
@@ -165,7 +165,7 @@ async function main() {
   }
 
   console.log('═══════════════════════════════════════════════════════════');
-  console.log('✅ SEED COMPLETE — only DEPLOYMENT.md accounts + one demo store');
+  console.log('✅ SEED COMPLETE — minimal seed accounts + one demo store');
   console.log('═══════════════════════════════════════════════════════════');
   console.log('  Admin:    admin@vybe.pk / Admin123!');
   console.log('  Store:    store1@vybe.pk / Store123!');
