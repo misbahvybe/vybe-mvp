@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { Role } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { UpdateStoreDto } from './dto/update-store.dto';
 import { CreateProductCategoryDto } from './dto/create-product-category.dto';
@@ -11,7 +12,33 @@ import { UpdateProductDto } from './dto/update-product.dto';
 export class StoresService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Legacy owners may have no Store row; create one on first use (same defaults as admin bootstrap). */
+  private async bootstrapStoreIfMissing(ownerId: string): Promise<void> {
+    const exists = await this.prisma.store.findFirst({ where: { ownerId }, select: { id: true } });
+    if (exists) return;
+    const user = await this.prisma.user.findUnique({ where: { id: ownerId } });
+    if (!user || user.role !== Role.STORE_OWNER) return;
+    await this.prisma.store.create({
+      data: {
+        ownerId,
+        name: `${user.name.trim()}'s store`,
+        city: 'Lahore',
+        phone: user.phone,
+        isApproved: true,
+        isOpen: true,
+      },
+    });
+  }
+
+  private async getOwnedStoreOrThrow(ownerId: string) {
+    await this.bootstrapStoreIfMissing(ownerId);
+    const store = await this.prisma.store.findFirst({ where: { ownerId } });
+    if (!store) throw new ForbiddenException('Store not found');
+    return store;
+  }
+
   async getStoreForOwner(ownerId: string) {
+    await this.bootstrapStoreIfMissing(ownerId);
     const store = await this.prisma.store.findFirst({
       where: { ownerId },
       include: {
@@ -24,8 +51,7 @@ export class StoresService {
   }
 
   async updateStore(ownerId: string, dto: UpdateStoreDto) {
-    const store = await this.prisma.store.findFirst({ where: { ownerId } });
-    if (!store) throw new ForbiddenException('Store not found');
+    const store = await this.getOwnedStoreOrThrow(ownerId);
     const data: Record<string, unknown> = {};
     if (dto.name !== undefined) data.name = dto.name;
     if (dto.description !== undefined) data.description = dto.description;
@@ -42,8 +68,7 @@ export class StoresService {
   }
 
   async getEarnings(ownerId: string) {
-    const store = await this.prisma.store.findFirst({ where: { ownerId } });
-    if (!store) throw new ForbiddenException('Store not found');
+    const store = await this.getOwnedStoreOrThrow(ownerId);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
@@ -82,8 +107,7 @@ export class StoresService {
   }
 
   async getCategories(ownerId: string) {
-    const store = await this.prisma.store.findFirst({ where: { ownerId } });
-    if (!store) throw new ForbiddenException('Store not found');
+    const store = await this.getOwnedStoreOrThrow(ownerId);
     return this.prisma.productCategory.findMany({
       where: { storeId: store.id },
       orderBy: { sortOrder: 'asc' },
@@ -92,16 +116,14 @@ export class StoresService {
   }
 
   async createCategory(ownerId: string, dto: CreateProductCategoryDto) {
-    const store = await this.prisma.store.findFirst({ where: { ownerId } });
-    if (!store) throw new ForbiddenException('Store not found');
+    const store = await this.getOwnedStoreOrThrow(ownerId);
     return this.prisma.productCategory.create({
       data: { storeId: store.id, name: dto.name, sortOrder: dto.sortOrder ?? 0 },
     });
   }
 
   async updateCategory(ownerId: string, categoryId: string, dto: UpdateProductCategoryDto) {
-    const store = await this.prisma.store.findFirst({ where: { ownerId } });
-    if (!store) throw new ForbiddenException('Store not found');
+    const store = await this.getOwnedStoreOrThrow(ownerId);
     const cat = await this.prisma.productCategory.findFirst({ where: { id: categoryId, storeId: store.id } });
     if (!cat) throw new ForbiddenException('Category not found');
     return this.prisma.productCategory.update({
@@ -111,8 +133,7 @@ export class StoresService {
   }
 
   async deleteCategory(ownerId: string, categoryId: string) {
-    const store = await this.prisma.store.findFirst({ where: { ownerId } });
-    if (!store) throw new ForbiddenException('Store not found');
+    const store = await this.getOwnedStoreOrThrow(ownerId);
     const cat = await this.prisma.productCategory.findFirst({ where: { id: categoryId, storeId: store.id } });
     if (!cat) throw new ForbiddenException('Category not found');
     await this.prisma.product.updateMany({ where: { productCategoryId: categoryId }, data: { productCategoryId: null } });
@@ -120,8 +141,7 @@ export class StoresService {
   }
 
   async getProducts(ownerId: string) {
-    const store = await this.prisma.store.findFirst({ where: { ownerId } });
-    if (!store) throw new ForbiddenException('Store not found');
+    const store = await this.getOwnedStoreOrThrow(ownerId);
     return this.prisma.product.findMany({
       where: { storeId: store.id },
       include: { category: true },
@@ -130,8 +150,7 @@ export class StoresService {
   }
 
   async createProduct(ownerId: string, dto: CreateProductDto) {
-    const store = await this.prisma.store.findFirst({ where: { ownerId } });
-    if (!store) throw new ForbiddenException('Store not found');
+    const store = await this.getOwnedStoreOrThrow(ownerId);
     if (dto.productCategoryId) {
       const cat = await this.prisma.productCategory.findFirst({ where: { id: dto.productCategoryId, storeId: store.id } });
       if (!cat) throw new ForbiddenException('Category not found');
@@ -151,8 +170,7 @@ export class StoresService {
   }
 
   async updateProduct(ownerId: string, productId: string, dto: UpdateProductDto) {
-    const store = await this.prisma.store.findFirst({ where: { ownerId } });
-    if (!store) throw new ForbiddenException('Store not found');
+    const store = await this.getOwnedStoreOrThrow(ownerId);
     const prod = await this.prisma.product.findFirst({ where: { id: productId, storeId: store.id } });
     if (!prod) throw new ForbiddenException('Product not found');
     if (dto.productCategoryId !== undefined && dto.productCategoryId) {
@@ -175,16 +193,14 @@ export class StoresService {
   }
 
   async deleteProduct(ownerId: string, productId: string) {
-    const store = await this.prisma.store.findFirst({ where: { ownerId } });
-    if (!store) throw new ForbiddenException('Store not found');
+    const store = await this.getOwnedStoreOrThrow(ownerId);
     const prod = await this.prisma.product.findFirst({ where: { id: productId, storeId: store.id } });
     if (!prod) throw new ForbiddenException('Product not found');
     return this.prisma.product.delete({ where: { id: productId } });
   }
 
   async setProductOutOfStock(ownerId: string, productId: string, isOutOfStock: boolean) {
-    const store = await this.prisma.store.findFirst({ where: { ownerId } });
-    if (!store) throw new ForbiddenException('Store not found');
+    const store = await this.getOwnedStoreOrThrow(ownerId);
     const prod = await this.prisma.product.findFirst({ where: { id: productId, storeId: store.id } });
     if (!prod) throw new ForbiddenException('Product not found');
     return this.prisma.product.update({
