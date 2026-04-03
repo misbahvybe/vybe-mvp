@@ -62,3 +62,40 @@ export function useOrdersRealtime(
     };
   }, [enabled, token, role, storeId]);
 }
+
+/** Rider: admin assigned an order — refetch /orders without manual pull-to-refresh. */
+export function useRiderAssignmentRealtime(
+  enabled: boolean,
+  token: string | null | undefined,
+  onAssigned: () => void,
+) {
+  const cbRef = useRef(onAssigned);
+  cbRef.current = onAssigned;
+
+  useEffect(() => {
+    if (!enabled || !token?.trim()) {
+      return;
+    }
+
+    let socket: Socket | null = null;
+    try {
+      socket = io(getSocketOrigin(), {
+        transports: ['websocket', 'polling'],
+        auth: { token },
+        reconnectionAttempts: 8,
+        reconnectionDelay: 2000,
+      });
+
+      socket.on('order:assigned', () => {
+        cbRef.current();
+      });
+    } catch {
+      // ignore
+    }
+
+    return () => {
+      socket?.removeAllListeners();
+      socket?.disconnect();
+    };
+  }, [enabled, token]);
+}

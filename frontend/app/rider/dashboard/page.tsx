@@ -17,6 +17,8 @@ import {
   X,
 } from 'lucide-react';
 import api from '@/services/api';
+import { useAuthStore } from '@/store/authStore';
+import { useRiderAssignmentRealtime } from '@/hooks/useOrdersRealtime';
 
 const DELIVERY_FEE = 150; // Rider earns delivery fee per order
 
@@ -58,6 +60,8 @@ function googleMapsUrl(lat?: number | string, lng?: number | string, address?: s
 }
 
 export default function RiderDashboardPage() {
+  const token = useAuthStore((s) => s.token);
+  const user = useAuthStore((s) => s.user);
   const [tab, setTab] = useState<'dashboard' | 'earnings'>('dashboard');
   const [orders, setOrders] = useState<Order[]>([]);
   const [dashboard, setDashboard] = useState<RiderDashboard | null>(null);
@@ -66,19 +70,25 @@ export default function RiderDashboardPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const fetchData = useCallback(() => {
-    Promise.all([
+    Promise.allSettled([
       api.get<Order[]>('/orders').then((r) => r.data ?? []),
       api.get<RiderDashboard>('/riders/me').then((r) => r.data),
-    ])
-      .then(([ords, dash]) => {
-        setOrders(ords);
-        setDashboard(dash ?? { isAvailable: true, todayEarnings: 0, completedToday: 0 });
-      })
-      .catch(() => {
+    ]).then((results) => {
+      const [ordsRes, dashRes] = results;
+      if (ordsRes.status === 'fulfilled') {
+        setOrders(ordsRes.value);
+      } else {
         setOrders([]);
+      }
+      if (dashRes.status === 'fulfilled') {
+        setDashboard(
+          dashRes.value ?? { isAvailable: true, todayEarnings: 0, completedToday: 0 },
+        );
+      } else {
         setDashboard({ isAvailable: true, todayEarnings: 0, completedToday: 0 });
-      })
-      .finally(() => setLoading(false));
+      }
+      setLoading(false);
+    });
   }, []);
 
   const fetchEarnings = useCallback(() => {
@@ -89,6 +99,8 @@ export default function RiderDashboardPage() {
   useEffect(() => {
     if (tab === 'earnings') fetchEarnings();
   }, [tab, fetchEarnings]);
+
+  useRiderAssignmentRealtime(user?.role === 'RIDER', token, fetchData);
 
   const setAvailable = async (isAvailable: boolean) => {
     try {

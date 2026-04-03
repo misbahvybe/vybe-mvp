@@ -14,6 +14,7 @@ import { canTransition, getAllowedTransitions } from './order-state-machine';
 import { Decimal } from '@prisma/client/runtime/library';
 import { PricingService } from '../pricing/pricing.service';
 import { OrdersGateway } from '../realtime/orders.gateway';
+import { StoresService } from '../stores/stores.service';
 
 @Injectable()
 export class OrdersService {
@@ -24,6 +25,7 @@ export class OrdersService {
     private readonly config: ConfigService,
     private readonly pricing: PricingService,
     private readonly ordersGateway: OrdersGateway,
+    private readonly stores: StoresService,
   ) {}
 
   /**
@@ -438,7 +440,7 @@ export class OrdersService {
 
     if (role === Role.CUSTOMER && order.customerId !== userId) throw new ForbiddenException('Order not found');
     if (role === Role.STORE_OWNER) {
-      const store = await this.getStoreForOwner(userId);
+      const store = await this.stores.getStoreForOwner(userId);
       if (!store || order.storeId !== store.id) throw new ForbiddenException('Order not found');
     }
     if (role === Role.RIDER && order.riderId !== userId) throw new ForbiddenException('Order not found');
@@ -519,6 +521,10 @@ export class OrdersService {
       return o;
     });
 
+    if (toStatus === OrderStatus.RIDER_ASSIGNED && updated.riderId) {
+      this.ordersGateway.emitRiderAssigned(updated.riderId, updated.id);
+    }
+
     return updated;
   }
 
@@ -526,8 +532,9 @@ export class OrdersService {
     return getAllowedTransitions(fromStatus, role);
   }
 
+  /** Resolves store for owner, bootstrapping a Store row when missing (legacy accounts). */
   async getStoreForOwner(ownerId: string) {
-    return this.prisma.store.findFirst({ where: { ownerId } });
+    return this.stores.getStoreForOwner(ownerId);
   }
 
   async findForUser(userId: string, role: Role) {
@@ -555,9 +562,7 @@ export class OrdersService {
       });
     }
     if (role === Role.STORE_OWNER) {
-      const store = await this.prisma.store.findFirst({
-        where: { ownerId: userId },
-      });
+      const store = await this.stores.getStoreForOwner(userId);
       if (!store) return [];
       return this.prisma.order.findMany({
         where: { storeId: store.id },
@@ -634,6 +639,8 @@ export class OrdersService {
       });
     });
 
+    this.ordersGateway.emitRiderAssigned(newRiderId, orderId);
+
     return { success: true };
   }
 
@@ -662,7 +669,7 @@ export class OrdersService {
       throw new ForbiddenException('Customers cannot edit items');
     }
     if (role === Role.STORE_OWNER) {
-      const store = await this.getStoreForOwner(userId);
+      const store = await this.stores.getStoreForOwner(userId);
       if (!store || store.id !== order.storeId) {
         throw new ForbiddenException('Order not found');
       }

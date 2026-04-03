@@ -5,15 +5,20 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 export class RidersService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Every rider endpoint should tolerate missing profile (legacy / race on first login). */
+  private async ensureRiderProfile(riderId: string) {
+    await this.prisma.riderProfile.upsert({
+      where: { userId: riderId },
+      update: {},
+      create: { userId: riderId, isAvailable: true },
+    });
+  }
+
   async getDashboard(riderId: string) {
-    let profile = await this.prisma.riderProfile.findUnique({
+    await this.ensureRiderProfile(riderId);
+    const profile = await this.prisma.riderProfile.findUniqueOrThrow({
       where: { userId: riderId },
     });
-    if (!profile) {
-      profile = await this.prisma.riderProfile.create({
-        data: { userId: riderId, isAvailable: true },
-      });
-    }
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
@@ -51,6 +56,7 @@ export class RidersService {
   }
 
   async getEarnings(riderId: string) {
+    await this.ensureRiderProfile(riderId);
     const now = new Date();
     const today = new Date(now);
     today.setHours(0, 0, 0, 0);

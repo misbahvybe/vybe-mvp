@@ -4,6 +4,8 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RiderHomeStackParamList } from '@navigation/RiderTabs';
 import { api } from '@api/client';
+import { useAuthStore } from '@store/auth';
+import { useRiderAssignmentRealtime } from '@hooks/useOrdersRealtime';
 import { PartnerScreenShell } from '@components/partner/PartnerScreenShell';
 import { tokens } from '@theme/tokens';
 
@@ -21,6 +23,8 @@ type Nav = NativeStackNavigationProp<RiderHomeStackParamList>;
 
 export function RiderOrdersScreen() {
   const navigation = useNavigation<Nav>();
+  const token = useAuthStore((s) => s.token);
+  const user = useAuthStore((s) => s.user);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -35,6 +39,8 @@ export function RiderOrdersScreen() {
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
+
+  useRiderAssignmentRealtime(user?.role === 'RIDER', token, fetchOrders);
 
   const active = orders.filter((o) =>
     ['RIDER_ASSIGNED', 'RIDER_ACCEPTED', 'PICKED_UP'].includes(o.orderStatus)

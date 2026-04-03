@@ -18,6 +18,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RiderHomeStackParamList } from '@navigation/RiderTabs';
 import { useAuthStore } from '@store/auth';
 import { api } from '@api/client';
+import { useRiderAssignmentRealtime } from '@hooks/useOrdersRealtime';
 import { PartnerScreenShell } from '@components/partner/PartnerScreenShell';
 import { tokens } from '@theme/tokens';
 
@@ -52,6 +53,7 @@ type RiderNav = NativeStackNavigationProp<RiderHomeStackParamList>;
 
 export function RiderDashboardScreen() {
   const user = useAuthStore((s) => s.user);
+  const token = useAuthStore((s) => s.token);
   const navigation = useNavigation<RiderNav>();
   const [dashboard, setDashboard] = useState<RiderDashboard | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -62,24 +64,32 @@ export function RiderDashboardScreen() {
   const [withdrawSubmitting, setWithdrawSubmitting] = useState(false);
 
   const fetchData = useCallback(() => {
-    Promise.all([
+    Promise.allSettled([
       api.get<Order[]>('/orders').then((r) => r.data ?? []),
-      api.get<RiderDashboard>('/riders/me').then((r) => r.data)
-    ])
-      .then(([ords, dash]) => {
-        setOrders(ords);
-        setDashboard(dash ?? { isAvailable: true, todayEarnings: 0, completedToday: 0 });
-      })
-      .catch(() => {
+      api.get<RiderDashboard>('/riders/me').then((r) => r.data),
+    ]).then((results) => {
+      const [ordsRes, dashRes] = results;
+      if (ordsRes.status === 'fulfilled') {
+        setOrders(ordsRes.value);
+      } else {
         setOrders([]);
+      }
+      if (dashRes.status === 'fulfilled') {
+        setDashboard(
+          dashRes.value ?? { isAvailable: true, todayEarnings: 0, completedToday: 0 }
+        );
+      } else {
         setDashboard({ isAvailable: true, todayEarnings: 0, completedToday: 0 });
-      })
-      .finally(() => setLoading(false));
+      }
+      setLoading(false);
+    });
   }, []);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useRiderAssignmentRealtime(user?.role === 'RIDER', token, fetchData);
 
   const setAvailable = async (isAvailable: boolean) => {
     try {

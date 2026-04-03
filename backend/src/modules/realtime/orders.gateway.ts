@@ -89,6 +89,11 @@ export class OrdersGateway implements OnGatewayConnection, OnGatewayDisconnect {
         }
         return;
       }
+      if (user.role === 'RIDER') {
+        await client.join(`rider:${user.id}`);
+        this.logger.debug(`Socket ${client.id} joined rider:${user.id}`);
+        return;
+      }
       client.disconnect(true);
     } catch (e) {
       this.logger.warn(`Socket auth failed: ${e instanceof Error ? e.message : e}`);
@@ -100,5 +105,10 @@ export class OrdersGateway implements OnGatewayConnection, OnGatewayDisconnect {
   emitOrderCreated(payload: OrderCreatedPayload): void {
     this.server.to(`store:${payload.storeId}`).emit('order:created', payload);
     this.server.to('admin:orders').emit('order:created', payload);
+  }
+
+  /** Admin assigned (or reassigned) this order to the rider — refresh /orders. */
+  emitRiderAssigned(riderId: string, orderId: string): void {
+    this.server.to(`rider:${riderId}`).emit('order:assigned', { orderId });
   }
 }
