@@ -22,9 +22,10 @@ export class AuthService {
       throw new ConflictException('Passwords do not match');
     }
     const normalized = this.normalizePhone(dto.phone);
+    const emailTrim = dto.email?.trim() || null;
     const existing = await this.prisma.user.findFirst({
       where: {
-        OR: [{ email: dto.email }, { phone: normalized }],
+        OR: [{ phone: normalized }, ...(emailTrim ? [{ email: emailTrim }] : [])],
       },
     });
     if (existing) {
@@ -34,19 +35,17 @@ export class AuthService {
     const user = await this.prisma.user.create({
       data: {
         name: dto.name,
-        email: dto.email,
+        email: emailTrim,
         phone: normalized,
         password: passwordHash,
         role: 'CUSTOMER',
+        isVerified: true,
+        passwordSet: true,
       },
     });
-    const { expiresAt } = await this.otp.createAndSend(dto.phone);
-    return {
-      message: 'OTP sent to your WhatsApp',
-      userId: user.id,
-      phone: user.phone,
-      expiresAt: expiresAt.toISOString(),
-    };
+    // OTP / WhatsApp verification disabled — customers sign up with password and log in directly.
+    // const { expiresAt } = await this.otp.createAndSend(dto.phone);
+    return this.buildTokenResponse(user);
   }
 
   async login(emailOrPhone: string, password: string) {

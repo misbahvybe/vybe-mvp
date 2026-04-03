@@ -21,10 +21,29 @@ interface Partner {
 export default function AdminPartnersPage() {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [loading, setLoading] = useState(true);
+  const [bootstrappingId, setBootstrappingId] = useState<string | null>(null);
+
+  const load = () =>
+    api.get<Partner[]>('/admin/partners').then((r) => setPartners(r.data ?? [])).catch(() => setPartners([]));
 
   useEffect(() => {
-    api.get<Partner[]>('/admin/partners').then((r) => setPartners(r.data ?? [])).catch(() => setPartners([])).finally(() => setLoading(false));
+    load().finally(() => setLoading(false));
   }, []);
+
+  const bootstrapStore = async (userId: string) => {
+    setBootstrappingId(userId);
+    try {
+      const { data } = await api.post<{ created: boolean }>(`/admin/partners/${userId}/bootstrap-store`);
+      alert(data.created ? 'Store created. Owner can refresh the store dashboard.' : 'Store already existed.');
+      await load();
+    } catch (e: unknown) {
+      const msg =
+        (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Request failed';
+      alert(String(msg));
+    } finally {
+      setBootstrappingId(null);
+    }
+  };
 
   return (
     <div>
@@ -52,6 +71,7 @@ export default function AdminPartnersPage() {
                   <th className="text-left p-3 font-medium">Active</th>
                   <th className="text-left p-3 font-medium">Password Set</th>
                   <th className="text-left p-3 font-medium">Invite Expiry</th>
+                  <th className="text-right p-3 font-medium">Store</th>
                 </tr>
               </thead>
               <tbody>
@@ -68,6 +88,21 @@ export default function AdminPartnersPage() {
                       <span className={p.passwordSet ? 'text-green-600' : 'text-amber-600'}>{p.passwordSet ? 'Yes' : 'Pending'}</span>
                     </td>
                     <td className="p-3">{p.invitationExpiresAt ? new Date(p.invitationExpiresAt).toLocaleDateString() : '—'}</td>
+                    <td className="p-3 text-right">
+                      {p.role === 'STORE_OWNER' ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          loading={bootstrappingId === p.id}
+                          onClick={() => bootstrapStore(p.id)}
+                        >
+                          Ensure store
+                        </Button>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

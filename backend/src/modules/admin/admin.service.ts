@@ -38,12 +38,50 @@ export class AdminService {
         invitationExpiresAt,
       },
     });
+    if (dto.role === Role.STORE_OWNER) {
+      await this.prisma.store.create({
+        data: {
+          ownerId: user.id,
+          name: `${dto.name.trim()}'s store`,
+          city: 'Lahore',
+          phone: normalizedPhone,
+          isApproved: true,
+          isOpen: true,
+        },
+      });
+    }
     await this.prisma.adminLog.create({
       data: { adminId, action: `CREATE_PARTNER_${dto.role}`, targetId: user.id },
     });
     const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     const inviteLink = `${baseUrl}/partner-invite?token=${invitationToken}`;
     return { user: { id: user.id, name: user.name, email: user.email, role: user.role }, inviteLink };
+  }
+
+  /**
+   * For STORE_OWNER users created before stores were auto-created, or if creation failed.
+   */
+  async bootstrapStoreForPartnerUser(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+    if (user.role !== Role.STORE_OWNER) {
+      throw new BadRequestException('User is not a store owner');
+    }
+    const existing = await this.prisma.store.findFirst({ where: { ownerId: userId } });
+    if (existing) {
+      return { store: existing, created: false };
+    }
+    const store = await this.prisma.store.create({
+      data: {
+        ownerId: userId,
+        name: `${user.name.trim()}'s store`,
+        city: 'Lahore',
+        phone: user.phone,
+        isApproved: true,
+        isOpen: true,
+      },
+    });
+    return { store, created: true };
   }
 
   async listPartners() {

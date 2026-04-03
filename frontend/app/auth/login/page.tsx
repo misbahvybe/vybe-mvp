@@ -47,10 +47,12 @@ export default function LoginPage() {
       <div className="flex-1 flex flex-col items-center justify-center px-6 pb-20 bg-surface rounded-t-3xl">
         <Card className="w-full max-w-sm">
           <h1 className="text-xl font-bold text-slate-800 mb-1">Login</h1>
-          <p className="text-slate-600 text-sm mb-6">Enter your email or phone and password</p>
+          <p className="text-slate-600 text-sm mb-6">
+            Phone or email and password. Stay signed in on this device for up to 30 days.
+          </p>
           {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
           <form onSubmit={handleLogin}>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Email or phone</label>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Phone or email</label>
             <input
               type="text"
               value={emailOrPhone}

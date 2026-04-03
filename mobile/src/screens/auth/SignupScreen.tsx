@@ -10,34 +10,39 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { api } from '@api/client';
+import { useAuthStore } from '@store/auth';
+import type { User } from '@store/auth';
 
 export function SignupScreen() {
   const navigation = useNavigation<any>();
+  const setSession = useAuthStore((s) => s.setSession);
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSignup = async () => {
-    if (!name || !email || !phone || !password || !confirmPassword) {
+    if (!name || !phone || !password || !confirmPassword) {
+      Alert.alert('Missing fields', 'Please fill name, phone, and password.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      Alert.alert('Passwords', 'Passwords do not match.');
       return;
     }
     setLoading(true);
     try {
       const { data } = await api.post<{
-        message: string;
-        phone: string;
+        access_token: string;
+        user: User;
       }>('/auth/signup', {
         name: name.trim(),
-        email: email.trim(),
         phone: phone.trim(),
         password,
         confirmPassword,
       });
-      Alert.alert('Signup', data.message ?? 'OTP sent to your WhatsApp');
-      navigation.navigate('SignupOtp', { phone: data.phone ?? phone.trim() });
+      setSession(data.access_token, data.user);
     } catch (e: any) {
       const msg = e?.response?.data?.message ?? 'Failed to sign up';
       Alert.alert('Signup failed', String(msg));
@@ -50,7 +55,7 @@ export function SignupScreen() {
     <View style={styles.root}>
       <View style={styles.card}>
         <Text style={styles.title}>Create account</Text>
-        <Text style={styles.subtitle}>Sign up as a customer using your phone</Text>
+        <Text style={styles.subtitle}>Name, phone, and password — no OTP</Text>
 
         <TextInput
           style={styles.input}
@@ -61,16 +66,7 @@ export function SignupScreen() {
         />
         <TextInput
           style={styles.input}
-          placeholder="Email"
-          placeholderTextColor="#94a3b8"
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="WhatsApp / phone (e.g. 03XXXXXXXXX)"
+          placeholder="Phone (e.g. 03XXXXXXXXX)"
           placeholderTextColor="#94a3b8"
           value={phone}
           onChangeText={setPhone}
@@ -175,4 +171,3 @@ const styles = StyleSheet.create({
     color: '#64748b',
   },
 });
-

@@ -9,7 +9,9 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "eas:build:android": "eas build --platform android --profile production",
+    "eas:submit:android": "eas submit --platform android --profile production --latest"
   },
   "dependencies": {
     "@react-navigation/bottom-tabs": "^7.0.0",

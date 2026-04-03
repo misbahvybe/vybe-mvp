@@ -33,6 +33,12 @@ export class AdminController {
     return this.admin.listPartners();
   }
 
+  /** Fix store owners who have no Store row (older invites) — stops 403 on /store-owner/*. */
+  @Post('partners/:userId/bootstrap-store')
+  async bootstrapPartnerStore(@Param('userId') userId: string) {
+    return this.admin.bootstrapStoreForPartnerUser(userId);
+  }
+
   @Get('metrics')
   async getMetrics(@CurrentUser() _user: User) {
     return this.admin.getMetrics();

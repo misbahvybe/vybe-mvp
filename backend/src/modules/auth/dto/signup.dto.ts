@@ -1,12 +1,14 @@
-import { IsEmail, IsString, MinLength, Matches } from 'class-validator';
+import { IsEmail, IsString, MinLength, Matches, IsOptional, ValidateIf } from 'class-validator';
 
 export class SignupDto {
   @IsString()
   @MinLength(2)
   name: string;
 
+  @IsOptional()
+  @ValidateIf((o) => o.email != null && String(o.email).trim() !== '')
   @IsEmail()
-  email: string;
+  email?: string;
 
   @IsString()
   @Matches(/^(\+92|0)?3[0-9]{9}$/, { message: 'Invalid WhatsApp/phone number for Pakistan' })
