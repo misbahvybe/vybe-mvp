@@ -26,6 +26,12 @@
         {
           "photosPermission": "Vybe needs access to your photos to upload store and product images."
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Vybe uses your location to show nearest pickup orders."
+        }
       ]
     ],
     "extra": {

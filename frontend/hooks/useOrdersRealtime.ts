@@ -57,6 +57,25 @@ export function useOrdersRealtime(
           cbRef.current(payload);
         }
       });
+
+      if (role === 'ADMIN') {
+        socket.on('order:rider_self_claimed', () => {
+          cbRef.current({
+            id: '',
+            storeId: '',
+            orderStatus: '',
+            createdAt: '',
+            totalAmount: '',
+            subtotalAmount: '',
+            deliveryFee: '',
+            serviceFee: '',
+            gstAmount: '',
+            cardProcessingAmount: '',
+            slaDeadlineAt: null,
+            customer: { name: '', phone: '' },
+          });
+        });
+      }
     } catch {
       // ignore
     }

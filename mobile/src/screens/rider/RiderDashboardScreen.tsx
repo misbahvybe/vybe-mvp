@@ -17,6 +17,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RiderHomeStackParamList } from '@navigation/RiderTabs';
 import { useAuthStore } from '@store/auth';
+import * as Location from 'expo-location';
 import { api } from '@api/client';
 import { useRiderAssignmentRealtime } from '@hooks/useOrdersRealtime';
 import { PartnerScreenShell } from '@components/partner/PartnerScreenShell';
@@ -37,6 +38,16 @@ interface Order {
   store?: { name: string; address?: string; latitude?: number; longitude?: number };
   customer?: { name: string; phone: string };
   address?: { fullAddress: string; latitude?: number; longitude?: number };
+}
+
+interface AvailableOrder {
+  id: string;
+  orderStatus: string;
+  totalAmount: number;
+  distanceKm: number | null;
+  store?: { name: string; address?: string };
+  address?: { fullAddress: string };
+  customer?: { name: string };
 }
 
 function googleMapsUrl(lat?: number, lng?: number, address?: string): string {
@@ -62,6 +73,34 @@ export function RiderDashboardScreen() {
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawSubmitting, setWithdrawSubmitting] = useState(false);
+  const [availableOrders, setAvailableOrders] = useState<AvailableOrder[]>([]);
+  const [availLoading, setAvailLoading] = useState(false);
+
+  const fetchAvailable = useCallback(async () => {
+    setAvailLoading(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      let url = '/riders/me/available-orders';
+      if (status === 'granted') {
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        const la = pos.coords.latitude;
+        const lo = pos.coords.longitude;
+        url += `?latitude=${la}&longitude=${lo}`;
+        await api.patch('/riders/me/location', { latitude: la, longitude: lo });
+      }
+      const { data } = await api.get<AvailableOrder[]>(url);
+      setAvailableOrders(data ?? []);
+    } catch {
+      try {
+        const { data } = await api.get<AvailableOrder[]>('/riders/me/available-orders');
+        setAvailableOrders(data ?? []);
+      } catch {
+        setAvailableOrders([]);
+      }
+    } finally {
+      setAvailLoading(false);
+    }
+  }, []);
 
   const fetchData = useCallback(() => {
     Promise.allSettled([
@@ -82,16 +121,21 @@ export function RiderDashboardScreen() {
         setDashboard({ isAvailable: true, todayEarnings: 0, completedToday: 0 });
       }
       setLoading(false);
+      void fetchAvailable();
     });
-  }, []);
+  }, [fetchAvailable]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  useRiderAssignmentRealtime(user?.role === 'RIDER', token, fetchData);
+  const refreshRiderHome = useCallback(() => {
+    fetchData();
+  }, [fetchData]);
 
-  const setAvailable = async (isAvailable: boolean) => {
+  useRiderAssignmentRealtime(user?.role === 'RIDER', token, refreshRiderHome);
+
+  const updateRiderAvailability = async (isAvailable: boolean) => {
     try {
       await api.patch('/riders/me', { isAvailable });
       setDashboard((d) => (d ? { ...d, isAvailable } : null));
@@ -107,6 +151,19 @@ export function RiderDashboardScreen() {
       fetchData();
     } catch (e: any) {
       const msg = e?.response?.data?.message ?? 'Failed to update order';
+      Alert.alert('Error', String(msg));
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const claimOpenOrder = async (orderId: string) => {
+    setActionLoadingId(orderId);
+    try {
+      await api.patch(`/orders/${orderId}/status`, { status: 'RIDER_ASSIGNED' });
+      fetchData();
+    } catch (e: any) {
+      const msg = e?.response?.data?.message ?? 'Could not pick this order';
       Alert.alert('Error', String(msg));
     } finally {
       setActionLoadingId(null);
@@ -161,7 +218,7 @@ export function RiderDashboardScreen() {
         <View style={styles.statusRow}>
           <Text style={styles.statusLabel}>Status</Text>
           <TouchableOpacity
-            onPress={() => setAvailable(!(dashboard?.isAvailable ?? true))}
+            onPress={() => updateRiderAvailability(!(dashboard?.isAvailable ?? true))}
             style={[
               styles.switch,
               dashboard?.isAvailable ? styles.switchOn : styles.switchOff
@@ -208,6 +265,58 @@ export function RiderDashboardScreen() {
         </View>
 
         <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Nearest pickup offers</Text>
+          <Text style={styles.poolHint}>
+            Ready at store — tap Pick to claim. Admin sees self-picked orders.
+          </Text>
+          {availLoading && availableOrders.length === 0 ? (
+            <View style={styles.center}>
+              <ActivityIndicator color={tokens.accent} />
+            </View>
+          ) : availableOrders.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyText}>No open pickup orders right now.</Text>
+            </View>
+          ) : (
+            <View style={{ gap: 10 }}>
+              {availableOrders.slice(0, 8).map((o) => (
+                <View key={o.id} style={styles.poolCard}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.poolTitle}>{o.store?.name ?? 'Store'}</Text>
+                    <Text style={styles.poolSub} numberOfLines={1}>
+                      {o.customer?.name ?? 'Customer'} · Rs {Number(o.totalAmount).toLocaleString()}
+                    </Text>
+                    {o.distanceKm != null && (
+                      <Text style={styles.poolDist}>~{o.distanceKm} km away</Text>
+                    )}
+                  </View>
+                  <TouchableOpacity
+                    style={styles.pickBtn}
+                    disabled={!!actionLoadingId || !!activeOrder}
+                    onPress={() => {
+                      if (activeOrder) {
+                        Alert.alert('Busy', 'Finish your current delivery before picking another.');
+                        return;
+                      }
+                      Alert.alert('Pick this order?', 'You will be assigned and admin will see a self-pick.', [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Pick', onPress: () => claimOpenOrder(o.id) },
+                      ]);
+                    }}
+                  >
+                    {actionLoadingId === o.id ? (
+                      <ActivityIndicator color="#facc15" />
+                    ) : (
+                      <Text style={styles.pickBtnText}>Pick</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Active order</Text>
           {loading ? (
             <View style={styles.center}>
@@ -217,7 +326,7 @@ export function RiderDashboardScreen() {
             <View style={styles.emptyCard}>
               <Text style={styles.emptyTitle}>No active order</Text>
               <Text style={styles.emptyText}>
-                Admin will assign you orders when ready.
+                Pick one from nearest offers above, or wait for admin to assign you.
               </Text>
             </View>
           ) : (
@@ -479,6 +588,37 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
     marginBottom: 8
   },
+  poolHint: {
+    fontSize: 12,
+    color: '#94a3b8',
+    marginBottom: 10,
+    lineHeight: 16
+  },
+  poolCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderRadius: 16,
+    backgroundColor: '#ffffff',
+    padding: 14,
+    shadowColor: '#020617',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2
+  },
+  poolTitle: { fontSize: 15, fontWeight: '700', color: '#0f172a' },
+  poolSub: { fontSize: 12, color: '#64748b', marginTop: 4 },
+  poolDist: { fontSize: 11, color: '#16a34a', marginTop: 4, fontWeight: '600' },
+  pickBtn: {
+    backgroundColor: '#0f172a',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+    minWidth: 72,
+    alignItems: 'center'
+  },
+  pickBtnText: { fontSize: 13, fontWeight: '700', color: '#facc15' },
   center: {
     paddingVertical: 24,
     alignItems: 'center',

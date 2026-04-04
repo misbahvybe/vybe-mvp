@@ -443,13 +443,81 @@ export class OrdersService {
       const store = await this.stores.getStoreForOwner(userId);
       if (!store || order.storeId !== store.id) throw new ForbiddenException('Order not found');
     }
-    if (role === Role.RIDER && order.riderId !== userId) throw new ForbiddenException('Order not found');
 
     const toStatus = dto.status as OrderStatus;
+    const isRiderSelfClaim =
+      role === Role.RIDER &&
+      order.orderStatus === OrderStatus.READY_FOR_PICKUP &&
+      order.riderId == null &&
+      toStatus === OrderStatus.RIDER_ASSIGNED;
+
+    if (role === Role.RIDER && order.riderId !== userId && !isRiderSelfClaim) {
+      throw new ForbiddenException('Order not found');
+    }
+
     if (!canTransition(order.orderStatus, toStatus, role)) {
       throw new BadRequestException(
         `Cannot change status from ${order.orderStatus} to ${toStatus}`
       );
+    }
+
+    if (isRiderSelfClaim) {
+      const rider = await this.prisma.user.findFirst({
+        where: { id: userId, role: Role.RIDER, isActive: true },
+      });
+      if (!rider) throw new BadRequestException('Rider account inactive');
+      const busy = await this.prisma.order.count({
+        where: {
+          riderId: userId,
+          orderStatus: {
+            in: [OrderStatus.RIDER_ASSIGNED, OrderStatus.RIDER_ACCEPTED, OrderStatus.PICKED_UP],
+          },
+        },
+      });
+      if (busy > 0) {
+        throw new BadRequestException('Complete or release your current order before accepting another');
+      }
+
+      const updated = await this.prisma.$transaction(async (tx) => {
+        const res = await tx.order.updateMany({
+          where: {
+            id: orderId,
+            orderStatus: OrderStatus.READY_FOR_PICKUP,
+            riderId: null,
+          },
+          data: {
+            riderId: userId,
+            orderStatus: OrderStatus.RIDER_ASSIGNED,
+            riderSelfAssigned: true,
+          },
+        });
+        if (res.count === 0) {
+          throw new BadRequestException('Order is no longer available');
+        }
+        await tx.orderStatusHistory.create({
+          data: {
+            orderId,
+            status: OrderStatus.RIDER_ASSIGNED,
+            changedByUserId: userId,
+          },
+        });
+        return tx.order.findUniqueOrThrow({
+          where: { id: orderId },
+          include: {
+            store: true,
+            address: true,
+            customer: { select: { name: true, phone: true } },
+            rider: { select: { name: true, phone: true } },
+            items: { include: { product: true } },
+          },
+        });
+      });
+
+      if (updated.riderId) {
+        this.ordersGateway.emitRiderAssigned(updated.riderId, updated.id);
+      }
+      this.ordersGateway.emitRiderSelfClaimed(updated.id, userId);
+      return updated;
     }
 
     if (toStatus === 'RIDER_ASSIGNED' && !dto.riderId) {
@@ -459,6 +527,7 @@ export class OrdersService {
     const updateData: {
       orderStatus: OrderStatus;
       riderId?: string | null;
+      riderSelfAssigned?: boolean;
       cancellationReason?: import('@prisma/client').CancellationReason;
       cancelledByRole?: Role;
     } = { orderStatus: toStatus };
@@ -469,9 +538,11 @@ export class OrdersService {
       });
       if (!rider) throw new BadRequestException('Rider not found');
       updateData.riderId = dto.riderId;
+      updateData.riderSelfAssigned = false;
     }
     if (toStatus === 'READY_FOR_PICKUP' && order.orderStatus === 'RIDER_ASSIGNED') {
       updateData.riderId = null;
+      updateData.riderSelfAssigned = false;
     }
     if (toStatus === 'CANCELLED') {
       updateData.cancellationReason = (dto.cancellationReason as import('@prisma/client').CancellationReason) ?? (role === 'CUSTOMER' ? 'CUSTOMER_CANCELLED' : role === 'STORE_OWNER' ? 'STORE_REJECTED' : 'ADMIN_CANCELLED');
@@ -625,7 +696,7 @@ export class OrdersService {
     await this.prisma.$transaction(async (tx) => {
       await tx.order.update({
         where: { id: orderId },
-        data: { riderId: newRiderId },
+        data: { riderId: newRiderId, riderSelfAssigned: false },
       });
       const txAny = tx as any;
       await txAny.orderRiderChange.create({

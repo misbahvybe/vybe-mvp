@@ -1,5 +1,30 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { OrderStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { haversineDistanceKm } from '../../common/geo/haversine';
+
+function parseCoord(v: string | undefined): number | null {
+  if (v == null || String(v).trim() === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function pickRefLatLng(
+  store: { latitude: unknown; longitude: unknown },
+  address: { latitude: unknown; longitude: unknown },
+): { lat: number; lng: number } | null {
+  const sLat = store.latitude != null ? Number(store.latitude) : NaN;
+  const sLng = store.longitude != null ? Number(store.longitude) : NaN;
+  if (Number.isFinite(sLat) && Number.isFinite(sLng)) {
+    return { lat: sLat, lng: sLng };
+  }
+  const aLat = Number(address.latitude);
+  const aLng = Number(address.longitude);
+  if (Number.isFinite(aLat) && Number.isFinite(aLng)) {
+    return { lat: aLat, lng: aLng };
+  }
+  return null;
+}
 
 @Injectable()
 export class RidersService {
@@ -97,5 +122,92 @@ export class RidersService {
         amount: Number(e.earningAmount),
       })),
     };
+  }
+
+  /**
+   * Open pickup pool: READY_FOR_PICKUP, no rider. Sorted by distance to rider when lat/lng known
+   * (query params or last PATCH /riders/me/location). Otherwise oldest first.
+   */
+  async findAvailableOrdersNear(riderId: string, latStr?: string, lngStr?: string) {
+    await this.ensureRiderProfile(riderId);
+    let lat = parseCoord(latStr);
+    let lng = parseCoord(lngStr);
+    if (lat == null || lng == null) {
+      const profile = await this.prisma.riderProfile.findUnique({
+        where: { userId: riderId },
+        select: { currentLatitude: true, currentLongitude: true },
+      });
+      if (profile?.currentLatitude != null && profile?.currentLongitude != null) {
+        lat = Number(profile.currentLatitude);
+        lng = Number(profile.currentLongitude);
+      }
+    }
+
+    const orders = await this.prisma.order.findMany({
+      where: {
+        orderStatus: OrderStatus.READY_FOR_PICKUP,
+        riderId: null,
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 50,
+      include: {
+        store: {
+          select: {
+            id: true,
+            name: true,
+            address: true,
+            latitude: true,
+            longitude: true,
+            phone: true,
+          },
+        },
+        address: true,
+        customer: { select: { name: true, phone: true } },
+        items: { include: { product: { select: { name: true } } } },
+      },
+    });
+
+    const rows = orders.map((o) => {
+      const ref = pickRefLatLng(o.store, o.address);
+      let distanceKm: number | null = null;
+      if (lat != null && lng != null && ref) {
+        distanceKm = Math.round(haversineDistanceKm(lat, lng, ref.lat, ref.lng) * 100) / 100;
+      }
+      return {
+        id: o.id,
+        orderStatus: o.orderStatus,
+        createdAt: o.createdAt,
+        totalAmount: Number(o.totalAmount),
+        paymentMethod: o.paymentMethod,
+        deliveryFee: Number(o.deliveryFee),
+        distanceKm,
+        store: o.store,
+        address: o.address,
+        customer: o.customer,
+        items: o.items,
+      };
+    });
+
+    if (lat != null && lng != null) {
+      rows.sort((a, b) => {
+        const da = a.distanceKm ?? 1e9;
+        const db = b.distanceKm ?? 1e9;
+        return da - db;
+      });
+    }
+
+    return rows;
+  }
+
+  async updateLocation(riderId: string, latitude: number, longitude: number) {
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      throw new BadRequestException('Invalid coordinates');
+    }
+    await this.ensureRiderProfile(riderId);
+    await this.prisma.riderProfile.update({
+      where: { userId: riderId },
+      data: { currentLatitude: latitude, currentLongitude: longitude },
+    });
+    return { ok: true as const };
   }
 }

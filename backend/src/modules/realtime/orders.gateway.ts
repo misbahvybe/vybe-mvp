@@ -111,4 +111,9 @@ export class OrdersGateway implements OnGatewayConnection, OnGatewayDisconnect {
   emitRiderAssigned(riderId: string, orderId: string): void {
     this.server.to(`rider:${riderId}`).emit('order:assigned', { orderId });
   }
+
+  /** Rider claimed an open pickup order — admin list should refresh. */
+  emitRiderSelfClaimed(orderId: string, riderId: string): void {
+    this.server.to('admin:orders').emit('order:rider_self_claimed', { orderId, riderId });
+  }
 }

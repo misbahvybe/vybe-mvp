@@ -191,6 +191,11 @@ export default function RiderOrderDetailPage() {
             <Card className="p-4">
               <p className="text-sm font-semibold text-slate-600 uppercase mb-3">Action</p>
               <div className="space-y-2">
+                {allowed.includes('RIDER_ASSIGNED') && order.orderStatus === 'READY_FOR_PICKUP' && (
+                  <Button size="lg" fullWidth loading={loading} onClick={() => updateStatus('RIDER_ASSIGNED')}>
+                    <Package className="w-5 h-5 mr-2" /> Pick this order
+                  </Button>
+                )}
                 {allowed.includes('RIDER_ACCEPTED') && (
                   <div className="flex gap-2">
                     <Button size="lg" fullWidth loading={loading} onClick={() => updateStatus('RIDER_ACCEPTED')}>

@@ -34,6 +34,16 @@ interface Order {
   items: { product: { name: string }; quantity: number; price: number }[];
 }
 
+interface AvailableOrder {
+  id: string;
+  orderStatus: string;
+  totalAmount: number;
+  distanceKm: number | null;
+  store?: { name: string; address?: string };
+  address?: { fullAddress: string };
+  customer?: { name: string };
+}
+
 interface RiderDashboard {
   isAvailable: boolean;
   todayEarnings: number;
@@ -68,6 +78,41 @@ export default function RiderDashboardPage() {
   const [earnings, setEarnings] = useState<RiderEarnings | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [availableOrders, setAvailableOrders] = useState<AvailableOrder[]>([]);
+  const [availLoading, setAvailLoading] = useState(false);
+
+  const fetchAvailable = useCallback(async () => {
+    setAvailLoading(true);
+    try {
+      let url = '/riders/me/available-orders';
+      if (typeof navigator !== 'undefined' && navigator.geolocation) {
+        const pos = await new Promise<GeolocationPosition | null>((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            (p) => resolve(p),
+            () => resolve(null),
+            { enableHighAccuracy: false, timeout: 8000, maximumAge: 60_000 },
+          );
+        });
+        if (pos) {
+          const la = pos.coords.latitude;
+          const lo = pos.coords.longitude;
+          url += `?latitude=${la}&longitude=${lo}`;
+          await api.patch('/riders/me/location', { latitude: la, longitude: lo }).catch(() => {});
+        }
+      }
+      const { data } = await api.get<AvailableOrder[]>(url);
+      setAvailableOrders(data ?? []);
+    } catch {
+      try {
+        const { data } = await api.get<AvailableOrder[]>('/riders/me/available-orders');
+        setAvailableOrders(data ?? []);
+      } catch {
+        setAvailableOrders([]);
+      }
+    } finally {
+      setAvailLoading(false);
+    }
+  }, []);
 
   const fetchData = useCallback(() => {
     Promise.allSettled([
@@ -88,8 +133,9 @@ export default function RiderDashboardPage() {
         setDashboard({ isAvailable: true, todayEarnings: 0, completedToday: 0 });
       }
       setLoading(false);
+      void fetchAvailable();
     });
-  }, []);
+  }, [fetchAvailable]);
 
   const fetchEarnings = useCallback(() => {
     api.get<RiderEarnings>('/riders/me/earnings').then((r) => setEarnings(r.data)).catch(() => setEarnings(null));
@@ -100,7 +146,11 @@ export default function RiderDashboardPage() {
     if (tab === 'earnings') fetchEarnings();
   }, [tab, fetchEarnings]);
 
-  useRiderAssignmentRealtime(user?.role === 'RIDER', token, fetchData);
+  const refreshRiderHome = useCallback(() => {
+    fetchData();
+  }, [fetchData]);
+
+  useRiderAssignmentRealtime(user?.role === 'RIDER', token, refreshRiderHome);
 
   const setAvailable = async (isAvailable: boolean) => {
     try {
@@ -118,6 +168,25 @@ export default function RiderDashboardPage() {
       fetchData();
     } catch (e) {
       alert((e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Failed');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const claimOpenOrder = async (orderId: string) => {
+    if (
+      !confirm(
+        'Pick this order? You will be assigned and admin will see this as a self-pick.',
+      )
+    ) {
+      return;
+    }
+    setActionLoading(orderId);
+    try {
+      await api.patch(`/orders/${orderId}/status`, { status: 'RIDER_ASSIGNED' });
+      fetchData();
+    } catch (e) {
+      alert((e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Could not pick order');
     } finally {
       setActionLoading(null);
     }
@@ -224,6 +293,53 @@ export default function RiderDashboardPage() {
                     {loading ? '—' : dashboard?.completedToday ?? 0}
                   </p>
                 </Card>
+              </div>
+
+              <div className="mb-6">
+                <h2 className="text-sm font-semibold text-slate-600 uppercase tracking-wide mb-1">
+                  Nearest pickup offers
+                </h2>
+                <p className="text-xs text-slate-500 mb-3">
+                  Ready at store — pick to claim. Admin sees self-picked orders.
+                </p>
+                {availLoading && availableOrders.length === 0 ? (
+                  <div className="flex justify-center py-8">
+                    <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : availableOrders.length === 0 ? (
+                  <Card className="p-4 text-center text-sm text-slate-500">No open pickup orders.</Card>
+                ) : (
+                  <div className="space-y-2">
+                    {availableOrders.slice(0, 8).map((o) => (
+                      <Card key={o.id} className="p-4 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-slate-800 truncate">{o.store?.name ?? 'Store'}</p>
+                          <p className="text-sm text-slate-600 truncate">
+                            {o.customer?.name ?? 'Customer'} · Rs {Number(o.totalAmount).toLocaleString()}
+                          </p>
+                          {o.distanceKm != null && (
+                            <p className="text-xs text-green-700 font-medium mt-1">~{o.distanceKm} km</p>
+                          )}
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          disabled={!!actionLoading || !!activeOrder}
+                          loading={actionLoading === o.id}
+                          onClick={() => {
+                            if (activeOrder) {
+                              alert('Finish your current delivery before picking another.');
+                              return;
+                            }
+                            void claimOpenOrder(o.id);
+                          }}
+                        >
+                          Pick
+                        </Button>
+                      </Card>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {loading ? (
@@ -351,7 +467,9 @@ export default function RiderDashboardPage() {
                 <Card className="mb-6 py-12 text-center">
                   <Package className="w-16 h-16 text-slate-300 mx-auto mb-3" strokeWidth={1.5} />
                   <p className="text-slate-600 font-medium">No active order</p>
-                  <p className="text-slate-500 text-sm mt-1">Admin will assign you orders when ready.</p>
+                  <p className="text-slate-500 text-sm mt-1">
+                    Pick from nearest offers above, or wait for admin to assign you.
+                  </p>
                 </Card>
               )}
 

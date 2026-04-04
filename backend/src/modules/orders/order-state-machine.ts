@@ -12,6 +12,7 @@ const TRANSITIONS: Record<OrderStatus, Partial<Record<Role, OrderStatus[]>>> = {
   STORE_REJECTED: {},
   READY_FOR_PICKUP: {
     ADMIN: ['RIDER_ASSIGNED'],
+    RIDER: ['RIDER_ASSIGNED'],
   },
   RIDER_ASSIGNED: {
     RIDER: ['RIDER_ACCEPTED', 'READY_FOR_PICKUP'],

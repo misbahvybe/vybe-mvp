@@ -272,6 +272,8 @@ model Order {
   paymentMethod   PaymentMethod  @default(COD) @map("payment_method")
   paymentStatus   PaymentStatus  @default(PENDING) @map("payment_status")
   orderStatus     OrderStatus   @default(PENDING) @map("order_status")
+  /// True when rider claimed from READY_FOR_PICKUP pool (not admin-assigned).
+  riderSelfAssigned Boolean     @default(false) @map("rider_self_assigned")
   notes           String?
   cancellationReason CancellationReason? @map("cancellation_reason")
   cancelledByRole Role?         @map("cancelled_by_role")

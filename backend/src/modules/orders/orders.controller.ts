@@ -120,7 +120,13 @@ export class OrdersController {
       const store = await this.orders.getStoreForOwner(user.id);
       if (!store || order.storeId !== store.id) throw new ForbiddenException('Order not found');
     }
-    if (user.role === 'RIDER' && order.riderId !== user.id) throw new ForbiddenException('Order not found');
+    if (user.role === 'RIDER') {
+      const canViewOpenPool =
+        order.orderStatus === 'READY_FOR_PICKUP' && order.riderId == null;
+      if (order.riderId !== user.id && !canViewOpenPool) {
+        throw new ForbiddenException('Order not found');
+      }
+    }
     const allowed = this.orders.getAllowedTransitions(order.orderStatus, user.role);
     return { ...order, allowedTransitions: allowed };
   }

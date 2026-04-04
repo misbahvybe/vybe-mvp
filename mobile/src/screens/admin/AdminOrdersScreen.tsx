@@ -26,6 +26,7 @@ interface Order {
   orderStatus: string;
   createdAt: string;
   totalAmount: number;
+  riderSelfAssigned?: boolean;
   store?: { name: string };
   customer?: { name: string };
   rider?: { name: string; phone: string } | null;
@@ -178,7 +179,12 @@ export function AdminOrdersScreen() {
                   <Text style={styles.tapHint}>Tap for details</Text>
                 </TouchableOpacity>
                 <View style={styles.riderRow}>
-                  <Text style={styles.rider}>Rider: {item.rider?.name ?? '—'}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.rider}>Rider: {item.rider?.name ?? '—'}</Text>
+                    {item.riderSelfAssigned ? (
+                      <Text style={styles.selfPick}>Self-pick</Text>
+                    ) : null}
+                  </View>
                   {riders.length > 0 && canReassignList(item) ? (
                     <TouchableOpacity
                       onPress={() => {
@@ -277,7 +283,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: 6,
   },
-  rider: { fontSize: 12, color: tokens.slate600, flex: 1 },
+  rider: { fontSize: 12, color: tokens.slate600 },
+  selfPick: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#92400e',
+    marginTop: 2,
+    textTransform: 'uppercase',
+  },
   changeLink: { fontSize: 12, fontWeight: '700', color: tokens.accent },
   row: {
     flexDirection: 'row',

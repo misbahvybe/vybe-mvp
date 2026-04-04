@@ -214,6 +214,16 @@ export function RiderOrderDetailScreen() {
         {allowed.length > 0 && (
           <View style={styles.card}>
             <Text style={styles.section}>Actions</Text>
+            {allowed.includes('RIDER_ASSIGNED') && order.orderStatus === 'READY_FOR_PICKUP' && (
+              <VybeButton
+                title="Pick this order"
+                variant="accent"
+                loading={actionLoading}
+                disabled={actionLoading}
+                onPress={() => updateStatus('RIDER_ASSIGNED')}
+                style={{ marginBottom: 12 }}
+              />
+            )}
             {allowed.includes('RIDER_ACCEPTED') && (
               <View style={{ gap: 8 }}>
                 <VybeButton

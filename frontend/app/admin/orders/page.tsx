@@ -15,6 +15,7 @@ interface Order {
   createdAt: string;
   totalAmount: number;
   commissionAmount?: number;
+  riderSelfAssigned?: boolean;
   store?: { name: string };
   customer?: { name: string; phone: string };
   rider?: { name: string; phone: string } | null;
@@ -129,6 +130,7 @@ function AdminOrdersContent() {
                   <th className="text-left p-3 font-medium">Customer</th>
                   <th className="text-left p-3 font-medium">Store</th>
                   <th className="text-left p-3 font-medium">Rider</th>
+                  <th className="text-left p-3 font-medium">Pick</th>
                   <th className="text-left p-3 font-medium">Status</th>
                   <th className="text-right p-3 font-medium">Total</th>
                   <th className="text-right p-3 font-medium">Commission</th>
@@ -154,6 +156,15 @@ function AdminOrdersContent() {
                           {reassigningId === o.id ? 'Changing...' : 'Change'}
                         </Button>
                       </div>
+                    </td>
+                    <td className="p-3">
+                      {o.riderSelfAssigned ? (
+                        <span className="text-xs font-semibold text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
+                          Self-pick
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 text-xs">—</span>
+                      )}
                     </td>
                     <td className="p-3">
                       <span className={`px-2 py-0.5 rounded text-xs font-medium ${
