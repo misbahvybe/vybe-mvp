@@ -155,12 +155,14 @@ export default function AdminStoreMenuPage() {
   };
 
   const deleteProduct = async (productId: string) => {
-    if (!storeId || !confirm('Delete this product?')) return;
+    if (!storeId || !confirm('Delete this product permanently?')) return;
     try {
       await api.delete(`/admin/stores/${storeId}/products/${productId}`);
       fetchAll();
     } catch (e) {
-      alert((e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Failed to delete product');
+      const raw = (e as { response?: { data?: { message?: string | string[] } } })?.response?.data?.message;
+      const msg = Array.isArray(raw) ? raw.join(' ') : raw;
+      alert(msg ?? 'Failed to delete product');
     }
   };
 
@@ -288,6 +290,10 @@ export default function AdminStoreMenuPage() {
           <Card className="p-0 overflow-hidden">
             <div className="p-4 border-b border-slate-100">
               <h2 className="font-semibold text-slate-800">All products</h2>
+              <p className="text-xs text-slate-500 mt-1">
+                Delete only works for products that have never been on an order. Otherwise use <strong>Mark OOS</strong>{' '}
+                or <strong>Edit</strong> → turn off Available.
+              </p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

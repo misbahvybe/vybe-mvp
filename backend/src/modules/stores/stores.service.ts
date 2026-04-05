@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { Role } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
@@ -356,7 +357,16 @@ export class StoresService {
     await this.requireStore(storeId);
     const prod = await this.prisma.product.findFirst({ where: { id: productId, storeId } });
     if (!prod) throw new BadRequestException('Product not found');
-    return this.prisma.product.delete({ where: { id: productId } });
+    try {
+      return await this.prisma.product.delete({ where: { id: productId } });
+    } catch (e) {
+      if (e instanceof PrismaClientKnownRequestError && e.code === 'P2003') {
+        throw new BadRequestException(
+          'This product appears on existing orders and cannot be deleted. Mark it unavailable or out of stock instead.',
+        );
+      }
+      throw e;
+    }
   }
 
   async adminSetProductOutOfStock(storeId: string, productId: string, isOutOfStock: boolean) {
