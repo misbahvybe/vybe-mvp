@@ -32,11 +32,41 @@ async function bootstrap() {
     }),
   );
   const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
-  const corsOrigins = frontendUrl.includes(',') ? frontendUrl.split(',').map((o) => o.trim()) : [frontendUrl];
-  // Always allow Vercel deployment (in case FRONTEND_URL not set in Railway)
-  const vercelOrigin = 'https://vybe-mvp.vercel.app';
-  if (!corsOrigins.includes(vercelOrigin)) corsOrigins.push(vercelOrigin);
-  app.enableCors({ origin: corsOrigins, credentials: true });
+  const corsOrigins = frontendUrl.includes(',')
+    ? frontendUrl.split(',').map((o) => o.trim()).filter(Boolean)
+    : [frontendUrl];
+  const vercelProd = 'https://vybe-mvp.vercel.app';
+  if (!corsOrigins.includes(vercelProd)) corsOrigins.push(vercelProd);
+
+  const isHttpsVercelApp = (origin: string) => {
+    try {
+      const u = new URL(origin);
+      return u.protocol === 'https:' && u.hostname.endsWith('.vercel.app');
+    } catch {
+      return false;
+    }
+  };
+
+  app.enableCors({
+    origin: (origin, callback) => {
+      // curl, Postman, same-origin server-side — no Origin header
+      if (!origin) {
+        return callback(null, true);
+      }
+      if (corsOrigins.includes(origin)) {
+        return callback(null, origin);
+      }
+      // Any *.vercel.app (production + preview, e.g. project-xxx-team.vercel.app)
+      if (isHttpsVercelApp(origin)) {
+        return callback(null, origin);
+      }
+      if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+        return callback(null, origin);
+      }
+      callback(null, false);
+    },
+    credentials: true,
+  });
   const port = process.env.PORT ?? 4000;
   await app.listen(port, '0.0.0.0');
   console.log(`Vybe API running at http://0.0.0.0:${port}/api/v1`);
