@@ -2,10 +2,13 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { AuthListener } from '@/components/auth/AuthListener';
 
+/** Vercel preview + Deployment Protection returns 401 for static files; skip manifest link so the browser does not request it. */
+const isVercelPreview = process.env.VERCEL_ENV === 'preview';
+
 export const metadata: Metadata = {
   title: 'VYBE Super App',
   description: 'Everything you need now with crypto. Food, grocery, medicine delivery.',
-  manifest: '/manifest.json',
+  ...(isVercelPreview ? {} : { manifest: '/manifest.json' }),
 };
 
 export const viewport: Viewport = {
