@@ -6,6 +6,11 @@ export class HealthController {
   @Public()
   @Get()
   check() {
-    return { status: 'ok', service: 'vybepk-api' };
+    return {
+      status: 'ok',
+      service: 'vybepk-api',
+      /** Set by Railway — use to confirm the running image matches your latest deploy. */
+      gitCommit: process.env.RAILWAY_GIT_COMMIT_SHA ?? process.env.RAILWAY_GIT_COMMIT ?? null,
+    };
   }
 }

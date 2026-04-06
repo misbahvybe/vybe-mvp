@@ -111,6 +111,23 @@ export class AdminController {
     return this.admin.setStorePlatformCategories(storeId, dto.names);
   }
 
+  /** Same as PUT — POST/PATCH avoid some proxies that mishandle PUT or return 404. */
+  @Post('stores/:storeId/platform-categories')
+  async postStorePlatformCategories(
+    @Param('storeId') storeId: string,
+    @Body() dto: SetStorePlatformCategoriesDto,
+  ) {
+    return this.admin.setStorePlatformCategories(storeId, dto.names);
+  }
+
+  @Patch('stores/:storeId/platform-categories')
+  async patchStorePlatformCategories(
+    @Param('storeId') storeId: string,
+    @Body() dto: SetStorePlatformCategoriesDto,
+  ) {
+    return this.admin.setStorePlatformCategories(storeId, dto.names);
+  }
+
   @Get('metrics/charts')
   async getMetricsCharts(@CurrentUser() _user: User) {
     return this.admin.getMetricsCharts();

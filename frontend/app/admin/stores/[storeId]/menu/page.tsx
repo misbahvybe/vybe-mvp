@@ -129,7 +129,8 @@ export default function AdminStoreMenuPage() {
     if (!storeId) return;
     setPlatformSaving(true);
     try {
-      await api.put(`/admin/stores/${storeId}/platform-categories`, { names: platformCategorySlugs });
+      // POST is preferred: some hosts/proxies mishandle PUT and surface 404.
+      await api.post(`/admin/stores/${storeId}/platform-categories`, { names: platformCategorySlugs });
     } catch (e) {
       alert(
         (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
