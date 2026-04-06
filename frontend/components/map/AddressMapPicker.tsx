@@ -5,10 +5,21 @@ import { reverseGeocode } from '@/services/geoapify';
 
 const LAHORE_CENTER = { lat: 31.5204, lng: 74.3587 };
 
+type GeoState = 'idle' | 'pending' | 'ok' | 'denied' | 'unsupported';
+
 interface AddressMapPickerProps {
   onSelect: (addressLine: string, city: string, lat: number, lng: number) => void;
   initialLat?: number;
   initialLng?: number;
+}
+
+function makePinIcon(L: typeof import('leaflet')) {
+  return L.divIcon({
+    className: 'vibe-map-pin-wrap',
+    html: '<div class="vibe-map-pin" aria-hidden="true"></div>',
+    iconSize: [40, 48],
+    iconAnchor: [20, 48],
+  });
 }
 
 export function AddressMapPicker({
@@ -18,63 +29,159 @@ export function AddressMapPicker({
 }: AddressMapPickerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
+  const [geoState, setGeoState] = useState<GeoState>('idle');
+  const [hasGeolocationApi, setHasGeolocationApi] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [, setLat] = useState(initialLat);
-  const [, setLng] = useState(initialLng);
-  const mapRef = useRef<{ map: L.Map; marker: L.Marker } | null>(null);
+  const mapRef = useRef<{ map: import('leaflet').Map; marker: import('leaflet').Marker } | null>(null);
+  const onSelectRef = useRef(onSelect);
+  onSelectRef.current = onSelect;
 
-  const fetchAddress = useCallback(
-    async (latitude: number, longitude: number) => {
-      setLoading(true);
-      const result = await reverseGeocode(latitude, longitude);
-      setLoading(false);
-      if (result) {
-        setLat(result.lat);
-        setLng(result.lng);
-        onSelect(result.addressLine, result.city, result.lat, result.lng);
-      }
-    },
-    [onSelect]
-  );
+  const fetchAddress = useCallback(async (latitude: number, longitude: number) => {
+    setLoading(true);
+    const result = await reverseGeocode(latitude, longitude);
+    setLoading(false);
+    if (result) {
+      onSelectRef.current(result.addressLine, result.city, result.lat, result.lng);
+    }
+  }, []);
+
+  const tryGeolocate = useCallback(() => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setGeoState('unsupported');
+      return;
+    }
+    setGeoState('pending');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setGeoState('ok');
+        const m = mapRef.current;
+        if (m) {
+          m.marker.setLatLng([lat, lng]);
+          m.map.flyTo([lat, lng], 16, { duration: 0.6 });
+        }
+        void fetchAddress(lat, lng);
+      },
+      () => setGeoState('denied'),
+      { enableHighAccuracy: true, maximumAge: 60_000, timeout: 14_000 },
+    );
+  }, [fetchAddress]);
+
+  useEffect(() => {
+    setHasGeolocationApi(typeof navigator !== 'undefined' && !!navigator.geolocation);
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !containerRef.current) return;
+
+    let cancelled = false;
     import('leaflet').then((L) => {
-      const map = L.map(containerRef.current!).setView([initialLat, initialLng], 14);
+      if (cancelled || !containerRef.current) return;
+
+      const map = L.map(containerRef.current!, {
+        scrollWheelZoom: true,
+        zoomControl: true,
+      }).setView([initialLat, initialLng], 14);
+
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap',
       }).addTo(map);
-      const marker = L.marker([initialLat, initialLng], { draggable: true }).addTo(map);
+
+      const marker = L.marker([initialLat, initialLng], {
+        draggable: true,
+        icon: makePinIcon(L),
+        riseOnHover: true,
+      }).addTo(map);
+
       marker.on('dragend', () => {
         const pos = marker.getLatLng();
-        fetchAddress(pos.lat, pos.lng);
+        void fetchAddress(pos.lat, pos.lng);
       });
-      map.on('click', (e: L.LeafletMouseEvent) => {
+
+      map.on('click', (e: import('leaflet').LeafletMouseEvent) => {
         marker.setLatLng(e.latlng);
-        fetchAddress(e.latlng.lat, e.latlng.lng);
+        void fetchAddress(e.latlng.lat, e.latlng.lng);
       });
+
       mapRef.current = { map, marker };
       setReady(true);
+
+      if (navigator.geolocation) {
+        setGeoState('pending');
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            setGeoState('ok');
+            marker.setLatLng([lat, lng]);
+            map.flyTo([lat, lng], 16, { duration: 0.6 });
+            void fetchAddress(lat, lng);
+          },
+          () => {
+            setGeoState('denied');
+            void fetchAddress(initialLat, initialLng);
+          },
+          { enableHighAccuracy: true, maximumAge: 60_000, timeout: 14_000 },
+        );
+      } else {
+        setGeoState('unsupported');
+        void fetchAddress(initialLat, initialLng);
+      }
     });
+
     return () => {
+      cancelled = true;
       mapRef.current?.map.remove();
       mapRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- map init once; geolocation uses latest fetchAddress via ref
   }, []);
 
   return (
-    <div className="relative w-full rounded-card overflow-hidden bg-slate-100" style={{ height: 280 }}>
-      <div ref={containerRef} className="absolute inset-0 leaflet-container" />
-      {loading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-white/60 z-[1000]">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-        </div>
-      )}
-      {ready && (
-        <p className="absolute bottom-2 left-2 right-2 text-center text-xs text-white bg-black/50 rounded py-1 z-[1000]">
-          Tap map to set pin or drag marker
-        </p>
-      )}
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-2 items-center justify-between">
+        {geoState === 'denied' && (
+          <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex-1 min-w-[200px]">
+            Location access is off. Tap the map or drag the pin to choose your spot, or try again below.
+          </p>
+        )}
+        {geoState === 'unsupported' && (
+          <p className="text-xs text-slate-600 bg-slate-100 rounded-lg px-3 py-2 flex-1 min-w-[200px]">
+            This browser can&apos;t detect location. Tap the map to set your address.
+          </p>
+        )}
+        {geoState === 'pending' && (
+          <p className="text-xs text-slate-600">Finding your location…</p>
+        )}
+        {hasGeolocationApi && (
+          <button
+            type="button"
+            onClick={() => tryGeolocate()}
+            disabled={geoState === 'pending'}
+            className="text-sm font-medium text-primary px-3 py-2 rounded-button border border-primary shrink-0 min-h-[44px] hover:bg-primary/5 disabled:opacity-50"
+          >
+            {geoState === 'pending' ? 'Please wait…' : 'Use my current location'}
+          </button>
+        )}
+      </div>
+
+      <div
+        className="relative w-full rounded-card overflow-hidden bg-slate-100 border border-slate-200 shadow-inner"
+        style={{ height: 300 }}
+      >
+        <div ref={containerRef} className="absolute inset-0 leaflet-container" />
+        {loading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-white/60 z-[1000] pointer-events-none">
+            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
+        {ready && (
+          <p className="absolute bottom-2 left-2 right-2 text-center text-xs text-white bg-black/55 rounded py-2 px-2 z-[1000]">
+            Selected location is marked with the <span className="font-semibold">purple pin</span>. Tap the map or drag the pin to adjust.
+          </p>
+        )}
+      </div>
     </div>
   );
 }

@@ -13,6 +13,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 export type OrderCreatedPayload = {
   id: string;
   storeId: string;
+  customerId: string;
   orderStatus: string;
   createdAt: string;
   totalAmount: string;
@@ -23,6 +24,14 @@ export type OrderCreatedPayload = {
   cardProcessingAmount: string;
   slaDeadlineAt: string | null;
   customer: { name: string; phone: string };
+};
+
+export type OrderUpdatedPayload = {
+  orderId: string;
+  orderStatus: string;
+  storeId: string;
+  customerId: string;
+  riderId: string | null;
 };
 
 @WebSocketGateway({
@@ -94,6 +103,11 @@ export class OrdersGateway implements OnGatewayConnection, OnGatewayDisconnect {
         this.logger.debug(`Socket ${client.id} joined rider:${user.id}`);
         return;
       }
+      if (user.role === 'CUSTOMER') {
+        await client.join(`customer:${user.id}`);
+        this.logger.debug(`Socket ${client.id} joined customer:${user.id}`);
+        return;
+      }
       client.disconnect(true);
     } catch (e) {
       this.logger.warn(`Socket auth failed: ${e instanceof Error ? e.message : e}`);
@@ -101,10 +115,31 @@ export class OrdersGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
-  /** New order: notify store kitchen + admin ops. */
+  /** New order: notify store kitchen + admin ops + customer (e.g. second device). */
   emitOrderCreated(payload: OrderCreatedPayload): void {
     this.server.to(`store:${payload.storeId}`).emit('order:created', payload);
     this.server.to('admin:orders').emit('order:created', payload);
+    this.server.to(`customer:${payload.customerId}`).emit('order:created', payload);
+  }
+
+  /** Status or assignment changed — keep dashboards and order detail in sync without refresh. */
+  emitOrderUpdated(payload: OrderUpdatedPayload, previousRiderId?: string | null): void {
+    const body = {
+      orderId: payload.orderId,
+      orderStatus: payload.orderStatus,
+      storeId: payload.storeId,
+      customerId: payload.customerId,
+      riderId: payload.riderId,
+    };
+    this.server.to(`store:${payload.storeId}`).emit('order:updated', body);
+    this.server.to('admin:orders').emit('order:updated', body);
+    this.server.to(`customer:${payload.customerId}`).emit('order:updated', body);
+    if (payload.riderId) {
+      this.server.to(`rider:${payload.riderId}`).emit('order:updated', body);
+    }
+    if (previousRiderId && previousRiderId !== payload.riderId) {
+      this.server.to(`rider:${previousRiderId}`).emit('order:updated', body);
+    }
   }
 
   /** Admin assigned (or reassigned) this order to the rider — refresh /orders. */

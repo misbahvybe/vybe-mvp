@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { BRAND_FULL } from '@/constants/brand';
 
 interface StickyHeaderProps {
   title: string;
@@ -9,10 +10,10 @@ interface StickyHeaderProps {
 }
 
 export function StickyHeader({ title, backHref, rightAction }: StickyHeaderProps) {
-  const isBrand = !backHref && title === 'VYBE';
+  const isBrand = !backHref && title === BRAND_FULL;
   return (
     <header className="sticky top-0 z-40 bg-primary-dark safe-top">
-      <div className="flex items-center justify-between h-14 px-4 max-w-lg mx-auto">
+      <div className="flex items-center justify-between min-h-14 py-1.5 px-4 max-w-lg mx-auto">
         <div className="w-10 flex items-center shrink-0">
           {backHref ? (
             <Link href={backHref} className="p-2 -ml-2 text-white" aria-label="Back">
@@ -20,7 +21,13 @@ export function StickyHeader({ title, backHref, rightAction }: StickyHeaderProps
             </Link>
           ) : null}
         </div>
-        <h1 className={`font-bold text-white truncate flex-1 text-center ${isBrand ? 'text-xl tracking-tight' : 'text-lg'}`}>{title}</h1>
+        <h1
+          className={`font-bold text-white flex-1 text-center px-1 leading-tight ${
+            isBrand ? 'text-base sm:text-lg tracking-tight line-clamp-2' : 'text-lg truncate'
+          }`}
+        >
+          {title}
+        </h1>
         <div className="w-20 flex items-center justify-end gap-0 text-white [&>a]:text-white [&>button]:text-white shrink-0">{rightAction ?? null}</div>
       </div>
     </header>

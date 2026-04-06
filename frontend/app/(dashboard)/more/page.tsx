@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/Button';
 const menuItems = [
   { href: '/more/account', label: 'Account Information', image: '/user-avatar.png' },
   { href: '/addresses', label: 'Delivery Address', image: '/map-location.png' },
-  { href: '/profile/payment-methods', label: 'Payment Method', image: '/credit-cards.png' },
+  // COD-only for now — re-add when Stripe / XPay are enabled: '/profile/payment-methods'
   { href: '/more/password', label: 'Password', image: '/secure-padlock.png' },
   { href: '/more/refer', label: 'Reference Friends', image: '/users.png' },
 ];

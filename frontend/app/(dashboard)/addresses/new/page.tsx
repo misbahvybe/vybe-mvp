@@ -66,7 +66,10 @@ export default function NewAddressPage() {
       <StickyHeader title="Add Address" backHref="/addresses" />
       <ContentPanel>
       <main className="max-w-lg mx-auto px-4 py-4">
-        <Card className="mb-4">
+        <p className="text-sm text-slate-600 mb-3">
+          Allow location when asked — we&apos;ll place the pin for you. You can still move the pin or type the address below if needed.
+        </p>
+        <Card className="mb-4 p-3 sm:p-4">
           <AddressMapPicker onSelect={handleMapSelect} />
         </Card>
         {addressLine && (

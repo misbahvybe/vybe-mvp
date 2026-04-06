@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { MdSearch, MdPerson } from 'react-icons/md';
 import { useAuthStore } from '@/store/authStore';
 import { StickyHeader } from '@/components/layout/StickyHeader';
+import { BRAND_FULL } from '@/constants/brand';
 import { ContentPanel } from '@/components/layout/ContentPanel';
 import { Card } from '@/components/ui/Card';
 
@@ -45,7 +46,7 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <StickyHeader
-        title="VYBE"
+        title={BRAND_FULL}
         rightAction={
           <div className="flex items-center gap-1">
             <Link href="/dashboard/search" className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="Search">

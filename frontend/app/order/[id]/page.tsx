@@ -1,13 +1,14 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { StickyHeader } from '@/components/layout/StickyHeader';
 import { ContentPanel } from '@/components/layout/ContentPanel';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import api from '@/services/api';
+import { useOrderDetailRealtime } from '@/hooks/useOrdersRealtime';
 
 interface OrderDetail {
   id: string;
@@ -101,11 +102,12 @@ export default function OrderDetailPage() {
   const [riders, setRiders] = useState<{ id: string; name: string; phone: string }[]>([]);
   const [cancelReason, setCancelReason] = useState('');
 
-  const fetchOrder = () => {
-    const id = params?.id;
-    if (!id) return;
-    api.get<OrderDetail>(`/orders/${id}`).then((res) => setOrder(res.data)).catch(() => setOrder(null));
-  };
+  const orderIdParam = typeof params?.id === 'string' ? params.id : Array.isArray(params?.id) ? params.id[0] : '';
+
+  const fetchOrder = useCallback(() => {
+    if (!orderIdParam) return;
+    api.get<OrderDetail>(`/orders/${orderIdParam}`).then((res) => setOrder(res.data)).catch(() => setOrder(null));
+  }, [orderIdParam]);
 
   const notFound = order === null && token;
 
@@ -118,7 +120,9 @@ export default function OrderDetailPage() {
     if (user?.role === 'ADMIN') {
       api.get<{ id: string; name: string; phone: string }[]>('/orders/riders/list').then((res) => setRiders(res.data ?? [])).catch(() => {});
     }
-  }, [token, router, params?.id, user?.role]);
+  }, [token, router, orderIdParam, user?.role, fetchOrder]);
+
+  useOrderDetailRealtime(!!token && !!orderIdParam, orderIdParam, token, fetchOrder, 30000);
 
   const updateStatus = async (status: string, extra?: { riderId?: string; cancellationReason?: string }) => {
     if (!order) return;

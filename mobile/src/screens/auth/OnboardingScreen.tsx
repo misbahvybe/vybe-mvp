@@ -8,7 +8,7 @@ export function OnboardingScreen() {
   return (
     <View style={styles.root}>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.logo}>Vybe</Text>
+        <Text style={styles.logo}>Vibe Super App</Text>
         <Text style={styles.title}>All your orders, one super app</Text>
         <Text style={styles.subtitle}>
           Customers order, stores manage menus, riders deliver, admins control finances – all in
@@ -67,10 +67,11 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   logo: {
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: '800',
     color: '#facc15',
     marginBottom: 24,
+    textAlign: 'center',
   },
   title: {
     fontSize: 22,

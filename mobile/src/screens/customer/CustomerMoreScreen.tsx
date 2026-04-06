@@ -44,10 +44,12 @@ export function CustomerMoreScreen() {
             onPress={() => navigation.navigate('CustomerAddresses')}
           />
           <MenuItem label="Wallet" onPress={goWallet} />
+          {/* COD-only for now — restore when Stripe / XPay are enabled
           <MenuItem
             label="Payment Methods"
             onPress={() => navigation.navigate('CustomerPaymentMethods')}
           />
+          */}
           <MenuItem label="My Orders" onPress={goOrders} />
           <MenuItem
             label="Change password"

@@ -4,11 +4,12 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/Button';
+import { BRAND_FULL } from '@/constants/brand';
 
 const SLIDES = [
-  { id: 'food', title: 'Food', description: 'Fast delivery from top restaurants across Pakistan. Pay with crypto or cash.', image: '/food-plate.png' },
-  { id: 'grocery', title: 'Groceries', description: 'Fresh ingredients delivered fast. One app for food, groceries, medicine.', image: '/grocery-shopping-basket.png' },
-  { id: 'medicine', title: 'Medicine', description: 'Prescriptions & health essentials. Fast, verified delivery.', image: '/medicine-box.png' },
+  { id: 'food', title: 'Food', description: 'Fast delivery from restaurants near you. Pay cash when your order arrives.', image: '/food-plate.png' },
+  { id: 'grocery', title: 'Groceries', description: 'Fresh groceries to your door — one simple app for daily needs.', image: '/grocery-shopping-basket.png' },
+  { id: 'medicine', title: 'Medicine', description: 'Health essentials delivered quickly and reliably.', image: '/medicine-box.png' },
 ];
 
 export default function LandingPage() {
@@ -28,9 +29,9 @@ export default function LandingPage() {
       <div className="min-h-screen flex flex-col">
         <div className="relative flex-1 min-h-[400px] rounded-b-3xl bg-white flex flex-col items-center justify-center overflow-hidden">
           <div className="relative z-10 w-full max-w-sm px-6 text-center">
-            <h1 className="text-3xl font-bold text-slate-900 tracking-tight">VYBE</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight px-2">{BRAND_FULL}</h1>
             <p className="mt-2 text-slate-600 text-sm font-medium">
-              Everything you need now with crypto
+              Order food, groceries &amp; medicine — simple and fast
             </p>
           </div>
         </div>

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Vybe",
+    "name": "Vibe Super App",
     "slug": "vybe-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -24,13 +24,13 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Vybe needs access to your photos to upload store and product images."
+          "photosPermission": "Vibe Super App needs access to your photos to upload store and product images."
         }
       ],
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Vybe uses your location to show nearest pickup orders."
+          "locationWhenInUsePermission": "Vibe Super App uses your location to show nearest pickup orders."
         }
       ]
     ],

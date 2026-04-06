@@ -7,6 +7,7 @@ import { getSocketOrigin } from '@/services/socketUrl';
 export type OrderCreatedEvent = {
   id: string;
   storeId: string;
+  customerId: string;
   orderStatus: string;
   createdAt: string;
   totalAmount: string;
@@ -19,20 +20,46 @@ export type OrderCreatedEvent = {
   customer: { name: string; phone: string };
 };
 
+export type OrderUpdatedEvent = {
+  orderId: string;
+  orderStatus: string;
+  storeId: string;
+  customerId: string;
+  riderId: string | null;
+};
+
+const emptyCreatedPayload = (): OrderCreatedEvent => ({
+  id: '',
+  storeId: '',
+  customerId: '',
+  orderStatus: '',
+  createdAt: '',
+  totalAmount: '',
+  subtotalAmount: '',
+  deliveryFee: '',
+  serviceFee: '',
+  gstAmount: '',
+  cardProcessingAmount: '',
+  slaDeadlineAt: null,
+  customer: { name: '', phone: '' },
+});
+
 type Role = 'ADMIN' | 'STORE_OWNER';
 
 /**
- * Subscribes to `order:created` when JWT is present. Admin hears all orders; store owner only their store.
+ * Subscribes to order events when JWT is present.
+ * Admin hears all orders; store owner only their store.
+ * Includes Socket.IO reconnection; callers should treat callback as “refetch lists”.
  */
 export function useOrdersRealtime(
   enabled: boolean,
   token: string | null | undefined,
   role: Role | null | undefined,
   storeId: string | null | undefined,
-  onOrderCreated: (payload: OrderCreatedEvent) => void,
+  onOrderEvent: (payload: OrderCreatedEvent) => void,
 ) {
-  const cbRef = useRef(onOrderCreated);
-  cbRef.current = onOrderCreated;
+  const cbRef = useRef(onOrderEvent);
+  cbRef.current = onOrderEvent;
 
   useEffect(() => {
     if (!enabled || !token?.trim() || (role !== 'ADMIN' && role !== 'STORE_OWNER')) {
@@ -44,9 +71,13 @@ export function useOrdersRealtime(
       socket = io(getSocketOrigin(), {
         transports: ['websocket', 'polling'],
         auth: { token },
-        reconnectionAttempts: 8,
-        reconnectionDelay: 2000,
+        reconnectionAttempts: 12,
+        reconnectionDelay: 1500,
+        reconnectionDelayMax: 10000,
+        timeout: 20000,
       });
+
+      const refresh = () => cbRef.current(emptyCreatedPayload());
 
       socket.on('order:created', (payload: OrderCreatedEvent) => {
         if (role === 'ADMIN') {
@@ -58,23 +89,18 @@ export function useOrdersRealtime(
         }
       });
 
+      socket.on('order:updated', (payload: OrderUpdatedEvent) => {
+        if (role === 'ADMIN') {
+          refresh();
+          return;
+        }
+        if (role === 'STORE_OWNER' && storeId && payload.storeId === storeId) {
+          refresh();
+        }
+      });
+
       if (role === 'ADMIN') {
-        socket.on('order:rider_self_claimed', () => {
-          cbRef.current({
-            id: '',
-            storeId: '',
-            orderStatus: '',
-            createdAt: '',
-            totalAmount: '',
-            subtotalAmount: '',
-            deliveryFee: '',
-            serviceFee: '',
-            gstAmount: '',
-            cardProcessingAmount: '',
-            slaDeadlineAt: null,
-            customer: { name: '', phone: '' },
-          });
-        });
+        socket.on('order:rider_self_claimed', refresh);
       }
     } catch {
       // ignore
@@ -87,7 +113,46 @@ export function useOrdersRealtime(
   }, [enabled, token, role, storeId]);
 }
 
-/** Rider: refetch orders when admin assigns one to this account. */
+/** Customer: new orders and status updates (same account, multiple tabs / PWA). */
+export function useCustomerOrdersRealtime(
+  enabled: boolean,
+  token: string | null | undefined,
+  onRefresh: () => void,
+) {
+  const cbRef = useRef(onRefresh);
+  cbRef.current = onRefresh;
+
+  useEffect(() => {
+    if (!enabled || !token?.trim()) return;
+
+    let socket: Socket | null = null;
+    try {
+      socket = io(getSocketOrigin(), {
+        transports: ['websocket', 'polling'],
+        auth: { token },
+        reconnectionAttempts: 12,
+        reconnectionDelay: 1500,
+        reconnectionDelayMax: 10000,
+        timeout: 20000,
+      });
+
+      const refresh = () => cbRef.current();
+      socket.on('order:created', refresh);
+      socket.on('order:updated', refresh);
+    } catch {
+      // ignore
+    }
+
+    return () => {
+      socket?.removeAllListeners();
+      socket?.disconnect();
+    };
+  }, [enabled, token]);
+}
+
+/**
+ * Rider: refetch when assigned to an order or when order status changes for this rider.
+ */
 export function useRiderAssignmentRealtime(
   enabled: boolean,
   token: string | null | undefined,
@@ -106,13 +171,15 @@ export function useRiderAssignmentRealtime(
       socket = io(getSocketOrigin(), {
         transports: ['websocket', 'polling'],
         auth: { token },
-        reconnectionAttempts: 8,
-        reconnectionDelay: 2000,
+        reconnectionAttempts: 12,
+        reconnectionDelay: 1500,
+        reconnectionDelayMax: 10000,
+        timeout: 20000,
       });
 
-      socket.on('order:assigned', () => {
-        cbRef.current();
-      });
+      const refresh = () => cbRef.current();
+      socket.on('order:assigned', refresh);
+      socket.on('order:updated', refresh);
     } catch {
       // ignore
     }
@@ -122,4 +189,49 @@ export function useRiderAssignmentRealtime(
       socket?.disconnect();
     };
   }, [enabled, token]);
+}
+
+/** Single order detail: live updates + optional polling when socket is down. */
+export function useOrderDetailRealtime(
+  enabled: boolean,
+  orderId: string | null | undefined,
+  token: string | null | undefined,
+  onRefresh: () => void,
+  pollIntervalMs = 25000,
+) {
+  const cbRef = useRef(onRefresh);
+  cbRef.current = onRefresh;
+
+  useEffect(() => {
+    if (!enabled || !orderId || !token?.trim()) return;
+
+    let socket: Socket | null = null;
+    try {
+      socket = io(getSocketOrigin(), {
+        transports: ['websocket', 'polling'],
+        auth: { token },
+        reconnectionAttempts: 12,
+        reconnectionDelay: 1500,
+        reconnectionDelayMax: 10000,
+        timeout: 20000,
+      });
+
+      socket.on('order:updated', (payload: OrderUpdatedEvent) => {
+        if (payload.orderId === orderId) cbRef.current();
+      });
+      socket.on('order:created', (payload: OrderCreatedEvent) => {
+        if (payload.id === orderId) cbRef.current();
+      });
+    } catch {
+      // ignore
+    }
+
+    const poll = setInterval(() => cbRef.current(), pollIntervalMs);
+
+    return () => {
+      clearInterval(poll);
+      socket?.removeAllListeners();
+      socket?.disconnect();
+    };
+  }, [enabled, orderId, token, pollIntervalMs]);
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { Search, Package } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
@@ -8,6 +8,7 @@ import { StickyHeader } from '@/components/layout/StickyHeader';
 import { ContentPanel } from '@/components/layout/ContentPanel';
 import { Card } from '@/components/ui/Card';
 import api from '@/services/api';
+import { useCustomerOrdersRealtime } from '@/hooks/useOrdersRealtime';
 
 const filters = ['All Order', 'Pending', 'Processing'];
 
@@ -25,21 +26,39 @@ interface Order {
   items: OrderItem[];
 }
 
+const LIST_POLL_MS = 45000;
+
 export default function OrdersPage() {
   const token = useAuthStore((s) => s.token);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const fetchOrders = useCallback(() => {
+    if (!token) return;
+    api
+      .get<Order[]>('/orders')
+      .then((res) => setOrders(res.data))
+      .catch(() => setOrders([]))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
+
+  useCustomerOrdersRealtime(!!token, token, fetchOrders);
+
   useEffect(() => {
     if (!token) return;
-    api.get<Order[]>('/orders').then((res) => setOrders(res.data)).catch(() => setOrders([])).finally(() => setLoading(false));
-  }, [token]);
+    const id = setInterval(fetchOrders, LIST_POLL_MS);
+    return () => clearInterval(id);
+  }, [token, fetchOrders]);
 
   const formatDate = (d: string) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
   return (
     <div className="min-h-screen flex flex-col">
-      <StickyHeader title="Daily Grocery Food" rightAction={<Search className="w-5 h-5" strokeWidth={2} />} />
+      <StickyHeader title="My orders" rightAction={<Search className="w-5 h-5" strokeWidth={2} />} />
       <ContentPanel bottomPadding="sm">
       <main className="max-w-lg mx-auto px-4 py-4">
         <div className="flex gap-2 mb-4">

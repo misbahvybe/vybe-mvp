@@ -16,6 +16,9 @@ import { PricingService } from '../pricing/pricing.service';
 import { OrdersGateway } from '../realtime/orders.gateway';
 import { StoresService } from '../stores/stores.service';
 
+/** Set `false` when Stripe / XPay keys are ready and clients show those options again. */
+const PAYMENTS_COD_ONLY = true;
+
 @Injectable()
 export class OrdersService {
   constructor(
@@ -77,7 +80,7 @@ export class OrdersService {
     const { subtotal } = await this.assertItemsAndSubtotal(this.prisma, dto.storeId, dto.items, {
       checkStock: false,
     });
-    const useCard = dto.paymentMethod === 'CARD';
+    const useCard = !PAYMENTS_COD_ONLY && dto.paymentMethod === 'CARD';
     const q = await this.pricing.buildQuote({
       storeId: dto.storeId,
       addressLat: Number(address.latitude),
@@ -104,6 +107,9 @@ export class OrdersService {
   }
 
   async createPaymentIntent(customerId: string, dto: CreatePaymentIntentDto) {
+    if (PAYMENTS_COD_ONLY) {
+      throw new BadRequestException('Only cash on delivery is available at the moment.');
+    }
     if (this.xpay.isConfigured()) {
       throw new BadRequestException('Use prepare-xpay for card payments with XPay');
     }
@@ -134,6 +140,9 @@ export class OrdersService {
   }
 
   async prepareXPay(customerId: string, dto: PrepareXPayDto) {
+    if (PAYMENTS_COD_ONLY) {
+      throw new BadRequestException('Only cash on delivery is available at the moment.');
+    }
     if (!this.xpay.isConfigured()) {
       throw new BadRequestException('XPay is not configured');
     }
@@ -258,6 +267,9 @@ export class OrdersService {
   }
 
   isCardPaymentAvailable(): { stripe: boolean; xpay: boolean } {
+    if (PAYMENTS_COD_ONLY) {
+      return { stripe: false, xpay: false };
+    }
     return {
       stripe: this.stripe.isConfigured(),
       xpay: this.xpay.isConfigured(),
@@ -277,7 +289,18 @@ export class OrdersService {
       throw new BadRequestException('Store is closed. Please try again during business hours.');
     }
 
-    const useCard = dto.paymentMethod === 'CARD';
+    if (PAYMENTS_COD_ONLY) {
+      if (
+        dto.paymentMethod === 'CARD' ||
+        dto.paymentIntentId ||
+        dto.xpayIntentId ||
+        dto.paymentMethodId
+      ) {
+        throw new BadRequestException('Only cash on delivery is available at the moment.');
+      }
+    }
+
+    const useCard = PAYMENTS_COD_ONLY ? false : dto.paymentMethod === 'CARD';
 
     const order = await this.prisma.$transaction(async (tx) => {
       const { subtotal: subtotalAmount, productById } = await this.assertItemsAndSubtotal(tx, dto.storeId, dto.items, {
@@ -384,6 +407,7 @@ export class OrdersService {
     this.ordersGateway.emitOrderCreated({
       id: order.id,
       storeId: order.storeId,
+      customerId: order.customerId,
       orderStatus: order.orderStatus,
       createdAt: order.createdAt.toISOString(),
       totalAmount: order.totalAmount.toString(),
@@ -517,6 +541,16 @@ export class OrdersService {
         this.ordersGateway.emitRiderAssigned(updated.riderId, updated.id);
       }
       this.ordersGateway.emitRiderSelfClaimed(updated.id, userId);
+      this.ordersGateway.emitOrderUpdated(
+        {
+          orderId: updated.id,
+          orderStatus: updated.orderStatus,
+          storeId: updated.storeId,
+          customerId: updated.customerId,
+          riderId: updated.riderId,
+        },
+        order.riderId,
+      );
       return updated;
     }
 
@@ -595,6 +629,17 @@ export class OrdersService {
     if (toStatus === OrderStatus.RIDER_ASSIGNED && updated.riderId) {
       this.ordersGateway.emitRiderAssigned(updated.riderId, updated.id);
     }
+
+    this.ordersGateway.emitOrderUpdated(
+      {
+        orderId: updated.id,
+        orderStatus: updated.orderStatus,
+        storeId: updated.storeId,
+        customerId: updated.customerId,
+        riderId: updated.riderId,
+      },
+      order.riderId,
+    );
 
     return updated;
   }
@@ -711,6 +756,21 @@ export class OrdersService {
     });
 
     this.ordersGateway.emitRiderAssigned(newRiderId, orderId);
+
+    const refreshed = await this.prisma.order.findUniqueOrThrow({
+      where: { id: orderId },
+      select: { id: true, orderStatus: true, storeId: true, customerId: true, riderId: true },
+    });
+    this.ordersGateway.emitOrderUpdated(
+      {
+        orderId: refreshed.id,
+        orderStatus: refreshed.orderStatus,
+        storeId: refreshed.storeId,
+        customerId: refreshed.customerId,
+        riderId: refreshed.riderId,
+      },
+      order.riderId,
+    );
 
     return { success: true };
   }

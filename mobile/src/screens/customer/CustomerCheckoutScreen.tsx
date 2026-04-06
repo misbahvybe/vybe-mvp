@@ -5,8 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
-  Linking
+  Alert
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { api } from '@api/client';
@@ -26,19 +25,10 @@ type OrderQuote = {
   totalAmount: string;
 };
 
-type PaymentMode = 'cod' | 'xpay' | 'card';
-
 interface Address {
   id: string;
   label?: string | null;
   fullAddress: string;
-  isDefault?: boolean;
-}
-
-interface SavedCard {
-  id: string;
-  last4: string;
-  brand: string;
   isDefault?: boolean;
 }
 
@@ -51,17 +41,9 @@ export function CustomerCheckoutScreen() {
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
-  const [paymentMode, setPaymentMode] = useState<PaymentMode>('cod');
-  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
-  const [savedCards, setSavedCards] = useState<SavedCard[]>([]);
-  const [paymentOptions, setPaymentOptions] = useState<{ stripe: boolean; xpay: boolean }>({
-    stripe: false,
-    xpay: false
-  });
   const [quote, setQuote] = useState<OrderQuote | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
 
-  const paymentMethodForQuote = paymentMode === 'cod' ? 'COD' : 'CARD';
   const cartKey = useMemo(
     () =>
       JSON.stringify(
@@ -72,15 +54,6 @@ export function CustomerCheckoutScreen() {
 
   useEffect(() => {
     if (!token) return;
-    api
-      .get<SavedCard[]>('/users/me/payment-methods')
-      .then((r) => {
-        const list = r.data ?? [];
-        setSavedCards(list);
-        const def = list.find((c) => c.isDefault) ?? list[0];
-        if (def) setSelectedCardId(def.id);
-      })
-      .catch(() => setSavedCards([]));
 
     api
       .get<Address[]>('/users/me/addresses')
@@ -94,11 +67,6 @@ export function CustomerCheckoutScreen() {
         setAddresses([]);
       })
       .finally(() => setInitialLoading(false));
-
-    api
-      .get<{ stripe: boolean; xpay: boolean }>('/orders/payment-options')
-      .then((r) => setPaymentOptions(r.data ?? { stripe: false, xpay: false }))
-      .catch(() => {});
   }, [token]);
 
   useEffect(() => {
@@ -117,7 +85,7 @@ export function CustomerCheckoutScreen() {
           quantity: i.quantityKg,
           price: i.unitPrice
         })),
-        paymentMethod: paymentMethodForQuote
+        paymentMethod: 'COD'
       })
       .then((r) => {
         if (!cancelled) setQuote(r.data ?? null);
@@ -131,15 +99,10 @@ export function CustomerCheckoutScreen() {
     return () => {
       cancelled = true;
     };
-  }, [token, storeId, selectedAddressId, cartKey, paymentMethodForQuote, items.length]);
+  }, [token, storeId, selectedAddressId, cartKey, items.length]);
 
   const canPlaceOrder =
-    !!selectedAddressId &&
-    !!storeId &&
-    items.length > 0 &&
-    addresses.length > 0 &&
-    !loading &&
-    (paymentMode !== 'card' || !!selectedCardId);
+    !!selectedAddressId && !!storeId && items.length > 0 && addresses.length > 0 && !loading;
 
   const placeOrder = async () => {
     if (!canPlaceOrder) {
@@ -148,40 +111,18 @@ export function CustomerCheckoutScreen() {
     setLoading(true);
     let orderId: string | undefined;
     try {
-      if (paymentMode === 'xpay' && paymentOptions.xpay) {
-        const { data } = await api.post<{ redirectUrl: string }>('/orders/prepare-xpay', {
-          storeId,
-          addressId: selectedAddressId,
-          items: items.map((i) => ({
-            productId: i.productId,
-            quantity: i.quantityKg,
-            price: i.unitPrice
-          }))
-        });
-        clearCart();
-        if (data?.redirectUrl) {
-          Linking.openURL(data.redirectUrl);
-        }
-        return;
-      }
-
       const baseItems = items.map((i) => ({
         productId: i.productId,
         quantity: i.quantityKg,
         price: i.unitPrice
       }));
 
-      const payload: Record<string, unknown> = {
+      const res = await api.post<{ id: string }>('/orders', {
         storeId,
         addressId: selectedAddressId,
         items: baseItems,
-        paymentMethod: paymentMode === 'card' ? 'CARD' : 'COD',
-      };
-      if (paymentMode === 'card' && selectedCardId) {
-        payload.paymentMethodId = selectedCardId;
-      }
-
-      const res = await api.post<{ id: string }>('/orders', payload);
+        paymentMethod: 'COD'
+      });
       orderId = res.data?.id;
       clearCart();
       Alert.alert('Order placed', 'Your order has been placed successfully.', [
@@ -266,53 +207,9 @@ export function CustomerCheckoutScreen() {
         )}
 
         <Text style={styles.sectionTitle}>Payment method</Text>
-        <View style={styles.card}>
-          <TouchableOpacity
-            style={[styles.paymentOption, paymentMode === 'cod' && styles.paymentOptionSelected]}
-            onPress={() => setPaymentMode('cod')}
-          >
-            <Text style={styles.paymentTitle}>Cash on Delivery</Text>
-            <Text style={styles.paymentSub}>Pay when you receive</Text>
-          </TouchableOpacity>
-          {savedCards.length > 0 && (
-            <>
-              <Text style={[styles.paymentSub, { marginTop: 12, marginBottom: 6 }]}>
-                Saved card (charged as paid order)
-              </Text>
-              {savedCards.map((c) => (
-                <TouchableOpacity
-                  key={c.id}
-                  style={[
-                    styles.paymentOption,
-                    paymentMode === 'card' && selectedCardId === c.id && styles.paymentOptionSelected,
-                  ]}
-                  onPress={() => {
-                    setPaymentMode('card');
-                    setSelectedCardId(c.id);
-                  }}
-                >
-                  <Text style={styles.paymentTitle}>
-                    {c.brand} •••• {c.last4}
-                    {c.isDefault ? '  (default)' : ''}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </>
-          )}
-          {paymentOptions.stripe && savedCards.length === 0 && (
-            <Text style={[styles.paymentSub, { marginTop: 8 }]}>
-              Add a card under More → Payment methods (test cards supported on backend).
-            </Text>
-          )}
-          {paymentOptions.xpay && (
-            <TouchableOpacity
-              style={[styles.paymentOption, paymentMode === 'xpay' && styles.paymentOptionSelected]}
-              onPress={() => setPaymentMode('xpay')}
-            >
-              <Text style={styles.paymentTitle}>Card / Wallet (XPay)</Text>
-              <Text style={styles.paymentSub}>Opens payment page in your browser</Text>
-            </TouchableOpacity>
-          )}
+        <View style={[styles.card, styles.codCard]}>
+          <Text style={styles.paymentTitle}>Cash on Delivery</Text>
+          <Text style={styles.paymentSub}>Pay when you receive</Text>
         </View>
 
         <Text style={[styles.sectionTitle, { marginTop: 8 }]}>Order summary</Text>
@@ -351,14 +248,6 @@ export function CustomerCheckoutScreen() {
               <Text style={styles.summaryValue}>Rs {Number(quote.gstAmount).toFixed(2)}</Text>
             </View>
           )}
-          {quote && Number(quote.cardProcessingAmount) > 0 && (
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Card processing</Text>
-              <Text style={styles.summaryValue}>
-                Rs {Number(quote.cardProcessingAmount).toFixed(2)}
-              </Text>
-            </View>
-          )}
           <View style={[styles.summaryRow, { marginTop: 6 }]}>
             <Text style={styles.summaryTotalLabel}>Total</Text>
             <Text style={styles.summaryTotalValue}>
@@ -372,13 +261,7 @@ export function CustomerCheckoutScreen() {
         </View>
 
         <VybeButton
-          title={
-            paymentMode === 'xpay'
-              ? 'Pay with XPay'
-              : paymentMode === 'card'
-                ? 'Pay with saved card'
-                : 'Place order (Cash on Delivery)'
-          }
+          title="Place order (Cash on Delivery)"
           variant="accent"
           size="lg"
           fullWidth
@@ -416,6 +299,10 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 8,
     ...tokens.shadowSoft
+  },
+  codCard: {
+    borderWidth: 1.5,
+    borderColor: tokens.accent
   },
   cardSelected: {
     borderWidth: 1.5,
@@ -466,17 +353,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: tokens.accent
   },
-  paymentOption: {
-    paddingVertical: 8
-  },
-  paymentOptionSelected: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: tokens.accent,
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    marginHorizontal: -4
-  },
   paymentTitle: {
     fontSize: 14,
     fontWeight: '600',
@@ -488,4 +364,3 @@ const styles = StyleSheet.create({
     marginTop: 2
   }
 });
-
