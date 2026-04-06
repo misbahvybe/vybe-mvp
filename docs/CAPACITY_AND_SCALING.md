@@ -1,4 +1,4 @@
-# Capacity, limits, and scaling (Vibe Super App)
+# Capacity, limits, and scaling (VYBE Superapp)
 
 ## What “how many users” means
 

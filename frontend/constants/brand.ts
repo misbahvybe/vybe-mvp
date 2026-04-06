@@ -1,3 +1,3 @@
 /** Customer-facing product name (client branding). */
-export const BRAND_FULL = 'Vibe Super App';
-export const BRAND_SHORT = 'Vibe';
+export const BRAND_FULL = 'VYBE Superapp';
+export const BRAND_SHORT = 'vybe';

@@ -8,7 +8,7 @@ export function OnboardingScreen() {
   return (
     <View style={styles.root}>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.logo}>Vibe Super App</Text>
+        <Text style={styles.logo}>VYBE Superapp</Text>
         <Text style={styles.title}>All your orders, one super app</Text>
         <Text style={styles.subtitle}>
           Customers order, stores manage menus, riders deliver, admins control finances – all in

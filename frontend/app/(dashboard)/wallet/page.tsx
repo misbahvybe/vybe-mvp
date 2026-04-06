@@ -22,7 +22,7 @@ export default function WalletPage() {
             Binance wallet integration coming soon
           </span>
           <p className="text-slate-500 text-xs max-w-xs mx-auto mb-4">
-            Wallet top-ups and crypto options may be added later. For now, orders use cash on delivery on Vibe Super App.
+            Wallet top-ups and crypto options may be added later. For now, orders use cash on delivery on VYBE Superapp.
           </p>
           <Button variant="outline" size="lg" className="mt-2 min-h-[44px]" disabled>
             Add Money (Coming Soon)

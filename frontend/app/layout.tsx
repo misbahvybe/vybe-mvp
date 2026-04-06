@@ -6,7 +6,7 @@ import { AuthListener } from '@/components/auth/AuthListener';
 const isVercelPreview = process.env.VERCEL_ENV === 'preview';
 
 export const metadata: Metadata = {
-  title: 'Vibe Super App',
+  title: 'VYBE Superapp',
   description: 'Food, grocery, and medicine delivery. Order easily from your phone — cash on delivery.',
   ...(isVercelPreview ? {} : { manifest: '/manifest.json' }),
 };

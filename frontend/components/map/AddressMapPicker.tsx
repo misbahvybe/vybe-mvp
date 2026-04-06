@@ -15,8 +15,8 @@ interface AddressMapPickerProps {
 
 function makePinIcon(L: typeof import('leaflet')) {
   return L.divIcon({
-    className: 'vibe-map-pin-wrap',
-    html: '<div class="vibe-map-pin" aria-hidden="true"></div>',
+    className: 'vybe-map-pin-wrap',
+    html: '<div class="vybe-map-pin" aria-hidden="true"></div>',
     iconSize: [40, 48],
     iconAnchor: [20, 48],
   });

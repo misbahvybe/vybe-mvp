@@ -61,7 +61,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         }`}
       >
         <div className="flex items-center justify-between h-14 px-4 border-b border-white/10">
-          <span className="font-bold text-lg leading-tight">Vibe Admin</span>
+          <span className="font-bold text-lg leading-tight">vybe Admin</span>
           <button type="button" onClick={() => setSidebarOpen(false)} className="md:hidden p-2">
             <X className="w-5 h-5" />
           </button>
