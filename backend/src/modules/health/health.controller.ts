@@ -6,6 +6,6 @@ export class HealthController {
   @Public()
   @Get()
   check() {
-    return { status: 'ok', service: 'vybe-api' };
+    return { status: 'ok', service: 'vybepk-api' };
   }
 }

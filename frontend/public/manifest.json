@@ -1,6 +1,6 @@
 {
   "name": "VYBE Superapp",
-  "short_name": "vybe",
+  "short_name": "VYBE Superapp",
   "description": "Food, grocery, and medicine delivery. Cash on delivery.",
   "start_url": "/",
   "display": "standalone",

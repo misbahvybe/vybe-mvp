@@ -40,7 +40,7 @@ export function CustomerHomeScreen() {
 
   return (
     <CustomerScreenShell
-      title="VYBE"
+      title="VYBE Superapp"
       rightAction={
         <View style={styles.headerActions}>
           <TouchableOpacity

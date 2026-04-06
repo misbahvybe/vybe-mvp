@@ -116,7 +116,7 @@ export function AdminFinanceDetailScreen(props?: AdminFinanceDetailScreenProps) 
     try {
       await Share.share({
         message: csv,
-        title: `vybe-finance-${new Date().toISOString().slice(0, 10)}`,
+        title: `vybepk-finance-${new Date().toISOString().slice(0, 10)}`,
       });
     } catch {
       Alert.alert('Share failed', 'Could not open the share sheet.');

@@ -42,7 +42,7 @@ export function NotificationsScreen() {
         </View>
         <Text style={styles.hint}>
           System-level notification permissions are managed from your device settings. These
-          toggles control what Vybe will attempt to send.
+          toggles control what VYBE Superapp will attempt to send.
         </Text>
       </ScrollView>
     </View>

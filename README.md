@@ -1,4 +1,4 @@
-# Vybe – Multi-Role Delivery Platform MVP
+# VYBE Superapp – Multi-Role Delivery Platform MVP
 
 Production-grade MVP for a Lahore-based delivery platform (Customer, Rider, Store, Admin).
 

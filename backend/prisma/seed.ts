@@ -30,7 +30,7 @@ async function wipeAll() {
 }
 
 async function main() {
-  console.log('🌱 Seeding Vybe — minimal accounts only (see README)\n');
+  console.log('🌱 Seeding VYBE Superapp — minimal accounts only (see README)\n');
 
   await wipeAll();
   console.log('✓ Database wiped\n');
@@ -117,7 +117,7 @@ async function main() {
   const store = await prisma.store.create({
     data: {
       ownerId: storeOwner.id,
-      name: 'Vybe Demo Kitchen',
+      name: 'VYBE Superapp Demo Kitchen',
       description: 'Demo menu — add more items in store or admin panel',
       city: 'Lahore',
       address: 'DHA Phase 5, Lahore',

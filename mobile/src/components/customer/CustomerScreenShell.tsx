@@ -42,7 +42,7 @@ export function CustomerScreenShell({
   children
 }: CustomerScreenShellProps) {
   const insets = useSafeAreaInsets();
-  const isBrand = !showBack && title === 'VYBE';
+  const isBrand = !showBack && title === 'VYBE Superapp';
   const pb = bottomPad(bottomPadding, insets.bottom);
 
   return (

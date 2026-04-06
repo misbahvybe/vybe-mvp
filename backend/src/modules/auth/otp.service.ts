@@ -119,7 +119,7 @@ export class OtpService {
 
   /**
    * Meta WhatsApp Cloud API – requires an approved template in Business Manager.
-   * Template must include at least one body variable: the OTP (e.g. "Your Vybe code is {{1}}").
+   * Template must include at least one body variable: the OTP (e.g. "Your VYBE Superapp code is {{1}}").
    * Optional second variable: minutes valid (set WHATSAPP_OTP_TEMPLATE_MINUTES_PARAM=true).
    * Auth templates with URL/copy button: set WHATSAPP_OTP_AUTH_BUTTON_INDEX=0 (string index Meta expects).
    */

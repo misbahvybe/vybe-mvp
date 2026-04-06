@@ -99,7 +99,7 @@ export function AdminDashboardScreen() {
     (alerts?.ridersInactiveOver2Hours?.length ?? 0);
 
   return (
-    <PartnerScreenShell title="VYBE Admin" scrollable={false} bottomPadding="nav">
+    <PartnerScreenShell title="VYBE Superapp Admin" scrollable={false} bottomPadding="nav">
       <ScrollView
         style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}

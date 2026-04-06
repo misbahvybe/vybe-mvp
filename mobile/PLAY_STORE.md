@@ -1,4 +1,4 @@
-# Deploy Vybe (Expo) to Google Play
+# Deploy VYBE Superapp (Expo) to Google Play
 
 Follow these steps in order. Pushing to Git does **not** update the store—you ship new **AAB** builds through Play Console (or `eas submit`).
 
@@ -73,7 +73,7 @@ Wait for the build on [expo.dev](https://expo.dev) (free tier has monthly minute
 
 ## 7. Create the app in Play Console
 
-1. **Create app** → default language, app name **Vybe**, type **App**.
+1. **Create app** → default language, app name **VYBE Superapp**, type **App**.
 2. Complete **Dashboard** tasks: privacy policy URL (required if you collect data), app access, ads declaration, content rating questionnaire, target audience, news app declaration, COVID contact declaration, **Data safety** form.
 3. **Store listing**: short/full description, screenshots (phone required), feature graphic, icon (512×512).
 
