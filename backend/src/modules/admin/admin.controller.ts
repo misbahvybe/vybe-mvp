@@ -11,6 +11,8 @@ import { CreateProductCategoryDto } from '../stores/dto/create-product-category.
 import { UpdateProductCategoryDto } from '../stores/dto/update-product-category.dto';
 import { CreateProductDto } from '../stores/dto/create-product.dto';
 import { UpdateProductDto } from '../stores/dto/update-product.dto';
+import { CreateProductVariantDto } from '../stores/dto/create-product-variant.dto';
+import { UpdateProductVariantDto } from '../stores/dto/update-product-variant.dto';
 import { PatchPlatformCategoryCommissionDto } from './dto/patch-platform-category-commission.dto';
 import { UpdateStoreCommissionOverrideDto } from './dto/update-store-commission-override.dto';
 import { UpdateStoreStatusDto } from './dto/update-store-status.dto';
@@ -205,5 +207,38 @@ export class AdminController {
     @Body() body: { isOutOfStock: boolean },
   ) {
     return this.stores.adminSetProductOutOfStock(storeId, productId, body.isOutOfStock ?? false);
+  }
+
+  @Get('stores/:storeId/products/:productId/variants')
+  async adminListProductVariants(@Param('storeId') storeId: string, @Param('productId') productId: string) {
+    return this.stores.adminListProductVariants(storeId, productId);
+  }
+
+  @Post('stores/:storeId/products/:productId/variants')
+  async adminCreateProductVariant(
+    @Param('storeId') storeId: string,
+    @Param('productId') productId: string,
+    @Body() dto: CreateProductVariantDto,
+  ) {
+    return this.stores.adminCreateProductVariant(storeId, productId, dto);
+  }
+
+  @Patch('stores/:storeId/products/:productId/variants/:variantId')
+  async adminUpdateProductVariant(
+    @Param('storeId') storeId: string,
+    @Param('productId') productId: string,
+    @Param('variantId') variantId: string,
+    @Body() dto: UpdateProductVariantDto,
+  ) {
+    return this.stores.adminUpdateProductVariant(storeId, productId, variantId, dto);
+  }
+
+  @Delete('stores/:storeId/products/:productId/variants/:variantId')
+  async adminDeleteProductVariant(
+    @Param('storeId') storeId: string,
+    @Param('productId') productId: string,
+    @Param('variantId') variantId: string,
+  ) {
+    return this.stores.adminDeleteProductVariant(storeId, productId, variantId);
   }
 }

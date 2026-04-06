@@ -27,17 +27,20 @@ export function CustomerCartScreen() {
             <FlatList
               contentContainerStyle={{ paddingBottom: 16, gap: 12, paddingHorizontal: 16, paddingTop: 8 }}
               data={items}
-              keyExtractor={(item) => item.productId}
+              keyExtractor={(item) => item.lineId}
               renderItem={({ item }) => (
                 <View style={styles.itemCard}>
                   <View style={styles.itemInfo}>
                     <Text style={styles.itemName}>{item.name}</Text>
+                    {item.variantName ? (
+                      <Text style={styles.itemVariant}>{item.variantName}</Text>
+                    ) : null}
                     <Text style={styles.itemPrice}>Rs {item.unitPrice.toFixed(0)}</Text>
                   </View>
                   <View style={styles.qtyControls}>
                     <TouchableOpacity
                       style={styles.qtyButton}
-                      onPress={() => updateQty(item.productId, item.quantityKg + 1)}
+                      onPress={() => updateQty(item.lineId, item.quantityKg + 1)}
                     >
                       <Text style={styles.qtyButtonText}>+</Text>
                     </TouchableOpacity>
@@ -46,7 +49,7 @@ export function CustomerCartScreen() {
                     </Text>
                     <TouchableOpacity
                       style={styles.qtyButton}
-                      onPress={() => updateQty(item.productId, item.quantityKg - 1)}
+                      onPress={() => updateQty(item.lineId, item.quantityKg - 1)}
                     >
                       <Text style={styles.qtyButtonText}>−</Text>
                     </TouchableOpacity>
@@ -110,6 +113,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: tokens.accent
+  },
+  itemVariant: {
+    marginTop: 2,
+    fontSize: 12,
+    color: tokens.slate500
   },
   qtyControls: {
     flexDirection: 'row',

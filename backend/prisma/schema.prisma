@@ -251,7 +251,24 @@ model Product {
 
   store            Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
   category         ProductCategory? @relation(fields: [productCategoryId], references: [id], onDelete: SetNull)
+  variants         ProductVariant[]
   orderItems       OrderItem[]
+}
+
+model ProductVariant {
+  id          String   @id @default(uuid())
+  productId   String   @map("product_id")
+  name        String
+  price       Decimal  @db.Decimal(10, 2)
+  isAvailable Boolean  @default(true) @map("is_available")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@unique([productId, name])
 }
 
 
@@ -349,6 +366,8 @@ model OrderItem {
   id        String  @id @default(uuid())
   orderId   String  @map("order_id")
   productId String  @map("product_id")
+  variantId String? @map("variant_id")
+  variantNameSnapshot String? @map("variant_name_snapshot")
   quantity  Decimal @db.Decimal(10, 2)
   price     Decimal @db.Decimal(10, 2)
 

@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ActivityIndicator,
   TouchableOpacity,
-  FlatList
+  SectionList
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,6 +23,7 @@ interface Product {
   imageUrl: string | null;
   isAvailable?: boolean;
   isOutOfStock?: boolean;
+  variants?: { id: string; name: string; price: number; isAvailable: boolean; sortOrder: number }[];
 }
 
 interface Store {
@@ -35,6 +36,7 @@ interface Store {
   menuAvailable?: boolean;
   menuMessage?: string | null;
   products: Product[];
+  productCategories?: { id: string; name: string; sortOrder: number; products: Product[] }[];
 }
 
 export function CustomerStoreDetailScreen() {
@@ -45,6 +47,7 @@ export function CustomerStoreDetailScreen() {
 
   const [store, setStore] = useState<Store | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedVariantByProduct, setSelectedVariantByProduct] = useState<Record<string, string>>({});
 
   const addItem = useCartStore((s) => s.addItem);
   const updateQty = useCartStore((s) => s.updateQty);
@@ -97,6 +100,20 @@ export function CustomerStoreDetailScreen() {
   const isSameStoreCart = storeId === store.id && items.length > 0;
   const bottomInset = Math.max(insets.bottom, 8);
 
+  const availableProducts = useMemo(() => store.products.filter((p) => p.isAvailable !== false), [store.products]);
+  const categorizedIds = new Set<string>();
+  for (const c of store.productCategories ?? []) {
+    for (const p of c.products ?? []) categorizedIds.add(p.id);
+  }
+  const uncategorized = availableProducts.filter((p) => !categorizedIds.has(p.id));
+  const sections = [
+    ...(store.productCategories ?? []).map((c) => ({
+      title: c.name,
+      data: (c.products ?? []).filter((p) => p.isAvailable !== false),
+    })),
+    ...(uncategorized.length > 0 ? [{ title: 'More', data: uncategorized }] : []),
+  ].filter((s) => s.data.length > 0);
+
   return (
     <CustomerScreenShell
       title={store.name}
@@ -118,10 +135,13 @@ export function CustomerStoreDetailScreen() {
           </View>
         )}
 
-        <FlatList
-          data={store.products.filter((p) => p.isAvailable !== false)}
+        <SectionList
+          sections={sections}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingBottom: 160, gap: 12, paddingHorizontal: 16, paddingTop: 8 }}
+          contentContainerStyle={{ paddingBottom: 160, paddingHorizontal: 16, paddingTop: 8 }}
+          renderSectionHeader={({ section }) => (
+            <Text style={styles.sectionTitle}>{section.title}</Text>
+          )}
           ListEmptyComponent={
             <View style={styles.emptyMenuWrap}>
               <Text style={styles.emptyMenuTitle}>
@@ -142,23 +162,51 @@ export function CustomerStoreDetailScreen() {
             </View>
           }
           renderItem={({ item }) => {
-            const qty =
-              isSameStoreCart && items.find((i) => i.productId === item.id)?.quantityKg
-                ? items.find((i) => i.productId === item.id)!.quantityKg
-                : 0;
+            const variants = (item.variants ?? []).filter((v) => v.isAvailable !== false);
+            const selectedVariantId = selectedVariantByProduct[item.id];
+            const selectedVariant = variants.find((v) => v.id === selectedVariantId) ?? null;
+            const lineId = `${item.id}:${selectedVariant?.id ?? ''}`;
+            const qty = isSameStoreCart ? items.find((i) => i.lineId === lineId)?.quantityKg ?? 0 : 0;
             const available = !item.isOutOfStock && store.isOpenNow !== false;
+            const unitPrice = selectedVariant ? Number(selectedVariant.price) : Number(item.price);
+            const mustPickVariant = variants.length > 0 && !selectedVariant;
+
             return (
               <View style={[styles.productCard, !available && { opacity: 0.6 }]}>
                 <View style={styles.productInfo}>
                   <Text style={styles.productName}>{item.name}</Text>
-                  <Text style={styles.productPrice}>Rs {Number(item.price).toFixed(0)}</Text>
+                  <Text style={styles.productPrice}>Rs {unitPrice.toFixed(0)}</Text>
+                  {variants.length > 0 && (
+                    <View style={styles.variantRow}>
+                      {variants.map((v) => {
+                        const active = v.id === selectedVariantId;
+                        return (
+                          <TouchableOpacity
+                            key={v.id}
+                            style={[styles.variantChip, active && styles.variantChipActive]}
+                            onPress={() =>
+                              setSelectedVariantByProduct((m) => ({ ...m, [item.id]: v.id }))
+                            }
+                            disabled={!available}
+                          >
+                            <Text style={[styles.variantChipText, active && styles.variantChipTextActive]}>
+                              {v.name}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  )}
+                  {mustPickVariant && (
+                    <Text style={styles.pickVariantText}>Select a size</Text>
+                  )}
                 </View>
                 <View style={styles.productActions}>
                   {available && qty > 0 && (
                     <View style={styles.qtyControls}>
                       <TouchableOpacity
                         style={styles.qtyButton}
-                        onPress={() => updateQty(item.id, qty - 1)}
+                        onPress={() => updateQty(lineId, qty - 1)}
                       >
                         <Text style={styles.qtyButtonText}>−</Text>
                       </TouchableOpacity>
@@ -167,17 +215,22 @@ export function CustomerStoreDetailScreen() {
                   )}
                   {available && (
                     <TouchableOpacity
-                      style={styles.addButton}
-                      onPress={() =>
+                      style={[styles.addButton, mustPickVariant && styles.addButtonDisabled]}
+                      onPress={() => {
+                        if (mustPickVariant) return;
                         addItem({
+                          lineId,
                           productId: item.id,
+                          variantId: selectedVariant?.id ?? null,
+                          variantName: selectedVariant?.name ?? null,
                           storeId: store.id,
                           name: item.name,
-                          unitPrice: Number(item.price),
+                          unitPrice,
                           quantityKg: 1,
                           imageUrl: item.imageUrl
-                        })
-                      }
+                        });
+                      }}
+                      disabled={mustPickVariant}
                     >
                       <Text style={styles.addButtonText}>+</Text>
                     </TouchableOpacity>
@@ -244,6 +297,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: tokens.slate500
   },
+  sectionTitle: {
+    marginTop: 12,
+    marginBottom: 8,
+    fontSize: 14,
+    fontWeight: '700',
+    color: tokens.slate800
+  },
   description: {
     fontSize: 13,
     color: tokens.slate500,
@@ -297,6 +357,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8
   },
+  variantRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8
+  },
+  variantChip: {
+    borderWidth: 1,
+    borderColor: tokens.slate200,
+    backgroundColor: tokens.slate50,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999
+  },
+  variantChipActive: {
+    borderColor: tokens.accent,
+    backgroundColor: '#fff7ed'
+  },
+  variantChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: tokens.slate700
+  },
+  variantChipTextActive: {
+    color: tokens.accent
+  },
+  pickVariantText: {
+    marginTop: 6,
+    fontSize: 12,
+    color: tokens.slate500
+  },
   qtyControls: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -329,6 +420,9 @@ const styles = StyleSheet.create({
     backgroundColor: tokens.accent,
     justifyContent: 'center',
     alignItems: 'center'
+  },
+  addButtonDisabled: {
+    backgroundColor: tokens.slate300
   },
   addButtonText: {
     fontSize: 20,

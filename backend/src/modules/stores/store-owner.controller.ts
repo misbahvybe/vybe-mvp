@@ -10,6 +10,8 @@ import { CreateProductCategoryDto } from './dto/create-product-category.dto';
 import { UpdateProductCategoryDto } from './dto/update-product-category.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { CreateProductVariantDto } from './dto/create-product-variant.dto';
+import { UpdateProductVariantDto } from './dto/update-product-variant.dto';
 
 @Controller('store-owner')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -75,5 +77,30 @@ export class StoreOwnerController {
   @Patch('products/:id/out-of-stock')
   async setProductOutOfStock(@CurrentUser() user: User, @Param('id') id: string, @Body() body: { isOutOfStock: boolean }) {
     return this.stores.setProductOutOfStock(user.id, id, body.isOutOfStock ?? false);
+  }
+
+  @Get('products/:id/variants')
+  async listProductVariants(@CurrentUser() user: User, @Param('id') productId: string) {
+    return this.stores.listProductVariants(user.id, productId);
+  }
+
+  @Post('products/:id/variants')
+  async createProductVariant(@CurrentUser() user: User, @Param('id') productId: string, @Body() dto: CreateProductVariantDto) {
+    return this.stores.createProductVariant(user.id, productId, dto);
+  }
+
+  @Patch('products/:id/variants/:variantId')
+  async updateProductVariant(
+    @CurrentUser() user: User,
+    @Param('id') productId: string,
+    @Param('variantId') variantId: string,
+    @Body() dto: UpdateProductVariantDto,
+  ) {
+    return this.stores.updateProductVariant(user.id, productId, variantId, dto);
+  }
+
+  @Delete('products/:id/variants/:variantId')
+  async deleteProductVariant(@CurrentUser() user: User, @Param('id') productId: string, @Param('variantId') variantId: string) {
+    return this.stores.deleteProductVariant(user.id, productId, variantId);
   }
 }

@@ -8,6 +8,8 @@ import { CreateProductCategoryDto } from './dto/create-product-category.dto';
 import { UpdateProductCategoryDto } from './dto/update-product-category.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { CreateProductVariantDto } from './dto/create-product-variant.dto';
+import { UpdateProductVariantDto } from './dto/update-product-variant.dto';
 
 @Injectable()
 export class StoresService {
@@ -44,7 +46,7 @@ export class StoresService {
       where: { ownerId },
       include: {
         productCategories: { orderBy: { sortOrder: 'asc' }, include: { products: true } },
-        products: { include: { category: true } },
+        products: { include: { category: true, variants: { orderBy: { sortOrder: 'asc' } } } },
       },
     });
     if (!store) return null;
@@ -145,7 +147,7 @@ export class StoresService {
     const store = await this.getOwnedStoreOrThrow(ownerId);
     return this.prisma.product.findMany({
       where: { storeId: store.id },
-      include: { category: true },
+      include: { category: true, variants: { orderBy: { sortOrder: 'asc' } } },
       orderBy: [{ category: { sortOrder: 'asc' } }, { name: 'asc' }],
     });
   }
@@ -210,6 +212,51 @@ export class StoresService {
     });
   }
 
+  async listProductVariants(ownerId: string, productId: string) {
+    const store = await this.getOwnedStoreOrThrow(ownerId);
+    const prod = await this.prisma.product.findFirst({ where: { id: productId, storeId: store.id } });
+    if (!prod) throw new ForbiddenException('Product not found');
+    return this.prisma.productVariant.findMany({ where: { productId }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] });
+  }
+
+  async createProductVariant(ownerId: string, productId: string, dto: CreateProductVariantDto) {
+    const store = await this.getOwnedStoreOrThrow(ownerId);
+    const prod = await this.prisma.product.findFirst({ where: { id: productId, storeId: store.id } });
+    if (!prod) throw new ForbiddenException('Product not found');
+    return this.prisma.productVariant.create({
+      data: {
+        productId,
+        name: dto.name.trim(),
+        price: new Decimal(dto.price),
+        isAvailable: dto.isAvailable ?? true,
+        sortOrder: dto.sortOrder ?? 0,
+      },
+    });
+  }
+
+  async updateProductVariant(ownerId: string, productId: string, variantId: string, dto: UpdateProductVariantDto) {
+    const store = await this.getOwnedStoreOrThrow(ownerId);
+    const prod = await this.prisma.product.findFirst({ where: { id: productId, storeId: store.id } });
+    if (!prod) throw new ForbiddenException('Product not found');
+    const variant = await this.prisma.productVariant.findFirst({ where: { id: variantId, productId } });
+    if (!variant) throw new ForbiddenException('Variant not found');
+    const data: Record<string, unknown> = {};
+    if (dto.name !== undefined) data.name = dto.name.trim();
+    if (dto.price !== undefined) data.price = new Decimal(dto.price);
+    if (dto.isAvailable !== undefined) data.isAvailable = dto.isAvailable;
+    if (dto.sortOrder !== undefined) data.sortOrder = dto.sortOrder;
+    return this.prisma.productVariant.update({ where: { id: variantId }, data });
+  }
+
+  async deleteProductVariant(ownerId: string, productId: string, variantId: string) {
+    const store = await this.getOwnedStoreOrThrow(ownerId);
+    const prod = await this.prisma.product.findFirst({ where: { id: productId, storeId: store.id } });
+    if (!prod) throw new ForbiddenException('Product not found');
+    const variant = await this.prisma.productVariant.findFirst({ where: { id: variantId, productId } });
+    if (!variant) throw new ForbiddenException('Variant not found');
+    return this.prisma.productVariant.delete({ where: { id: variantId } });
+  }
+
   private isStoreOpen(store: { isOpen: boolean; openingTime: string | null; closingTime: string | null }): boolean {
     if (!store.isOpen) return false;
     if (!store.openingTime || !store.closingTime) return true;
@@ -237,7 +284,11 @@ export class StoresService {
       where: { ...where, status: { not: StoreStatus.INACTIVE } },
       include: {
         owner: { select: { name: true } },
-        products: { where: { isAvailable: true, isOutOfStock: false }, take: 4 },
+        products: {
+          where: { isAvailable: true, isOutOfStock: false },
+          take: 4,
+          include: { variants: { where: { isAvailable: true }, orderBy: { sortOrder: 'asc' } } },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -267,7 +318,19 @@ export class StoresService {
       where: { id, isApproved: true, status: { not: StoreStatus.INACTIVE } },
       include: {
         owner: { select: { name: true } },
-        products: { where: { isAvailable: true, isOutOfStock: false } },
+        productCategories: {
+          orderBy: { sortOrder: 'asc' },
+          include: {
+            products: {
+              where: { isAvailable: true, isOutOfStock: false },
+              include: { variants: { where: { isAvailable: true }, orderBy: { sortOrder: 'asc' } } },
+            },
+          },
+        },
+        products: {
+          where: { isAvailable: true, isOutOfStock: false },
+          include: { variants: { where: { isAvailable: true }, orderBy: { sortOrder: 'asc' } } },
+        },
       },
     });
     if (!store) return null;
@@ -332,7 +395,7 @@ export class StoresService {
     await this.requireStore(storeId);
     return this.prisma.product.findMany({
       where: { storeId },
-      include: { category: true },
+      include: { category: true, variants: { orderBy: { sortOrder: 'asc' } } },
       orderBy: [{ category: { sortOrder: 'asc' } }, { name: 'asc' }],
     });
   }
@@ -404,5 +467,50 @@ export class StoresService {
       where: { id: productId },
       data: { isOutOfStock, isAvailable: !isOutOfStock },
     });
+  }
+
+  async adminListProductVariants(storeId: string, productId: string) {
+    await this.requireStore(storeId);
+    const prod = await this.prisma.product.findFirst({ where: { id: productId, storeId } });
+    if (!prod) throw new BadRequestException('Product not found');
+    return this.prisma.productVariant.findMany({ where: { productId }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] });
+  }
+
+  async adminCreateProductVariant(storeId: string, productId: string, dto: CreateProductVariantDto) {
+    await this.requireStore(storeId);
+    const prod = await this.prisma.product.findFirst({ where: { id: productId, storeId } });
+    if (!prod) throw new BadRequestException('Product not found');
+    return this.prisma.productVariant.create({
+      data: {
+        productId,
+        name: dto.name.trim(),
+        price: new Decimal(dto.price),
+        isAvailable: dto.isAvailable ?? true,
+        sortOrder: dto.sortOrder ?? 0,
+      },
+    });
+  }
+
+  async adminUpdateProductVariant(storeId: string, productId: string, variantId: string, dto: UpdateProductVariantDto) {
+    await this.requireStore(storeId);
+    const prod = await this.prisma.product.findFirst({ where: { id: productId, storeId } });
+    if (!prod) throw new BadRequestException('Product not found');
+    const variant = await this.prisma.productVariant.findFirst({ where: { id: variantId, productId } });
+    if (!variant) throw new BadRequestException('Variant not found');
+    const data: Record<string, unknown> = {};
+    if (dto.name !== undefined) data.name = dto.name.trim();
+    if (dto.price !== undefined) data.price = new Decimal(dto.price);
+    if (dto.isAvailable !== undefined) data.isAvailable = dto.isAvailable;
+    if (dto.sortOrder !== undefined) data.sortOrder = dto.sortOrder;
+    return this.prisma.productVariant.update({ where: { id: variantId }, data });
+  }
+
+  async adminDeleteProductVariant(storeId: string, productId: string, variantId: string) {
+    await this.requireStore(storeId);
+    const prod = await this.prisma.product.findFirst({ where: { id: productId, storeId } });
+    if (!prod) throw new BadRequestException('Product not found');
+    const variant = await this.prisma.productVariant.findFirst({ where: { id: variantId, productId } });
+    if (!variant) throw new BadRequestException('Variant not found');
+    return this.prisma.productVariant.delete({ where: { id: variantId } });
   }
 }

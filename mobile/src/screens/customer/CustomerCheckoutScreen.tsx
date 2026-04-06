@@ -47,7 +47,7 @@ export function CustomerCheckoutScreen() {
   const cartKey = useMemo(
     () =>
       JSON.stringify(
-        items.map((i) => ({ productId: i.productId, quantity: i.quantityKg, price: i.unitPrice }))
+        items.map((i) => ({ productId: i.productId, variantId: i.variantId ?? null, quantity: i.quantityKg, price: i.unitPrice }))
       ),
     [items]
   );
@@ -82,6 +82,7 @@ export function CustomerCheckoutScreen() {
         addressId: selectedAddressId,
         items: items.map((i) => ({
           productId: i.productId,
+          variantId: i.variantId ?? undefined,
           quantity: i.quantityKg,
           price: i.unitPrice
         })),

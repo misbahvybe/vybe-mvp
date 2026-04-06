@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { StripeService } from '../stripe/stripe.service';
 import { XPayService } from '../xpay/xpay.service';
-import { OrderStatus, Product, Role } from '@prisma/client';
+import { OrderStatus, Product, ProductVariant, Role } from '@prisma/client';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 import { PrepareXPayDto } from './dto/prepare-xpay.dto';
@@ -35,15 +35,20 @@ export class OrdersService {
    * Validates line items against catalog prices (anti-tamper) and optionally stock.
    */
   private async assertItemsAndSubtotal(
-    db: Pick<PrismaService, 'product'>,
+    db: Pick<PrismaService, 'product' | 'productVariant'>,
     storeId: string,
-    items: { productId: string; quantity: number; price?: number }[],
+    items: { productId: string; variantId?: string; quantity: number; price?: number }[],
     options: { checkStock: boolean },
-  ): Promise<{ subtotal: number; productById: Map<string, Product> }> {
+  ): Promise<{ subtotal: number; productById: Map<string, Product>; variantById: Map<string, ProductVariant> }> {
     const products = await db.product.findMany({
       where: { id: { in: items.map((i) => i.productId) }, storeId },
     });
     const productById = new Map(products.map((p) => [p.id, p]));
+    const variantIds = [...new Set(items.map((i) => i.variantId).filter(Boolean))] as string[];
+    const variants = variantIds.length
+      ? await db.productVariant.findMany({ where: { id: { in: variantIds } } })
+      : [];
+    const variantById = new Map(variants.map((v) => [v.id, v]));
     let subtotal = 0;
     for (const item of items) {
       const prod = productById.get(item.productId);
@@ -56,13 +61,20 @@ export class OrdersService {
           );
         }
       }
-      const serverPrice = Number(prod.price);
+      const variant = item.variantId ? variantById.get(item.variantId) : null;
+      if (item.variantId && (!variant || variant.productId !== prod.id)) {
+        throw new BadRequestException(`Variant ${item.variantId} not found for ${prod.name}`);
+      }
+      if (variant && variant.isAvailable === false) {
+        throw new BadRequestException(`Variant ${variant.name} is unavailable for ${prod.name}`);
+      }
+      const serverPrice = variant ? Number(variant.price) : Number(prod.price);
       if (item.price != null && Math.abs(Number(item.price) - serverPrice) > 0.02) {
         throw new BadRequestException(`Price mismatch for ${prod.name}`);
       }
       subtotal += item.quantity * serverPrice;
     }
-    return { subtotal, productById };
+    return { subtotal, productById, variantById };
   }
 
   async quote(customerId: string, dto: OrderQuoteDto) {
@@ -303,7 +315,7 @@ export class OrdersService {
     const useCard = PAYMENTS_COD_ONLY ? false : dto.paymentMethod === 'CARD';
 
     const order = await this.prisma.$transaction(async (tx) => {
-      const { subtotal: subtotalAmount, productById } = await this.assertItemsAndSubtotal(tx, dto.storeId, dto.items, {
+      const { subtotal: subtotalAmount, productById, variantById } = await this.assertItemsAndSubtotal(tx, dto.storeId, dto.items, {
         checkStock: true,
       });
       const subtotalDecimal = new Decimal(subtotalAmount);
@@ -372,10 +384,15 @@ export class OrdersService {
           items: {
             create: dto.items.map((i) => {
               const prod = productById.get(i.productId)!;
+              const variant = i.variantId
+                ? variantById.get(i.variantId) ?? null
+                : null;
               return {
                 productId: i.productId,
+                variantId: variant?.id ?? null,
+                variantNameSnapshot: variant?.name ?? null,
                 quantity: new Decimal(i.quantity),
-                price: prod.price,
+                price: variant ? variant.price : prod.price,
               };
             }),
           },

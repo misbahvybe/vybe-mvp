@@ -33,6 +33,7 @@ interface Product {
   productCategoryId?: string | null;
   imageUrl?: string | null;
   category?: { id: string; name: string } | null;
+  variants?: { id: string; name: string; price: number; isAvailable: boolean; sortOrder: number }[];
 }
 
 export default function AdminStoreMenuPage() {
@@ -55,6 +56,7 @@ export default function AdminStoreMenuPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [platformCategorySlugs, setPlatformCategorySlugs] = useState<string[]>([]);
   const [platformSaving, setPlatformSaving] = useState(false);
+  const [newVariant, setNewVariant] = useState({ name: '', price: '', sortOrder: '0' });
   const [editForm, setEditForm] = useState({
     name: '',
     price: '',
@@ -185,6 +187,55 @@ export default function AdminStoreMenuPage() {
       fetchAll();
     } catch (e) {
       alert((e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Failed to save product');
+    }
+  };
+
+  const addVariant = async () => {
+    if (!storeId || !editingId) return;
+    const name = newVariant.name.trim();
+    const price = Number(newVariant.price);
+    const sortOrder = Number(newVariant.sortOrder) || 0;
+    if (!name || Number.isNaN(price) || price < 0) return;
+    try {
+      await api.post(`/admin/stores/${storeId}/products/${editingId}/variants`, {
+        name,
+        price,
+        sortOrder,
+        isAvailable: true,
+      });
+      setNewVariant({ name: '', price: '', sortOrder: '0' });
+      fetchAll();
+    } catch (e) {
+      const raw = (e as { response?: { data?: { message?: string | string[] } } })?.response?.data?.message;
+      const msg = Array.isArray(raw) ? raw.join(' ') : raw;
+      alert(msg ?? 'Failed to add variant');
+    }
+  };
+
+  const patchVariant = async (
+    variantId: string,
+    patch: Partial<{ name: string; price: number; isAvailable: boolean; sortOrder: number }>,
+  ) => {
+    if (!storeId || !editingId) return;
+    try {
+      await api.patch(`/admin/stores/${storeId}/products/${editingId}/variants/${variantId}`, patch);
+      fetchAll();
+    } catch (e) {
+      const raw = (e as { response?: { data?: { message?: string | string[] } } })?.response?.data?.message;
+      const msg = Array.isArray(raw) ? raw.join(' ') : raw;
+      alert(msg ?? 'Failed to update variant');
+    }
+  };
+
+  const deleteVariant = async (variantId: string) => {
+    if (!storeId || !editingId || !confirm('Delete this variant?')) return;
+    try {
+      await api.delete(`/admin/stores/${storeId}/products/${editingId}/variants/${variantId}`);
+      fetchAll();
+    } catch (e) {
+      const raw = (e as { response?: { data?: { message?: string | string[] } } })?.response?.data?.message;
+      const msg = Array.isArray(raw) ? raw.join(' ') : raw;
+      alert(msg ?? 'Failed to delete variant');
     }
   };
 
@@ -364,6 +415,7 @@ export default function AdminStoreMenuPage() {
                     <th className="text-left p-3 font-medium">Product</th>
                     <th className="text-left p-3 font-medium">Category</th>
                     <th className="text-right p-3 font-medium">Price</th>
+                    <th className="text-left p-3 font-medium">Variants</th>
                     <th className="text-right p-3 font-medium">Stock</th>
                     <th className="text-left p-3 font-medium">Status</th>
                     <th className="p-3" />
@@ -374,7 +426,7 @@ export default function AdminStoreMenuPage() {
                     <tr key={p.id} className="border-t border-slate-100 align-top">
                       {editingId === p.id ? (
                         <>
-                          <td className="p-3" colSpan={6}>
+                          <td className="p-3" colSpan={7}>
                             <div className="grid sm:grid-cols-2 gap-2">
                               <input
                                 className="border rounded px-2 py-1.5 text-sm"
@@ -422,6 +474,115 @@ export default function AdminStoreMenuPage() {
                                 Available
                               </label>
                             </div>
+
+                            <div className="mt-4 border-t border-slate-100 pt-4">
+                              <h3 className="font-semibold text-slate-800 mb-2">Size / variants</h3>
+                              <p className="text-xs text-slate-500 mb-3">
+                                Add sizes like Small / Medium / Large with their own prices. If you add variants, customers will pick one before adding to cart.
+                              </p>
+
+                              <div className="grid sm:grid-cols-3 gap-2">
+                                <input
+                                  className="border rounded px-2 py-1.5 text-sm"
+                                  placeholder="Variant name (e.g. Small)"
+                                  value={newVariant.name}
+                                  onChange={(e) => setNewVariant((v) => ({ ...v, name: e.target.value }))}
+                                />
+                                <input
+                                  className="border rounded px-2 py-1.5 text-sm"
+                                  placeholder="Price"
+                                  type="number"
+                                  min={0}
+                                  step={0.01}
+                                  value={newVariant.price}
+                                  onChange={(e) => setNewVariant((v) => ({ ...v, price: e.target.value }))}
+                                />
+                                <input
+                                  className="border rounded px-2 py-1.5 text-sm"
+                                  placeholder="Sort"
+                                  type="number"
+                                  value={newVariant.sortOrder}
+                                  onChange={(e) => setNewVariant((v) => ({ ...v, sortOrder: e.target.value }))}
+                                />
+                              </div>
+                              <Button type="button" size="sm" className="mt-2" onClick={addVariant}>
+                                Add variant
+                              </Button>
+
+                              {(p.variants?.length ?? 0) > 0 ? (
+                                <div className="mt-3 overflow-x-auto">
+                                  <table className="w-full text-xs">
+                                    <thead className="bg-slate-50">
+                                      <tr>
+                                        <th className="text-left p-2 font-medium">Name</th>
+                                        <th className="text-right p-2 font-medium">Price</th>
+                                        <th className="text-left p-2 font-medium">Available</th>
+                                        <th className="text-right p-2 font-medium">Sort</th>
+                                        <th className="p-2" />
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {(p.variants ?? []).map((v) => (
+                                        <tr key={v.id} className="border-t border-slate-100">
+                                          <td className="p-2">
+                                            <input
+                                              className="border rounded px-2 py-1 text-xs w-full"
+                                              defaultValue={v.name}
+                                              onBlur={(e) => {
+                                                const next = e.target.value.trim();
+                                                if (next && next !== v.name) patchVariant(v.id, { name: next });
+                                              }}
+                                            />
+                                          </td>
+                                          <td className="p-2 text-right">
+                                            <input
+                                              className="border rounded px-2 py-1 text-xs w-28 text-right"
+                                              type="number"
+                                              min={0}
+                                              step={0.01}
+                                              defaultValue={String(Number(v.price))}
+                                              onBlur={(e) => {
+                                                const n = Number(e.target.value);
+                                                if (!Number.isNaN(n) && n !== Number(v.price)) patchVariant(v.id, { price: n });
+                                              }}
+                                            />
+                                          </td>
+                                          <td className="p-2">
+                                            <label className="inline-flex items-center gap-2">
+                                              <input
+                                                type="checkbox"
+                                                defaultChecked={v.isAvailable}
+                                                onChange={(e) => patchVariant(v.id, { isAvailable: e.target.checked })}
+                                              />
+                                              <span className="text-slate-600">Available</span>
+                                            </label>
+                                          </td>
+                                          <td className="p-2 text-right">
+                                            <input
+                                              className="border rounded px-2 py-1 text-xs w-20 text-right"
+                                              type="number"
+                                              defaultValue={String(v.sortOrder ?? 0)}
+                                              onBlur={(e) => {
+                                                const n = Number(e.target.value);
+                                                if (!Number.isNaN(n) && n !== Number(v.sortOrder ?? 0)) patchVariant(v.id, { sortOrder: n });
+                                              }}
+                                            />
+                                          </td>
+                                          <td className="p-2 text-right">
+                                            <Button type="button" variant="outline" size="sm" onClick={() => deleteVariant(v.id)}>
+                                              Delete
+                                            </Button>
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              ) : (
+                                <p className="mt-3 text-xs text-slate-500">No variants yet (item will use base price).</p>
+                              )}
+                            </div>
+
                             <div className="flex gap-2 mt-2">
                               <Button type="button" size="sm" onClick={saveProduct}>
                                 Save
@@ -437,6 +598,11 @@ export default function AdminStoreMenuPage() {
                           <td className="p-3 font-medium">{p.name}</td>
                           <td className="p-3 text-slate-600">{p.category?.name ?? '—'}</td>
                           <td className="p-3 text-right">Rs {Number(p.price).toLocaleString()}</td>
+                          <td className="p-3 text-slate-600">
+                            {p.variants && p.variants.length > 0
+                              ? p.variants.map((v) => `${v.name} (${Number(v.price).toFixed(0)})`).join(', ')
+                              : '—'}
+                          </td>
                           <td className="p-3 text-right">{Number(p.stock)}</td>
                           <td className="p-3">
                             <span className={p.isOutOfStock || !p.isAvailable ? 'text-amber-700' : 'text-green-700'}>
