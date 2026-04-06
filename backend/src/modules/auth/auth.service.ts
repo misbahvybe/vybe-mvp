@@ -167,7 +167,7 @@ export class AuthService {
       throw new UnauthorizedException('Invitation link is invalid or expired');
     }
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-    await this.prisma.user.update({
+    const updated = await this.prisma.user.update({
       where: { id: user.id },
       data: {
         password: passwordHash,
@@ -176,6 +176,12 @@ export class AuthService {
         invitationExpiresAt: null,
       },
     });
+    if (updated.role === 'STORE_OWNER') {
+      await this.prisma.store.updateMany({
+        where: { ownerId: updated.id, status: 'INVITED' },
+        data: { status: 'ACTIVE' },
+      });
+    }
     return this.buildTokenResponse(user);
   }
 

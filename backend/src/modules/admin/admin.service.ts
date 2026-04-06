@@ -5,7 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { Role } from '@prisma/client';
+import { Role, StoreStatus } from '@prisma/client';
 import { CreatePartnerDto } from './dto/create-partner.dto';
 import * as crypto from 'crypto';
 
@@ -45,6 +45,7 @@ export class AdminService {
           name: `${dto.name.trim()}'s store`,
           city: 'Lahore',
           phone: normalizedPhone,
+          status: StoreStatus.INVITED,
           isApproved: true,
           isOpen: true,
         },
@@ -77,6 +78,7 @@ export class AdminService {
         name: `${user.name.trim()}'s store`,
         city: 'Lahore',
         phone: user.phone,
+        status: user.passwordSet ? StoreStatus.ACTIVE : StoreStatus.INVITED,
         isApproved: true,
         isOpen: true,
       },
@@ -255,6 +257,7 @@ export class AdminService {
       id: s.id,
       name: s.name,
       isOpen: s.isOpen,
+      status: s.status,
       openingTime: s.openingTime,
       closingTime: s.closingTime,
       ordersToday: s.orders.length,
@@ -263,6 +266,16 @@ export class AdminService {
       commissionPercentOverride:
         s.commissionPercentOverride != null ? Number(s.commissionPercentOverride) : null,
     }));
+  }
+
+  async setStoreStatus(storeId: string, status: StoreStatus) {
+    const store = await this.prisma.store.findUnique({ where: { id: storeId } });
+    if (!store) throw new NotFoundException('Store not found');
+    return this.prisma.store.update({
+      where: { id: storeId },
+      data: { status },
+      select: { id: true, status: true },
+    });
   }
 
   async getRiders() {

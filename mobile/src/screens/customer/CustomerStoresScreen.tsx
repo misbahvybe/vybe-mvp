@@ -10,6 +10,9 @@ interface StoreSummary {
   name: string;
   description: string | null;
   imageUrl: string | null;
+  status?: 'INVITED' | 'ACTIVE' | 'INACTIVE';
+  menuAvailable?: boolean;
+  menuMessage?: string | null;
   products: { id: string; name: string; price: number }[];
 }
 
@@ -63,7 +66,9 @@ export function CustomerStoresScreen() {
                   <View style={styles.cardImagePlaceholder} />
                   <Text style={styles.cardName}>{item.name}</Text>
                   <Text style={styles.cardPrice}>
-                    {firstProduct ? `From Rs ${Number(firstProduct.price).toFixed(0)}` : '—'}
+                    {firstProduct
+                      ? `From Rs ${Number(firstProduct.price).toFixed(0)}`
+                      : item.menuMessage || 'Menu coming soon'}
                   </Text>
                 </TouchableOpacity>
               );

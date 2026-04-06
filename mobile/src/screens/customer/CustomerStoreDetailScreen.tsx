@@ -31,6 +31,9 @@ interface Store {
   description: string | null;
   address?: string | null;
   isOpenNow?: boolean;
+  status?: 'INVITED' | 'ACTIVE' | 'INACTIVE';
+  menuAvailable?: boolean;
+  menuMessage?: string | null;
   products: Product[];
 }
 
@@ -119,6 +122,25 @@ export function CustomerStoreDetailScreen() {
           data={store.products.filter((p) => p.isAvailable !== false)}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ paddingBottom: 160, gap: 12, paddingHorizontal: 16, paddingTop: 8 }}
+          ListEmptyComponent={
+            <View style={styles.emptyMenuWrap}>
+              <Text style={styles.emptyMenuTitle}>
+                {store.menuMessage ||
+                  (store.status === 'INVITED'
+                    ? 'Menu not available yet'
+                    : store.status === 'INACTIVE'
+                      ? 'Store is currently unavailable'
+                      : 'Menu not available yet')}
+              </Text>
+              <Text style={styles.emptyMenuText}>
+                {store.status === 'INVITED'
+                  ? 'This store is still being onboarded. Please check back soon.'
+                  : store.status === 'INACTIVE'
+                    ? 'Please try another store for now.'
+                    : 'No items have been added yet.'}
+              </Text>
+            </View>
+          }
           renderItem={({ item }) => {
             const qty =
               isSameStoreCart && items.find((i) => i.productId === item.id)?.quantityKg
@@ -203,6 +225,23 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 14,
+    color: tokens.slate500
+  },
+  emptyMenuWrap: {
+    borderRadius: tokens.radiusCard,
+    backgroundColor: tokens.surface,
+    padding: 14,
+    marginTop: 8,
+    ...tokens.shadowSoft
+  },
+  emptyMenuTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: tokens.slate800
+  },
+  emptyMenuText: {
+    marginTop: 6,
+    fontSize: 12,
     color: tokens.slate500
   },
   description: {

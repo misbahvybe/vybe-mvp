@@ -13,6 +13,7 @@ import { CreateProductDto } from '../stores/dto/create-product.dto';
 import { UpdateProductDto } from '../stores/dto/update-product.dto';
 import { PatchPlatformCategoryCommissionDto } from './dto/patch-platform-category-commission.dto';
 import { UpdateStoreCommissionOverrideDto } from './dto/update-store-commission-override.dto';
+import { UpdateStoreStatusDto } from './dto/update-store-status.dto';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -88,6 +89,11 @@ export class AdminController {
     @Body() dto: UpdateStoreCommissionOverrideDto,
   ) {
     return this.admin.setStoreCommissionOverride(storeId, dto.commissionPercentOverride);
+  }
+
+  @Patch('stores/:storeId/status')
+  async patchStoreStatus(@Param('storeId') storeId: string, @Body() dto: UpdateStoreStatusDto) {
+    return this.admin.setStoreStatus(storeId, dto.status);
   }
 
   @Get('metrics/charts')

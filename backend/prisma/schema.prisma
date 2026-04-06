@@ -50,6 +50,15 @@ enum CancellationReason {
   OTHER
 }
 
+enum StoreStatus {
+  /// Store was invited/created by admin; owner has not completed signup yet.
+  INVITED
+  /// Store is live and can receive orders / show menu to customers.
+  ACTIVE
+  /// Store is disabled by admin (hidden from customers).
+  INACTIVE
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // 1️⃣ USERS
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -156,6 +165,7 @@ model Store {
   longitude    Decimal? @db.Decimal(10, 7)
   address      String?
   city         String   @default("Lahore")
+  status       StoreStatus @default(ACTIVE) @map("store_status")
   isApproved   Boolean  @default(false) @map("is_approved")
   isOpen       Boolean  @default(true) @map("is_open")
   openingTime  String?  @map("opening_time")   // HH:mm e.g. "09:00"

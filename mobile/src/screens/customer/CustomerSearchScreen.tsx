@@ -22,6 +22,9 @@ interface StoreSummary {
   id: string;
   name: string;
   description: string | null;
+  status?: 'INVITED' | 'ACTIVE' | 'INACTIVE';
+  menuAvailable?: boolean;
+  menuMessage?: string | null;
   products: { id: string; name: string; price: number }[];
 }
 
@@ -107,7 +110,9 @@ export function CustomerSearchScreen() {
                     <View style={styles.rowText}>
                       <Text style={styles.storeName}>{item.name}</Text>
                       <Text style={styles.fromPrice}>
-                        {first ? `From Rs ${Number(first.price).toFixed(0)}` : '—'}
+                        {first
+                          ? `From Rs ${Number(first.price).toFixed(0)}`
+                          : item.menuMessage || 'Menu coming soon'}
                       </Text>
                     </View>
                   </VybeCard>

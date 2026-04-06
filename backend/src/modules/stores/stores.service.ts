@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { Role } from '@prisma/client';
+import { Role, StoreStatus } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { UpdateStoreDto } from './dto/update-store.dto';
 import { CreateProductCategoryDto } from './dto/create-product-category.dto';
@@ -234,7 +234,7 @@ export class StoresService {
       };
     }
     const stores = await this.prisma.store.findMany({
-      where,
+      where: { ...where, status: { not: StoreStatus.INACTIVE } },
       include: {
         owner: { select: { name: true } },
         products: { where: { isAvailable: true, isOutOfStock: false }, take: 4 },
@@ -242,22 +242,49 @@ export class StoresService {
       orderBy: { createdAt: 'desc' },
     });
     return stores
-      .map((s) => ({ ...s, isOpenNow: this.isStoreOpen(s) }))
-      .filter((s) => s.isOpenNow);
+      .map((s) => {
+        const isOpenNow = this.isStoreOpen(s);
+        const products = s.status === StoreStatus.ACTIVE ? s.products : [];
+        return {
+          ...s,
+          products,
+          isOpenNow,
+          menuAvailable: s.status === StoreStatus.ACTIVE && products.length > 0,
+          menuMessage:
+            s.status === StoreStatus.INVITED
+              ? 'Menu not available yet'
+              : s.status === StoreStatus.INACTIVE
+                ? 'Store is currently unavailable'
+                : products.length === 0
+                  ? 'Menu not available yet'
+                  : null,
+        };
+      });
   }
 
   async getById(id: string) {
     const store = await this.prisma.store.findFirst({
-      where: { id, isApproved: true },
+      where: { id, isApproved: true, status: { not: StoreStatus.INACTIVE } },
       include: {
         owner: { select: { name: true } },
-        products: { where: { isAvailable: true } },
+        products: { where: { isAvailable: true, isOutOfStock: false } },
       },
     });
     if (!store) return null;
+    const products = store.status === StoreStatus.ACTIVE ? store.products : [];
     return {
       ...store,
+      products,
       isOpenNow: this.isStoreOpen(store),
+      menuAvailable: store.status === StoreStatus.ACTIVE && products.length > 0,
+      menuMessage:
+        store.status === StoreStatus.INVITED
+          ? 'Menu not available yet'
+          : store.status === StoreStatus.INACTIVE
+            ? 'Store is currently unavailable'
+            : products.length === 0
+              ? 'Menu not available yet'
+              : null,
     };
   }
 
