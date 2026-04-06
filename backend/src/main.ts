@@ -37,6 +37,11 @@ async function bootstrap() {
     : [frontendUrl];
   const vercelProd = 'https://vybe-mvp.vercel.app';
   if (!corsOrigins.includes(vercelProd)) corsOrigins.push(vercelProd);
+  // Custom production domains (CORS origins must match exactly: scheme + host + port).
+  const customProdOrigins = ['https://vybepk.com', 'https://www.vybepk.com'];
+  for (const o of customProdOrigins) {
+    if (!corsOrigins.includes(o)) corsOrigins.push(o);
+  }
 
   const isHttpsVercelApp = (origin: string) => {
     try {
