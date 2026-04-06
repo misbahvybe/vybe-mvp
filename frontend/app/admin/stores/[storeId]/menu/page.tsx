@@ -72,7 +72,7 @@ export default function AdminStoreMenuPage() {
       api.get<Category[]>(`/admin/stores/${storeId}/categories`).then((r) => r.data ?? []),
       api.get<Product[]>(`/admin/stores/${storeId}/products`).then((r) => r.data ?? []),
       api
-        .get<{ names: string[] }>(`/admin/stores/${storeId}/platform-categories`)
+        .get<{ names: string[] }>(`/admin/platform-store-categories/${storeId}`)
         .then((r) => r.data?.names ?? [])
         .catch(() => [] as string[]),
       api.get<{ id: string; name: string }[]>('/admin/stores').then((r) => {
@@ -129,8 +129,7 @@ export default function AdminStoreMenuPage() {
     if (!storeId) return;
     setPlatformSaving(true);
     try {
-      // POST is preferred: some hosts/proxies mishandle PUT and surface 404.
-      await api.post(`/admin/stores/${storeId}/platform-categories`, { names: platformCategorySlugs });
+      await api.post(`/admin/platform-store-categories/${storeId}`, { names: platformCategorySlugs });
     } catch (e) {
       alert(
         (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??

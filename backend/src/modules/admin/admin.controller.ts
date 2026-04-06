@@ -56,6 +56,23 @@ export class AdminController {
     return this.admin.getStores();
   }
 
+  /**
+   * Platform verticals (food/grocery/medicine) for a store — alternate path so production
+   * proxies / older route tables cannot shadow `stores/:id/platform-categories`.
+   */
+  @Get('platform-store-categories/:storeId')
+  async getPlatformStoreCategoriesAlt(@Param('storeId') storeId: string) {
+    return this.admin.getStorePlatformCategories(storeId);
+  }
+
+  @Post('platform-store-categories/:storeId')
+  async postPlatformStoreCategoriesAlt(
+    @Param('storeId') storeId: string,
+    @Body() dto: SetStorePlatformCategoriesDto,
+  ) {
+    return this.admin.setStorePlatformCategories(storeId, dto.names);
+  }
+
   @Get('riders')
   async getRiders(@CurrentUser() _user: User) {
     return this.admin.getRiders();
