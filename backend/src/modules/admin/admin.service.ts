@@ -278,6 +278,42 @@ export class AdminService {
     });
   }
 
+  /** Platform verticals (Food / Grocery / Medicine tabs on customer app). */
+  async getStorePlatformCategories(storeId: string) {
+    const store = await this.prisma.store.findUnique({
+      where: { id: storeId },
+      include: { categories: { include: { category: { select: { name: true } } } } },
+    });
+    if (!store) throw new NotFoundException('Store not found');
+    return { names: store.categories.map((c) => c.category.name) };
+  }
+
+  async setStorePlatformCategories(storeId: string, names: string[]) {
+    const store = await this.prisma.store.findUnique({ where: { id: storeId } });
+    if (!store) throw new NotFoundException('Store not found');
+    const slug = /^[a-z0-9_-]+$/;
+    const normalized = [...new Set(names.map((n) => n.trim().toLowerCase()).filter(Boolean))];
+    for (const n of normalized) {
+      if (!slug.test(n)) {
+        throw new BadRequestException(
+          `Invalid category slug "${n}". Use lowercase letters, numbers, hyphen, underscore (e.g. food, grocery, medicine).`,
+        );
+      }
+    }
+    await this.prisma.$transaction(async (tx) => {
+      await tx.storeToCategory.deleteMany({ where: { storeId } });
+      for (const name of normalized) {
+        const cat = await tx.storeCategory.upsert({
+          where: { name },
+          create: { name },
+          update: {},
+        });
+        await tx.storeToCategory.create({ data: { storeId, categoryId: cat.id } });
+      }
+    });
+    return this.getStorePlatformCategories(storeId);
+  }
+
   async getRiders() {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, UseGuards } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { StoresService } from '../stores/stores.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -14,6 +14,7 @@ import { UpdateProductDto } from '../stores/dto/update-product.dto';
 import { PatchPlatformCategoryCommissionDto } from './dto/patch-platform-category-commission.dto';
 import { UpdateStoreCommissionOverrideDto } from './dto/update-store-commission-override.dto';
 import { UpdateStoreStatusDto } from './dto/update-store-status.dto';
+import { SetStorePlatformCategoriesDto } from './dto/set-store-platform-categories.dto';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -94,6 +95,20 @@ export class AdminController {
   @Patch('stores/:storeId/status')
   async patchStoreStatus(@Param('storeId') storeId: string, @Body() dto: UpdateStoreStatusDto) {
     return this.admin.setStoreStatus(storeId, dto.status);
+  }
+
+  /** Which platform tabs show this store (food / grocery / medicine). */
+  @Get('stores/:storeId/platform-categories')
+  async getStorePlatformCategories(@Param('storeId') storeId: string) {
+    return this.admin.getStorePlatformCategories(storeId);
+  }
+
+  @Put('stores/:storeId/platform-categories')
+  async putStorePlatformCategories(
+    @Param('storeId') storeId: string,
+    @Body() dto: SetStorePlatformCategoriesDto,
+  ) {
+    return this.admin.setStorePlatformCategories(storeId, dto.names);
   }
 
   @Get('metrics/charts')

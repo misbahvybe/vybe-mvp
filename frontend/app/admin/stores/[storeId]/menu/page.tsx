@@ -7,7 +7,13 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { GalleryImageInput } from '@/components/ui/GalleryImageInput';
 import api from '@/services/api';
-import { ArrowLeft, UtensilsCrossed } from 'lucide-react';
+import { ArrowLeft, LayoutGrid, UtensilsCrossed } from 'lucide-react';
+
+const PLATFORM_VERTICALS = [
+  { slug: 'food', label: 'Food' },
+  { slug: 'grocery', label: 'Grocery' },
+  { slug: 'medicine', label: 'Medicine' },
+] as const;
 
 interface Category {
   id: string;
@@ -47,6 +53,8 @@ export default function AdminStoreMenuPage() {
     imageUrl: '',
   });
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [platformCategorySlugs, setPlatformCategorySlugs] = useState<string[]>([]);
+  const [platformSaving, setPlatformSaving] = useState(false);
   const [editForm, setEditForm] = useState({
     name: '',
     price: '',
@@ -63,14 +71,19 @@ export default function AdminStoreMenuPage() {
     Promise.all([
       api.get<Category[]>(`/admin/stores/${storeId}/categories`).then((r) => r.data ?? []),
       api.get<Product[]>(`/admin/stores/${storeId}/products`).then((r) => r.data ?? []),
+      api
+        .get<{ names: string[] }>(`/admin/stores/${storeId}/platform-categories`)
+        .then((r) => r.data?.names ?? [])
+        .catch(() => [] as string[]),
       api.get<{ id: string; name: string }[]>('/admin/stores').then((r) => {
         const s = (r.data ?? []).find((x) => x.id === storeId);
         return s?.name ?? '';
       }),
     ])
-      .then(([cats, prods, name]) => {
+      .then(([cats, prods, platformNames, name]) => {
         setCategories(cats);
         setProducts(prods);
+        setPlatformCategorySlugs(platformNames);
         setStoreName(name);
       })
       .catch((e) => {
@@ -103,6 +116,27 @@ export default function AdminStoreMenuPage() {
       fetchAll();
     } catch (e) {
       alert((e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Failed to delete category');
+    }
+  };
+
+  const togglePlatformSlug = (slug: string) => {
+    setPlatformCategorySlugs((prev) =>
+      prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug],
+    );
+  };
+
+  const savePlatformCategories = async () => {
+    if (!storeId) return;
+    setPlatformSaving(true);
+    try {
+      await api.put(`/admin/stores/${storeId}/platform-categories`, { names: platformCategorySlugs });
+    } catch (e) {
+      alert(
+        (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+          'Failed to save platform categories',
+      );
+    } finally {
+      setPlatformSaving(false);
     }
   };
 
@@ -194,7 +228,8 @@ export default function AdminStoreMenuPage() {
         Store menu
       </h1>
       <p className="text-slate-600 text-sm mb-6">
-        Manage categories and products for <span className="font-semibold text-slate-800">{storeName || '…'}</span>
+        Manage menu categories, platform placement (Food / Grocery / Medicine), and products for{' '}
+        <span className="font-semibold text-slate-800">{storeName || '…'}</span>
       </p>
 
       {err && (
@@ -207,6 +242,33 @@ export default function AdminStoreMenuPage() {
         <div className="p-12 text-center text-slate-500">Loading menu…</div>
       ) : (
         <div className="space-y-6">
+          <Card className="p-4">
+            <h2 className="font-semibold text-slate-800 mb-1 flex items-center gap-2">
+              <LayoutGrid className="w-5 h-5 text-primary" />
+              Platform categories
+            </h2>
+            <p className="text-slate-600 text-sm mb-3">
+              Choose where this store appears in the customer app. At least one is required for the store to show under
+              Food, Grocery, or Medicine.
+            </p>
+            <div className="flex flex-wrap gap-4 mb-3">
+              {PLATFORM_VERTICALS.map(({ slug, label }) => (
+                <label key={slug} className="inline-flex items-center gap-2 text-sm text-slate-800 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={platformCategorySlugs.includes(slug)}
+                    onChange={() => togglePlatformSlug(slug)}
+                    className="rounded border-slate-300"
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+            <Button type="button" size="sm" onClick={savePlatformCategories} disabled={platformSaving}>
+              {platformSaving ? 'Saving…' : 'Save platform categories'}
+            </Button>
+          </Card>
+
           <Card className="p-4">
             <h2 className="font-semibold text-slate-800 mb-3">Add category</h2>
             <div className="flex flex-wrap gap-2">
