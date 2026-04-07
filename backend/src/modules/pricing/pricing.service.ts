@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Decimal } from '@prisma/client/runtime/library';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { haversineDistanceKm } from '../../common/geo/haversine';
-import { PaymentMethod } from '@prisma/client';
+import { CheckoutServiceFeeMode, PaymentMethod } from '@prisma/client';
 
 export type OrderQuotePayment = 'COD' | 'CARD';
 
@@ -20,7 +20,21 @@ export interface OrderPricingQuote {
   commissionAmount: Decimal;
   storeAmount: Decimal;
   categorySlugUsed: string | null;
+  /** Whole percent shown on checkout (e.g. 16 = 16%). */
+  codTaxPercent: number;
+  serviceFeeMode: CheckoutServiceFeeMode;
+  /** When mode is PERCENT, the configured percent of (subtotal + delivery). */
+  serviceFeePercent: number;
 }
+
+type ResolvedCheckoutFees = {
+  serviceFeeMode: CheckoutServiceFeeMode;
+  serviceFeeFixed: number;
+  serviceFeePercent: number;
+  /** 0–1 fraction applied to (subtotal + delivery + service) for COD. */
+  codTaxRate: number;
+  cardProcessingRate: number;
+};
 
 @Injectable()
 export class PricingService {
@@ -33,16 +47,44 @@ export class PricingService {
     return Number(this.config.get<string>('DELIVERY_FEE_PER_KM') ?? '45');
   }
 
-  private minServiceFee(): number {
-    return Number(this.config.get<string>('MIN_SERVICE_FEE_PKR') ?? '19.99');
+  /**
+   * DB-backed checkout fees (admin). Falls back to env when row missing (e.g. before migrate).
+   * COD_GST_RATE env: decimal fraction (0.16) or percent (16) — normalized to 0–1.
+   */
+  private async resolveCheckoutFees(): Promise<ResolvedCheckoutFees> {
+    const row = await this.prisma.platformCheckoutSettings.findUnique({ where: { id: 'default' } });
+    const envFee = Number(this.config.get<string>('MIN_SERVICE_FEE_PKR') ?? '19.99');
+    const envCodRaw = Number(this.config.get<string>('COD_GST_RATE') ?? '0.16');
+    const envCodRate = envCodRaw > 1 ? envCodRaw / 100 : envCodRaw;
+    const cardProcessingRate = Number(this.config.get<string>('CARD_PROCESSING_RATE') ?? '0.05');
+    if (!row) {
+      return {
+        serviceFeeMode: CheckoutServiceFeeMode.FIXED,
+        serviceFeeFixed: envFee,
+        serviceFeePercent: 0,
+        codTaxRate: envCodRate,
+        cardProcessingRate,
+      };
+    }
+    const codPct = Number(row.codTaxPercent.toString());
+    return {
+      serviceFeeMode: row.serviceFeeMode,
+      serviceFeeFixed: Number(row.serviceFeeFixed.toString()),
+      serviceFeePercent: Number(row.serviceFeePercent.toString()),
+      codTaxRate: codPct / 100,
+      cardProcessingRate,
+    };
   }
 
-  private codGstRate(): number {
-    return Number(this.config.get<string>('COD_GST_RATE') ?? '0.18');
-  }
-
-  private cardProcessingRate(): number {
-    return Number(this.config.get<string>('CARD_PROCESSING_RATE') ?? '0.05');
+  private computeServiceFee(settings: ResolvedCheckoutFees, subtotal: Decimal, deliveryFee: Decimal): Decimal {
+    if (settings.serviceFeeMode === CheckoutServiceFeeMode.PERCENT) {
+      return subtotal
+        .add(deliveryFee)
+        .mul(settings.serviceFeePercent)
+        .div(100)
+        .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    }
+    return new Decimal(settings.serviceFeeFixed).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
   }
 
   private roadDistanceFactor(): number {
@@ -150,16 +192,17 @@ export class PricingService {
       distanceKm = new Decimal(km.toFixed(4));
     }
     const deliveryFee = distanceKm.mul(this.deliveryPerKm()).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
-    const serviceFee = new Decimal(this.minServiceFee()).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    const fees = await this.resolveCheckoutFees();
+    const serviceFee = this.computeServiceFee(fees, subtotal, deliveryFee);
     const baseBeforeSurcharge = subtotal.add(deliveryFee).add(serviceFee);
 
     let gstAmount = new Decimal(0);
     let cardProcessingAmount = new Decimal(0);
     if (params.paymentMethod === 'COD') {
-      gstAmount = baseBeforeSurcharge.mul(this.codGstRate()).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+      gstAmount = baseBeforeSurcharge.mul(fees.codTaxRate).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
     } else {
       cardProcessingAmount = baseBeforeSurcharge
-        .mul(this.cardProcessingRate())
+        .mul(fees.cardProcessingRate)
         .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
     }
     const totalAmount = baseBeforeSurcharge.add(gstAmount).add(cardProcessingAmount).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
@@ -182,32 +225,36 @@ export class PricingService {
       commissionAmount,
       storeAmount,
       categorySlugUsed,
+      codTaxPercent: fees.codTaxRate * 100,
+      serviceFeeMode: fees.serviceFeeMode,
+      serviceFeePercent: fees.serviceFeePercent,
     };
   }
 
   /** Recompute customer totals when subtotal changes but fees/commission % unchanged. */
-  recomputeFromSubtotal(
+  async recomputeFromSubtotal(
     subtotal: Decimal,
     deliveryFee: Decimal,
     serviceFee: Decimal,
     paymentMethod: PaymentMethod,
     commissionPercentSnapshot: Decimal | null,
-  ): {
+  ): Promise<{
     gstAmount: Decimal;
     cardProcessingAmount: Decimal;
     totalAmount: Decimal;
     commissionAmount: Decimal;
     storeAmount: Decimal;
-  } {
+  }> {
+    const fees = await this.resolveCheckoutFees();
     const baseBeforeSurcharge = subtotal.add(deliveryFee).add(serviceFee);
     let gstAmount = new Decimal(0);
     let cardProcessingAmount = new Decimal(0);
     if (paymentMethod === 'CARD') {
       cardProcessingAmount = baseBeforeSurcharge
-        .mul(this.cardProcessingRate())
+        .mul(fees.cardProcessingRate)
         .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
     } else {
-      gstAmount = baseBeforeSurcharge.mul(this.codGstRate()).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+      gstAmount = baseBeforeSurcharge.mul(fees.codTaxRate).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
     }
     const totalAmount = baseBeforeSurcharge.add(gstAmount).add(cardProcessingAmount).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
     const pct = commissionPercentSnapshot ?? new Decimal(this.defaultCommissionPercent());

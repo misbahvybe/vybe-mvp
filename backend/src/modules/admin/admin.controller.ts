@@ -14,6 +14,7 @@ import { UpdateProductDto } from '../stores/dto/update-product.dto';
 import { CreateProductVariantDto } from '../stores/dto/create-product-variant.dto';
 import { UpdateProductVariantDto } from '../stores/dto/update-product-variant.dto';
 import { PatchPlatformCategoryCommissionDto } from './dto/patch-platform-category-commission.dto';
+import { PatchPlatformCheckoutSettingsDto } from './dto/patch-platform-checkout-settings.dto';
 import { UpdateStoreCommissionOverrideDto } from './dto/update-store-commission-override.dto';
 import { UpdateStoreStatusDto } from './dto/update-store-status.dto';
 import { SetStorePlatformCategoriesDto } from './dto/set-store-platform-categories.dto';
@@ -101,6 +102,16 @@ export class AdminController {
     @Body() dto: PatchPlatformCategoryCommissionDto,
   ) {
     return this.admin.upsertPlatformCategoryCommission(categorySlug, dto.commissionPercent);
+  }
+
+  @Get('pricing/checkout-settings')
+  async getCheckoutSettings(@CurrentUser() _user: User) {
+    return this.admin.getPlatformCheckoutSettings();
+  }
+
+  @Patch('pricing/checkout-settings')
+  async patchCheckoutSettings(@CurrentUser() _user: User, @Body() dto: PatchPlatformCheckoutSettingsDto) {
+    return this.admin.patchPlatformCheckoutSettings(dto);
   }
 
   @Patch('stores/:storeId/commission-override')

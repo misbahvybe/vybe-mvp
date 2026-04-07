@@ -79,9 +79,6 @@ export default function DashboardPage() {
                       <div className="flex-1 min-w-0">
                         <span className="font-medium text-slate-700">{cat.label}</span>
                       </div>
-                      {/* <span className="text-xs bg-slate-400 text-white px-2 py-0.5 rounded-full font-medium shrink-0">
-                        Coming Soon
-                      </span> */}
                     </Card>
                   </div>
                 ) : (

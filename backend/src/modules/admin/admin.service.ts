@@ -5,8 +5,9 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { Role, StoreStatus } from '@prisma/client';
+import { CheckoutServiceFeeMode, Role, StoreStatus } from '@prisma/client';
 import { CreatePartnerDto } from './dto/create-partner.dto';
+import { PatchPlatformCheckoutSettingsDto } from './dto/patch-platform-checkout-settings.dto';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -437,6 +438,41 @@ export class AdminService {
   async listPlatformCategoryCommissions() {
     return this.prisma.platformCategoryCommission.findMany({
       orderBy: { categorySlug: 'asc' },
+    });
+  }
+
+  async getPlatformCheckoutSettings() {
+    const row = await this.prisma.platformCheckoutSettings.findUnique({ where: { id: 'default' } });
+    if (row) return row;
+    return this.prisma.platformCheckoutSettings.create({
+      data: {
+        id: 'default',
+        serviceFeeMode: CheckoutServiceFeeMode.FIXED,
+        serviceFeeFixed: 19.99,
+        serviceFeePercent: 0,
+        codTaxPercent: 16,
+      },
+    });
+  }
+
+  async patchPlatformCheckoutSettings(dto: PatchPlatformCheckoutSettingsDto) {
+    await this.getPlatformCheckoutSettings();
+    const data: {
+      serviceFeeMode?: CheckoutServiceFeeMode;
+      serviceFeeFixed?: number;
+      serviceFeePercent?: number;
+      codTaxPercent?: number;
+    } = {};
+    if (dto.serviceFeeMode !== undefined) data.serviceFeeMode = dto.serviceFeeMode;
+    if (dto.serviceFeeFixed !== undefined) data.serviceFeeFixed = dto.serviceFeeFixed;
+    if (dto.serviceFeePercent !== undefined) data.serviceFeePercent = dto.serviceFeePercent;
+    if (dto.codTaxPercent !== undefined) data.codTaxPercent = dto.codTaxPercent;
+    if (Object.keys(data).length === 0) {
+      return this.prisma.platformCheckoutSettings.findUniqueOrThrow({ where: { id: 'default' } });
+    }
+    return this.prisma.platformCheckoutSettings.update({
+      where: { id: 'default' },
+      data,
     });
   }
 

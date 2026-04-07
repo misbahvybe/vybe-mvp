@@ -48,6 +48,7 @@ export default function AdminStoreMenuPage() {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newProduct, setNewProduct] = useState({
     name: '',
+    description: '',
     price: '',
     stock: '999',
     productCategoryId: '',
@@ -59,6 +60,7 @@ export default function AdminStoreMenuPage() {
   const [newVariant, setNewVariant] = useState({ name: '', price: '', sortOrder: '0' });
   const [editForm, setEditForm] = useState({
     name: '',
+    description: '',
     price: '',
     stock: '',
     productCategoryId: '',
@@ -147,13 +149,14 @@ export default function AdminStoreMenuPage() {
     try {
       await api.post(`/admin/stores/${storeId}/products`, {
         name: newProduct.name.trim(),
+        description: newProduct.description.trim() || undefined,
         price: Number(newProduct.price),
         stock: Number(newProduct.stock) || 999,
         productCategoryId: newProduct.productCategoryId || undefined,
         imageUrl: newProduct.imageUrl.trim() || undefined,
         isAvailable: true,
       });
-      setNewProduct({ name: '', price: '', stock: '999', productCategoryId: '', imageUrl: '' });
+      setNewProduct({ name: '', description: '', price: '', stock: '999', productCategoryId: '', imageUrl: '' });
       fetchAll();
     } catch (e) {
       alert((e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Failed to add product');
@@ -164,6 +167,7 @@ export default function AdminStoreMenuPage() {
     setEditingId(p.id);
     setEditForm({
       name: p.name,
+      description: p.description ?? '',
       price: String(p.price),
       stock: String(p.stock),
       productCategoryId: p.productCategoryId ?? '',
@@ -177,6 +181,7 @@ export default function AdminStoreMenuPage() {
     try {
       await api.patch(`/admin/stores/${storeId}/products/${editingId}`, {
         name: editForm.name.trim(),
+        description: editForm.description.trim() || undefined,
         price: Number(editForm.price),
         stock: Number(editForm.stock),
         productCategoryId: editForm.productCategoryId || undefined,
@@ -387,6 +392,17 @@ export default function AdminStoreMenuPage() {
                 ))}
               </select>
               <div className="sm:col-span-2 lg:col-span-3">
+                <span className="block text-xs font-medium text-slate-600 mb-1">
+                  Description (deals: list included items)
+                </span>
+                <textarea
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm min-h-[88px] resize-y"
+                  placeholder='e.g. "1 Zinger Burger + 1 Fries + 1 Drink"'
+                  value={newProduct.description}
+                  onChange={(e) => setNewProduct((x) => ({ ...x, description: e.target.value }))}
+                />
+              </div>
+              <div className="sm:col-span-2 lg:col-span-3">
                 <span className="block text-xs font-medium text-slate-600 mb-1">Product image</span>
                 <GalleryImageInput
                   idPrefix="admin-new-product"
@@ -457,6 +473,16 @@ export default function AdminStoreMenuPage() {
                                   </option>
                                 ))}
                               </select>
+                              <div className="sm:col-span-2">
+                                <span className="block text-xs font-medium text-slate-600 mb-1">
+                                  Description (deal / item details)
+                                </span>
+                                <textarea
+                                  className="w-full border rounded px-2 py-1.5 text-sm min-h-[88px] resize-y"
+                                  value={editForm.description}
+                                  onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
+                                />
+                              </div>
                               <div className="sm:col-span-2">
                                 <span className="block text-xs font-medium text-slate-600 mb-1">Product image</span>
                                 <GalleryImageInput
@@ -595,7 +621,14 @@ export default function AdminStoreMenuPage() {
                         </>
                       ) : (
                         <>
-                          <td className="p-3 font-medium">{p.name}</td>
+                          <td className="p-3 font-medium">
+                            <div>{p.name}</div>
+                            {p.description ? (
+                              <p className="text-xs text-slate-500 font-normal mt-1 whitespace-pre-wrap max-w-xs">
+                                {p.description}
+                              </p>
+                            ) : null}
+                          </td>
                           <td className="p-3 text-slate-600">{p.category?.name ?? '—'}</td>
                           <td className="p-3 text-right">Rs {Number(p.price).toLocaleString()}</td>
                           <td className="p-3 text-slate-600">

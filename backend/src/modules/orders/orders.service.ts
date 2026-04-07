@@ -115,6 +115,9 @@ export class OrdersService {
       commissionAmount: q.commissionAmount.toFixed(2),
       storeAmount: q.storeAmount.toFixed(2),
       categorySlugUsed: q.categorySlugUsed,
+      codTaxPercent: q.codTaxPercent.toFixed(2),
+      serviceFeeMode: q.serviceFeeMode,
+      serviceFeePercent: q.serviceFeePercent.toFixed(2),
     };
   }
 
@@ -848,7 +851,7 @@ export class OrdersService {
       throw new BadRequestException('Order must contain at least one item with positive amount');
     }
 
-    const recomputed = this.pricing.recomputeFromSubtotal(
+    const recomputed = await this.pricing.recomputeFromSubtotal(
       subtotalDecimal,
       order.deliveryFee,
       order.serviceFee,

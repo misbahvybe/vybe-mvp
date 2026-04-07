@@ -59,6 +59,12 @@ enum StoreStatus {
   INACTIVE
 }
 
+/// How the platform service fee is calculated at checkout.
+enum CheckoutServiceFeeMode {
+  FIXED
+  PERCENT
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // 1️⃣ USERS
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -204,6 +210,21 @@ model PlatformCategoryCommission {
   updatedAt         DateTime @updatedAt @map("updated_at")
 }
 
+/// Singleton row (`id = "default"`): customer checkout service fee + COD tax % (admin-editable).
+model PlatformCheckoutSettings {
+  id String @id @default("default")
+
+  serviceFeeMode CheckoutServiceFeeMode @default(FIXED) @map("service_fee_mode")
+  /// When mode is FIXED: flat amount (e.g. PKR). When PERCENT: ignored.
+  serviceFeeFixed Decimal @default(19.99) @map("service_fee_fixed") @db.Decimal(10, 2)
+  /// When mode is PERCENT: applied to (subtotal + delivery fee), before COD tax. When FIXED: ignored.
+  serviceFeePercent Decimal @default(0) @map("service_fee_percent") @db.Decimal(5, 2)
+  /// COD-only tax as a percent (e.g. 16 = 16%) on (subtotal + delivery + service fee).
+  codTaxPercent Decimal @default(16) @map("cod_tax_percent") @db.Decimal(5, 2)
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+}
+
 model StoreToCategory {
   storeId    String @map("store_id")
   categoryId String @map("category_id")
@@ -285,7 +306,7 @@ model Order {
   subtotalAmount   Decimal       @map("subtotal_amount") @db.Decimal(10, 2)
   deliveryFee      Decimal       @default(0) @map("delivery_fee") @db.Decimal(10, 2)
   serviceFee       Decimal       @default(0) @map("service_fee") @db.Decimal(10, 2)
-  /// COD: 18% GST on (subtotal + delivery + service). Card: 0.
+  /// COD: configurable % on (subtotal + delivery + service). Card: 0.
   gstAmount        Decimal       @default(0) @map("gst_amount") @db.Decimal(10, 2)
   /// Card: 5% processing on (subtotal + delivery + service). COD: 0.
   cardProcessingAmount Decimal   @default(0) @map("card_processing_amount") @db.Decimal(10, 2)

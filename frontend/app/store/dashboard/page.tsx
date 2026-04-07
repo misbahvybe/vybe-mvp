@@ -68,7 +68,19 @@ export default function StoreDashboardPage() {
     history: { orderId: string; createdAt: string; storeAmount: number; commissionAmount: number }[];
   } | null>(null);
   const [categories, setCategories] = useState<{ id: string; name: string; sortOrder: number; products: unknown[] }[]>([]);
-  const [products, setProducts] = useState<{ id: string; name: string; price: number; stock: number; isAvailable: boolean; isOutOfStock: boolean; productCategoryId?: string | null; category?: { name: string } }[]>([]);
+  const [products, setProducts] = useState<
+    {
+      id: string;
+      name: string;
+      description?: string | null;
+      price: number;
+      stock: number;
+      isAvailable: boolean;
+      isOutOfStock: boolean;
+      productCategoryId?: string | null;
+      category?: { name: string };
+    }[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
@@ -392,7 +404,18 @@ function StoreProductsTab({
   onRefresh,
 }: {
   categories: { id: string; name: string; products: unknown[] }[];
-  products: { id: string; name: string; price: number; stock: number; isAvailable: boolean; isOutOfStock: boolean; imageUrl?: string | null; productCategoryId?: string | null; category?: { name: string } }[];
+  products: {
+    id: string;
+    name: string;
+    description?: string | null;
+    price: number;
+    stock: number;
+    isAvailable: boolean;
+    isOutOfStock: boolean;
+    imageUrl?: string | null;
+    productCategoryId?: string | null;
+    category?: { name: string };
+  }[];
   loading: boolean;
   onRefresh: () => void;
 }) {
@@ -400,8 +423,24 @@ function StoreProductsTab({
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [newCategoryName, setNewCategoryName] = useState('');
-  const [newProduct, setNewProduct] = useState({ name: '', price: '', stock: '999', productCategoryId: '', imageUrl: '', isAvailable: true });
-  const [editProduct, setEditProduct] = useState({ name: '', price: '', stock: 0, productCategoryId: '', imageUrl: '', isAvailable: true });
+  const [newProduct, setNewProduct] = useState({
+    name: '',
+    description: '',
+    price: '',
+    stock: '999',
+    productCategoryId: '',
+    imageUrl: '',
+    isAvailable: true,
+  });
+  const [editProduct, setEditProduct] = useState({
+    name: '',
+    description: '',
+    price: '',
+    stock: 0,
+    productCategoryId: '',
+    imageUrl: '',
+    isAvailable: true,
+  });
   const [submitting, setSubmitting] = useState(false);
 
   const addCategory = async () => {
@@ -425,13 +464,22 @@ function StoreProductsTab({
     try {
       await api.post('/store-owner/products', {
         name: newProduct.name.trim(),
+        description: newProduct.description.trim() || undefined,
         price: Number(newProduct.price),
         stock: Number(newProduct.stock) || 999,
         productCategoryId: newProduct.productCategoryId || undefined,
         imageUrl: newProduct.imageUrl.trim() || undefined,
         isAvailable: newProduct.isAvailable,
       });
-      setNewProduct({ name: '', price: '', stock: '999', productCategoryId: '', imageUrl: '', isAvailable: true });
+      setNewProduct({
+        name: '',
+        description: '',
+        price: '',
+        stock: '999',
+        productCategoryId: '',
+        imageUrl: '',
+        isAvailable: true,
+      });
       setShowAddProduct(false);
       onRefresh();
     } catch (e) {
@@ -450,10 +498,20 @@ function StoreProductsTab({
     }
   };
 
-  const startEdit = (p: { id: string; name: string; price: number; stock: number; productCategoryId?: string | null; imageUrl?: string | null; isAvailable?: boolean }) => {
+  const startEdit = (p: {
+    id: string;
+    name: string;
+    description?: string | null;
+    price: number;
+    stock: number;
+    productCategoryId?: string | null;
+    imageUrl?: string | null;
+    isAvailable?: boolean;
+  }) => {
     setEditingProductId(p.id);
     setEditProduct({
       name: p.name,
+      description: p.description ?? '',
       price: String(p.price),
       stock: Number(p.stock),
       productCategoryId: p.productCategoryId ?? '',
@@ -468,6 +526,7 @@ function StoreProductsTab({
     try {
       await api.patch(`/store-owner/products/${editingProductId}`, {
         name: editProduct.name.trim(),
+        description: editProduct.description.trim() || undefined,
         price: Number(editProduct.price),
         stock: Number(editProduct.stock),
         productCategoryId: editProduct.productCategoryId || undefined,
@@ -530,6 +589,12 @@ function StoreProductsTab({
             placeholder="Name"
             className="w-full px-3 py-2 border rounded-button mb-2"
           />
+          <textarea
+            value={editProduct.description}
+            onChange={(e) => setEditProduct((f) => ({ ...f, description: e.target.value }))}
+            placeholder="Description (e.g. deal contents)"
+            className="w-full px-3 py-2 border rounded-button mb-2 min-h-[80px] resize-y text-sm"
+          />
           <div className="mb-2">
             <span className="block text-xs font-medium text-slate-600 mb-1">Product image</span>
             <GalleryImageInput
@@ -585,6 +650,12 @@ function StoreProductsTab({
             onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
             placeholder="Product name"
             className="w-full px-3 py-2 border rounded-button mb-2"
+          />
+          <textarea
+            value={newProduct.description}
+            onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}
+            placeholder="Description (e.g. deal: 1 Burger + Fries + Drink)"
+            className="w-full px-3 py-2 border rounded-button mb-2 min-h-[80px] resize-y text-sm"
           />
           <div className="mb-2">
             <span className="block text-xs font-medium text-slate-600 mb-1">Product image</span>
@@ -650,6 +721,9 @@ function StoreProductsTab({
                   <Card key={p.id} className="p-3 flex justify-between items-center">
                     <div>
                       <p className="font-medium">{p.name}</p>
+                      {p.description ? (
+                        <p className="text-xs text-slate-500 mt-0.5 whitespace-pre-wrap line-clamp-2">{p.description}</p>
+                      ) : null}
                       <p className="text-sm text-slate-600">Rs {p.price} · Stock: {Number(p.stock)} {p.isOutOfStock && '(Out)'}</p>
                     </div>
                     <div className="flex gap-2">
@@ -676,6 +750,9 @@ function StoreProductsTab({
                 <Card key={p.id} className="p-3 flex justify-between items-center">
                   <div>
                     <p className="font-medium">{p.name}</p>
+                    {p.description ? (
+                      <p className="text-xs text-slate-500 mt-0.5 whitespace-pre-wrap line-clamp-2">{p.description}</p>
+                    ) : null}
                     <p className="text-sm text-slate-600">Rs {p.price} · Stock: {Number(p.stock)}</p>
                   </div>
                   <div className="flex gap-2">

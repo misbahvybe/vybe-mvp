@@ -17,6 +17,16 @@ interface StoreRow {
   commissionPercentOverride: number | null;
 }
 
+type CheckoutServiceFeeMode = 'FIXED' | 'PERCENT';
+
+interface PlatformCheckoutSettings {
+  id: string;
+  serviceFeeMode: CheckoutServiceFeeMode;
+  serviceFeeFixed: string | number;
+  serviceFeePercent: string | number;
+  codTaxPercent: string | number;
+}
+
 export default function AdminPricingPage() {
   const [platform, setPlatform] = useState<PlatformCommission[]>([]);
   const [platformEdits, setPlatformEdits] = useState<Record<string, string>>({});
@@ -27,14 +37,24 @@ export default function AdminPricingPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [message, setMessage] = useState('');
+  const [checkoutSettings, setCheckoutSettings] = useState<PlatformCheckoutSettings | null>(null);
+  const [checkoutDraft, setCheckoutDraft] = useState({
+    serviceFeeMode: 'FIXED' as CheckoutServiceFeeMode,
+    serviceFeeFixed: '',
+    serviceFeePercent: '',
+    codTaxPercent: '',
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
     setMessage('');
     try {
-      const [pc, st] = await Promise.all([
+      const [pc, st, co] = await Promise.all([
         api.get<PlatformCommission[]>('/admin/pricing/platform-category-commissions'),
         api.get<StoreRow[]>('/admin/stores'),
+        api
+          .get<PlatformCheckoutSettings>('/admin/pricing/checkout-settings')
+          .catch(() => ({ data: null as PlatformCheckoutSettings | null })),
       ]);
       const list = pc.data ?? [];
       setPlatform(list);
@@ -51,6 +71,16 @@ export default function AdminPricingPage() {
           s.commissionPercentOverride != null ? String(s.commissionPercentOverride) : '';
       }
       setStoreEdits(sedits);
+      const cs = co.data;
+      if (cs) {
+        setCheckoutSettings(cs);
+        setCheckoutDraft({
+          serviceFeeMode: cs.serviceFeeMode,
+          serviceFeeFixed: String(cs.serviceFeeFixed),
+          serviceFeePercent: String(cs.serviceFeePercent),
+          codTaxPercent: String(cs.codTaxPercent),
+        });
+      }
     } catch {
       setMessage('Failed to load pricing data.');
     } finally {
@@ -118,6 +148,42 @@ export default function AdminPricingPage() {
     }
   };
 
+  const saveCheckoutSettings = async () => {
+    const fixed = Number(checkoutDraft.serviceFeeFixed);
+    const pct = Number(checkoutDraft.serviceFeePercent);
+    const cod = Number(checkoutDraft.codTaxPercent);
+    if (checkoutDraft.serviceFeeMode === 'FIXED' && (Number.isNaN(fixed) || fixed < 0)) {
+      setMessage('Service fee (fixed) must be a number ≥ 0.');
+      return;
+    }
+    if (checkoutDraft.serviceFeeMode === 'PERCENT' && (Number.isNaN(pct) || pct < 0 || pct > 100)) {
+      setMessage('Service fee (percent) must be between 0 and 100.');
+      return;
+    }
+    if (Number.isNaN(cod) || cod < 0 || cod > 100) {
+      setMessage('COD tax must be between 0 and 100 (%).');
+      return;
+    }
+    setSaving('checkout');
+    setMessage('');
+    try {
+      await api.patch('/admin/pricing/checkout-settings', {
+        serviceFeeMode: checkoutDraft.serviceFeeMode,
+        serviceFeeFixed: fixed,
+        serviceFeePercent: pct,
+        codTaxPercent: cod,
+      });
+      setMessage('Checkout fees saved.');
+      await load();
+    } catch (e: unknown) {
+      const msg =
+        (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Save failed';
+      setMessage(String(msg));
+    } finally {
+      setSaving(null);
+    }
+  };
+
   const saveStoreCommission = async (storeId: string) => {
     const raw = storeEdits[storeId]?.trim();
     let body: { commissionPercentOverride: number | null };
@@ -168,6 +234,87 @@ export default function AdminPricingPage() {
           {message}
         </p>
       )}
+
+      <h2 className="text-lg font-semibold text-slate-800 mb-2">Customer checkout (service fee &amp; COD tax)</h2>
+      <Card className="p-4 mb-6">
+        <p className="text-sm text-slate-600 mb-4">
+          Service fee is added before COD tax. Tax applies to <strong>subtotal + delivery + service fee</strong>.
+          Delivery per-km still uses server environment settings.
+        </p>
+        {checkoutSettings ? (
+          <div className="space-y-4 max-w-lg">
+            <div>
+              <span className="block text-xs font-medium text-slate-600 mb-2">Service fee type</span>
+              <div className="flex flex-wrap gap-4">
+                <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="radio"
+                    name="sfmode"
+                    checked={checkoutDraft.serviceFeeMode === 'FIXED'}
+                    onChange={() => setCheckoutDraft((d) => ({ ...d, serviceFeeMode: 'FIXED' }))}
+                    className="rounded-full border-slate-300"
+                  />
+                  Fixed amount (PKR)
+                </label>
+                <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="radio"
+                    name="sfmode"
+                    checked={checkoutDraft.serviceFeeMode === 'PERCENT'}
+                    onChange={() => setCheckoutDraft((d) => ({ ...d, serviceFeeMode: 'PERCENT' }))}
+                    className="rounded-full border-slate-300"
+                  />
+                  Percent of (subtotal + delivery)
+                </label>
+              </div>
+            </div>
+            {checkoutDraft.serviceFeeMode === 'FIXED' ? (
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Fixed service fee (PKR)</label>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  className="w-full max-w-xs px-2 py-1.5 border border-slate-300 rounded-lg"
+                  value={checkoutDraft.serviceFeeFixed}
+                  onChange={(e) => setCheckoutDraft((d) => ({ ...d, serviceFeeFixed: e.target.value }))}
+                />
+              </div>
+            ) : (
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Service fee (%)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.01}
+                  className="w-full max-w-xs px-2 py-1.5 border border-slate-300 rounded-lg"
+                  value={checkoutDraft.serviceFeePercent}
+                  onChange={(e) => setCheckoutDraft((d) => ({ ...d, serviceFeePercent: e.target.value }))}
+                />
+              </div>
+            )}
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">COD tax (%)</label>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step={0.01}
+                className="w-full max-w-xs px-2 py-1.5 border border-slate-300 rounded-lg"
+                value={checkoutDraft.codTaxPercent}
+                onChange={(e) => setCheckoutDraft((d) => ({ ...d, codTaxPercent: e.target.value }))}
+              />
+              <p className="text-xs text-slate-500 mt-1">Default after migration: 16%. Set to 0 to disable COD surcharge.</p>
+            </div>
+            <Button type="button" size="sm" loading={saving === 'checkout'} onClick={saveCheckoutSettings}>
+              Save checkout settings
+            </Button>
+          </div>
+        ) : (
+          <p className="text-sm text-slate-500">Could not load checkout settings.</p>
+        )}
+      </Card>
 
       <h2 className="text-lg font-semibold text-slate-800 mb-2">Category defaults</h2>
       <Card className="overflow-hidden mb-6">

@@ -15,6 +15,7 @@ import api from '@/services/api';
 interface Product {
   id: string;
   name: string;
+  description?: string | null;
   price: number;
   stock?: number;
   imageUrl: string | null;
@@ -147,7 +148,12 @@ export default function StoreDetailPage() {
 
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-slate-800">{p.name}</p>
-                          <p className="text-accent font-semibold">Rs {unitPrice.toFixed(0)}</p>
+                          {p.description ? (
+                            <p className="text-sm text-slate-600 mt-1 whitespace-pre-wrap border-l-2 border-primary/30 pl-2">
+                              {p.description}
+                            </p>
+                          ) : null}
+                          <p className="text-accent font-semibold mt-2">Rs {unitPrice.toFixed(0)}</p>
 
                           {variants.length > 0 && (
                             <div className="mt-2 flex flex-wrap gap-2">
@@ -166,6 +172,7 @@ export default function StoreDetailPage() {
                                     } ${!available ? 'cursor-not-allowed' : ''}`}
                                   >
                                     {v.name}
+                                    <span className="text-slate-500 font-normal"> · Rs {Number(v.price).toFixed(0)}</span>
                                   </button>
                                 );
                               })}

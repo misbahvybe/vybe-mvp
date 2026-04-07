@@ -22,6 +22,9 @@ type OrderQuote = {
   gstAmount: string;
   cardProcessingAmount: string;
   totalAmount: string;
+  codTaxPercent?: string;
+  serviceFeeMode?: 'FIXED' | 'PERCENT';
+  serviceFeePercent?: string;
 };
 
 function CheckoutContent() {
@@ -196,14 +199,24 @@ function CheckoutContent() {
             </span>
           </div>
           <div className="flex justify-between py-2 text-slate-600">
-            <span>Service fee</span>
+            <span>
+              Service fee
+              {quote?.serviceFeeMode === 'PERCENT' && quote.serviceFeePercent != null ? (
+                <span className="text-slate-400 font-normal"> ({Number(quote.serviceFeePercent)}% of subtotal + delivery)</span>
+              ) : null}
+            </span>
             <span>
               {quoteLoading ? '…' : quote ? `Rs ${Number(quote.serviceFee).toFixed(2)}` : '—'}
             </span>
           </div>
           {quote && Number(quote.gstAmount) > 0 && (
             <div className="flex justify-between py-2 text-slate-600">
-              <span>GST (COD)</span>
+              <span>
+                COD tax
+                {quote.codTaxPercent != null ? (
+                  <span className="text-slate-400 font-normal"> ({Number(quote.codTaxPercent)}%)</span>
+                ) : null}
+              </span>
               <span>Rs {Number(quote.gstAmount).toFixed(2)}</span>
             </div>
           )}
