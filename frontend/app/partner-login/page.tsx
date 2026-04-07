@@ -45,7 +45,7 @@ export default function PartnerLoginPage() {
       <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-8 pb-20 bg-surface rounded-t-3xl w-full min-w-0">
         <Card className="w-full max-w-sm sm:max-w-md lg:max-w-lg">
           <h1 className="text-xl font-bold text-slate-800 mb-1">Partner Login</h1>
-          <p className="text-slate-600 text-sm mb-6">Riders & Store Owners – sign in with your email/phone and password</p>
+          <p className="text-slate-600 text-sm mb-6">Captains &amp; Store Owners – sign in with your email/phone and password</p>
           {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
           <form onSubmit={handleLogin}>
             <label className="block text-sm font-medium text-slate-700 mb-2">Email or phone</label>

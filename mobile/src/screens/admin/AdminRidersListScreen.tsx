@@ -32,7 +32,7 @@ export function AdminRidersListScreen() {
 
   return (
     <PartnerScreenShell
-      title="Riders"
+      title="Captains"
       showBack
       onBack={() => navigation.goBack()}
       scrollable={false}
@@ -48,7 +48,7 @@ export function AdminRidersListScreen() {
             data={riders}
             keyExtractor={(x) => x.id}
             contentContainerStyle={{ padding: 16, paddingBottom: 24, gap: 10 }}
-            ListEmptyComponent={<Text style={styles.empty}>No riders.</Text>}
+            ListEmptyComponent={<Text style={styles.empty}>No captains.</Text>}
             renderItem={({ item }) => (
               <View style={styles.card}>
                 <Text style={styles.name}>{item.name}</Text>

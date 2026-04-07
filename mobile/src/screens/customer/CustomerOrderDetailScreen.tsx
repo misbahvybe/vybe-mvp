@@ -39,8 +39,8 @@ const STATUS_LABELS: Record<string, string> = {
   STORE_ACCEPTED: 'Accepted by store',
   STORE_REJECTED: 'Rejected by store',
   READY_FOR_PICKUP: 'Ready for pickup',
-  RIDER_ASSIGNED: 'Rider assigned',
-  RIDER_ACCEPTED: 'Rider accepted',
+  RIDER_ASSIGNED: 'Captain assigned',
+  RIDER_ACCEPTED: 'Captain accepted',
   PICKED_UP: 'Picked up',
   DELIVERED: 'Delivered',
   CANCELLED: 'Cancelled',
@@ -173,7 +173,7 @@ export function CustomerOrderDetailScreen() {
 
         {order.rider && (
           <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Rider</Text>
+            <Text style={styles.sectionTitle}>Captain</Text>
             <Text style={styles.bodyText}>
               {order.rider.name} — {order.rider.phone}
             </Text>

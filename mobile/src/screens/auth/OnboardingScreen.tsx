@@ -11,7 +11,7 @@ export function OnboardingScreen() {
         <Text style={styles.logo}>VYBE Superapp</Text>
         <Text style={styles.title}>All your orders, one super app</Text>
         <Text style={styles.subtitle}>
-          Customers order, stores manage menus, riders deliver, admins control finances – all in
+          Customers order, stores manage menus, captains deliver, admins control finances – all in
           one place.
         </Text>
 
@@ -29,9 +29,9 @@ export function OnboardingScreen() {
             </Text>
           </View>
           <View style={styles.slide}>
-            <Text style={styles.slideTitle}>For riders & admins</Text>
+            <Text style={styles.slideTitle}>For captains & admins</Text>
             <Text style={styles.slideText}>
-              Riders get assigned orders and earnings; admins control payouts, riders and stores.
+              Captains get assigned orders and earnings; admins control payouts, captains and stores.
             </Text>
           </View>
         </View>

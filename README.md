@@ -1,6 +1,6 @@
 # VYBE Superapp – Multi-Role Delivery Platform MVP
 
-Production-grade MVP for a Lahore-based delivery platform (Customer, Rider, Store, Admin).
+Production-grade MVP for a Lahore-based delivery platform (Customer, Captain, Store, Admin).
 
 ## Tech Stack
 
@@ -53,9 +53,9 @@ vybe-project/
 ## Roles
 
 - **Customer:** Browse stores, cart, place order, track delivery
-- **Rider:** Accept orders, map route, mark picked/delivered
+- **Captain:** Accept orders, map route, mark picked/delivered
 - **Store:** Accept orders, mark ready, view earnings
-- **Admin:** Users, approve stores, assign riders, analytics, pricing & commission
+- **Admin:** Users, approve stores, assign captains, analytics, pricing & commission
 
 ## Environment Variables
 

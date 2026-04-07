@@ -92,7 +92,7 @@ export default function AdminDashboardPage() {
           <p className="text-2xl font-bold text-slate-800">Rs {(metrics?.totalRevenue ?? 0).toLocaleString()}</p>
         </Card>
         <Card className="p-4">
-          <p className="text-xs text-slate-500 uppercase">Active Riders</p>
+          <p className="text-xs text-slate-500 uppercase">Active Captains</p>
           <p className="text-2xl font-bold text-slate-800">{metrics?.activeRiders ?? 0}</p>
         </Card>
         <Card className="p-4">
@@ -127,7 +127,7 @@ export default function AdminDashboardPage() {
               <p className="font-semibold">Rs {metrics.contributionMargin.serviceFee}</p>
             </div>
             <div>
-              <p className="text-slate-500">Rider Cost</p>
+              <p className="text-slate-500">Captain Cost</p>
               <p className="font-semibold text-red-600">-Rs {metrics.contributionMargin.riderCost.toFixed(0)}</p>
             </div>
             <div>
@@ -230,7 +230,7 @@ export default function AdminDashboardPage() {
               <DollarSign className="w-10 h-10 text-accent" />
               <div>
                 <p className="font-semibold text-slate-800">Invite Partner</p>
-                <p className="text-sm text-slate-500">Create rider or store invite</p>
+                <p className="text-sm text-slate-500">Create captain or store invite</p>
               </div>
             </div>
             <ChevronRight className="w-5 h-5 text-slate-400" />

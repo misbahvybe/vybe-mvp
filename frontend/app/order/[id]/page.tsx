@@ -77,8 +77,8 @@ const STATUS_LABELS: Record<string, string> = {
   STORE_ACCEPTED: 'Accepted by store',
   STORE_REJECTED: 'Rejected by store',
   READY_FOR_PICKUP: 'Ready for pickup',
-  RIDER_ASSIGNED: 'Rider assigned',
-  RIDER_ACCEPTED: 'Rider accepted',
+  RIDER_ASSIGNED: 'Captain assigned',
+  RIDER_ACCEPTED: 'Captain accepted',
   PICKED_UP: 'Picked up',
   DELIVERED: 'Delivered',
   CANCELLED: 'Cancelled',
@@ -196,13 +196,13 @@ export default function OrderDetailPage() {
                     onChange={(e) => setRiderId(e.target.value)}
                     className="flex-1 min-w-[120px] px-3 py-2 rounded-button border border-slate-300"
                   >
-                    <option value="">Select rider</option>
+                    <option value="">Select captain</option>
                     {riders.map((r) => (
                       <option key={r.id} value={r.id}>{r.name} ({r.phone})</option>
                     ))}
                   </select>
                   <Button size="sm" disabled={!riderId || loading} onClick={() => updateStatus('RIDER_ASSIGNED', { riderId })}>
-                    Assign Rider
+                    Assign Captain
                   </Button>
                 </div>
               )}
@@ -244,7 +244,7 @@ export default function OrderDetailPage() {
         )}
         {order.rider && (
           <Card className="mb-4">
-            <p className="text-sm font-medium text-slate-700 mb-1">Rider</p>
+            <p className="text-sm font-medium text-slate-700 mb-1">Captain</p>
             <p className="text-slate-600 text-sm">{order.rider.name} – {order.rider.phone}</p>
           </Card>
         )}

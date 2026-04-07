@@ -34,7 +34,7 @@ const STATUS_LABELS: Record<string, string> = {
   STORE_ACCEPTED: 'Preparing',
   STORE_REJECTED: 'Rejected',
   READY_FOR_PICKUP: 'Ready for pickup',
-  RIDER_ASSIGNED: 'Rider assigned',
+  RIDER_ASSIGNED: 'Captain assigned',
   RIDER_ACCEPTED: 'Accepted',
   PICKED_UP: 'Picked up',
   DELIVERED: 'Delivered',
@@ -76,14 +76,14 @@ function AdminOrdersContent() {
 
   const handleReassign = async (order: Order) => {
     if (riders.length === 0) {
-      alert('No active riders available to assign.');
+      alert('No active captains available to assign.');
       return;
     }
     const options = riders
       .map((r, idx) => `${idx + 1}) ${r.name} (${r.phone})`)
       .join('\n');
     const input = prompt(
-      `Select new rider for order #${order.id.slice(-8)}:\n${options}\n\nEnter number (1-${riders.length}):`,
+      `Select new captain for order #${order.id.slice(-8)}:\n${options}\n\nEnter number (1-${riders.length}):`,
     );
     if (!input) return;
     const index = Number(input) - 1;
@@ -103,7 +103,7 @@ function AdminOrdersContent() {
     } catch (e) {
       alert(
         (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-          'Failed to reassign rider',
+          'Failed to reassign captain',
       );
     } finally {
       setReassigningId(null);
@@ -129,7 +129,7 @@ function AdminOrdersContent() {
                   <th className="text-left p-3 font-medium">Order</th>
                   <th className="text-left p-3 font-medium">Customer</th>
                   <th className="text-left p-3 font-medium">Store</th>
-                  <th className="text-left p-3 font-medium">Rider</th>
+                  <th className="text-left p-3 font-medium">Captain</th>
                   <th className="text-left p-3 font-medium">Pick</th>
                   <th className="text-left p-3 font-medium">Status</th>
                   <th className="text-right p-3 font-medium">Total</th>

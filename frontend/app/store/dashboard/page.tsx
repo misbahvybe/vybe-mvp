@@ -259,7 +259,7 @@ export default function StoreDashboardPage() {
                   {readyForPickup.map((o) => (
                     <Card key={o.id} className="p-4 border-l-4 border-green-400">
                       <p className="font-bold text-slate-800">#{o.id.slice(-8).toUpperCase()}</p>
-                      <p className="text-sm text-slate-500">Waiting for rider</p>
+                      <p className="text-sm text-slate-500">Waiting for captain</p>
                     </Card>
                   ))}
                 </div>

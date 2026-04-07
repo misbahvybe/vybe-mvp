@@ -27,7 +27,7 @@ export default function AdminRidersPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-slate-800 mb-4">Riders</h1>
+      <h1 className="text-2xl font-bold text-slate-800 mb-4">Captains</h1>
       <Card className="overflow-hidden">
         {loading ? (
           <div className="p-8 text-center">
@@ -70,7 +70,7 @@ export default function AdminRidersPage() {
             </table>
           </div>
         )}
-        {riders.length === 0 && !loading && <p className="p-8 text-center text-slate-500">No riders</p>}
+        {riders.length === 0 && !loading && <p className="p-8 text-center text-slate-500">No captains</p>}
       </Card>
     </div>
   );

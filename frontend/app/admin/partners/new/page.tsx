@@ -84,7 +84,7 @@ export default function CreatePartnerPage() {
               onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as 'RIDER' | 'STORE_OWNER' }))}
               className="w-full px-4 py-3 rounded-button border border-slate-300 focus:ring-2 focus:ring-primary outline-none mb-4"
             >
-              <option value="RIDER">Rider</option>
+              <option value="RIDER">Captain</option>
               <option value="STORE_OWNER">Store Owner</option>
             </select>
             <label className="flex items-center gap-2 mb-4">

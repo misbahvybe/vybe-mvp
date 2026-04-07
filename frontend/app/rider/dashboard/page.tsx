@@ -203,7 +203,7 @@ export default function RiderDashboardPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <StickyHeader title="Rider Dashboard" wideShell />
+      <StickyHeader title="Captain Dashboard" wideShell />
       <ContentPanel>
         <div className="border-b border-slate-200 bg-surface sticky top-0 z-10">
           <div className="flex">
