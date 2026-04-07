@@ -40,6 +40,8 @@ export default function StoreDetailPage() {
   const router = useRouter();
   const token = useAuthStore((s) => s.token);
   const [store, setStore] = useState<Store | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [selectedVariantByProduct, setSelectedVariantByProduct] = useState<Record<string, string>>({});
   const addItem = useCartStore((s) => s.addItem);
   const updateQty = useCartStore((s) => s.updateQty);
@@ -52,31 +54,49 @@ export default function StoreDetailPage() {
     }
     const id = params?.id as string;
     if (!id) return;
+    let cancelled = false;
+    setStore(null);
+    setLoading(true);
+    setLoadError(false);
     api
       .get<Store>(`/stores/${id}`)
-      .then((res) => setStore(res.data))
-      .catch(() => setStore(null));
+      .then((res) => {
+        if (cancelled) return;
+        const data = res.data;
+        if (data && typeof data === 'object') {
+          setStore(data);
+          setLoadError(false);
+        } else {
+          setStore(null);
+          setLoadError(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setStore(null);
+          setLoadError(true);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [token, router, params?.id]);
 
-  if (!store) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
+  const productsList = store?.products ?? [];
   const availableProducts = useMemo(
-    () => store.products.filter((p) => p.isAvailable !== false),
-    [store.products],
+    () => productsList.filter((p) => p.isAvailable !== false),
+    [productsList],
   );
   const categorizedIds = useMemo(() => {
     const ids = new Set<string>();
-    for (const c of store.productCategories ?? []) {
+    for (const c of store?.productCategories ?? []) {
       for (const p of c.products ?? []) ids.add(p.id);
     }
     return ids;
-  }, [store.productCategories]);
+  }, [store?.productCategories]);
   const uncategorized = useMemo(
     () => availableProducts.filter((p) => !categorizedIds.has(p.id)),
     [availableProducts, categorizedIds],
@@ -84,14 +104,67 @@ export default function StoreDetailPage() {
   const sections = useMemo(
     () =>
       [
-        ...(store.productCategories ?? []).map((c) => ({
+        ...(store?.productCategories ?? []).map((c) => ({
           title: c.name,
           items: (c.products ?? []).filter((p) => p.isAvailable !== false),
         })),
         ...(uncategorized.length > 0 ? [{ title: 'More', items: uncategorized }] : []),
       ].filter((s) => s.items.length > 0),
-    [store.productCategories, uncategorized],
+    [store?.productCategories, uncategorized],
   );
+
+  if (!token) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <StickyHeader title="Store" backHref="/dashboard" />
+        <ContentPanel bottomPadding="sm">
+          <main className="app-shell-narrow py-8 flex flex-col items-center justify-center min-h-[40vh]">
+            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          </main>
+        </ContentPanel>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <StickyHeader title="Loading…" backHref="/dashboard" />
+        <ContentPanel bottomPadding="sm">
+          <main className="app-shell-narrow py-8">
+            <div className="flex flex-col items-center justify-center gap-3 min-h-[40vh] text-slate-600">
+              <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              <p className="text-sm">Loading menu…</p>
+            </div>
+          </main>
+        </ContentPanel>
+      </div>
+    );
+  }
+
+  if (loadError || !store) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <StickyHeader title="Store" backHref="/dashboard" />
+        <ContentPanel bottomPadding="sm">
+          <main className="app-shell-narrow py-8">
+            <div className="rounded-card border border-amber-200 bg-amber-50 p-4 text-center">
+              <p className="font-medium text-amber-900">Could not load this store</p>
+              <p className="text-sm text-amber-800 mt-1">
+                Check your connection or try again. If the problem continues, the store may be unavailable.
+              </p>
+              <Link
+                href="/dashboard"
+                className="inline-block mt-4 text-sm font-semibold text-primary underline underline-offset-2"
+              >
+                Back to home
+              </Link>
+            </div>
+          </main>
+        </ContentPanel>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -111,6 +184,9 @@ export default function StoreDetailPage() {
         )}
         {store.description && (
           <p className="text-slate-600 text-sm mb-4">{store.description}</p>
+        )}
+        {sections.length === 0 && (
+          <p className="text-slate-600 text-sm py-8 text-center">No items on the menu right now.</p>
         )}
         <div className="pb-24 space-y-6">
           {sections.map((section) => (
