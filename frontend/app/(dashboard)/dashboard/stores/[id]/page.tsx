@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -20,6 +20,7 @@ interface Product {
   imageUrl: string | null;
   isAvailable?: boolean;
   isOutOfStock?: boolean;
+  variants?: { id: string; name: string; price: number; isAvailable: boolean; sortOrder: number }[];
 }
 
 interface Store {
@@ -30,6 +31,7 @@ interface Store {
   address?: string | null;
   isOpenNow?: boolean;
   products: Product[];
+  productCategories?: { id: string; name: string; sortOrder: number; products: Product[] }[];
 }
 
 export default function StoreDetailPage() {
@@ -37,6 +39,7 @@ export default function StoreDetailPage() {
   const router = useRouter();
   const token = useAuthStore((s) => s.token);
   const [store, setStore] = useState<Store | null>(null);
+  const [selectedVariantByProduct, setSelectedVariantByProduct] = useState<Record<string, string>>({});
   const addItem = useCartStore((s) => s.addItem);
   const updateQty = useCartStore((s) => s.updateQty);
   const { items, storeId, total } = useCartStore();
@@ -62,6 +65,33 @@ export default function StoreDetailPage() {
     );
   }
 
+  const availableProducts = useMemo(
+    () => store.products.filter((p) => p.isAvailable !== false),
+    [store.products],
+  );
+  const categorizedIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const c of store.productCategories ?? []) {
+      for (const p of c.products ?? []) ids.add(p.id);
+    }
+    return ids;
+  }, [store.productCategories]);
+  const uncategorized = useMemo(
+    () => availableProducts.filter((p) => !categorizedIds.has(p.id)),
+    [availableProducts, categorizedIds],
+  );
+  const sections = useMemo(
+    () =>
+      [
+        ...(store.productCategories ?? []).map((c) => ({
+          title: c.name,
+          items: (c.products ?? []).filter((p) => p.isAvailable !== false),
+        })),
+        ...(uncategorized.length > 0 ? [{ title: 'More', items: uncategorized }] : []),
+      ].filter((s) => s.items.length > 0),
+    [store.productCategories, uncategorized],
+  );
+
   return (
     <div className="min-h-screen flex flex-col">
       <StickyHeader title={store.name} backHref="/dashboard" />
@@ -81,68 +111,117 @@ export default function StoreDetailPage() {
         {store.description && (
           <p className="text-slate-600 text-sm mb-4">{store.description}</p>
         )}
-        <div className="space-y-4 pb-24">
-          {store.products
-            .filter((p) => p.isAvailable !== false)
-            .map((p) => {
-            const qty = storeId === store.id ? items.find((i) => i.productId === p.id)?.quantityKg ?? 0 : 0;
-            const available = !p.isOutOfStock && store.isOpenNow !== false;
-            return (
-              <Card key={p.id} className={`flex gap-4 transition-all duration-200 ${!available ? 'opacity-60' : ''}`}>
-                <div className="w-20 h-20 rounded-button bg-white border border-slate-100 relative overflow-hidden shrink-0 flex items-center justify-center">
-                  {p.imageUrl ? (
-                    <Image src={p.imageUrl} alt={p.name} fill className="object-cover" sizes="80px" unoptimized />
-                  ) : (
-                    <Image src="/store-shelf.png" alt="" width={56} height={56} className="object-contain" />
-                  )}
-                  {!available && (
-                    <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center">
-                      <span className="text-white text-xs font-medium">Out of stock</span>
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-slate-800">{p.name}</p>
-                  <p className="text-accent font-semibold">Rs {Number(p.price).toFixed(0)}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  {available && (
-                    <>
-                      {qty > 0 && (
-                        <div className="flex items-center gap-1 min-h-[44px]">
-                          <button
-                            type="button"
-                            onClick={() => updateQty(p.id, qty - 1)}
-                            className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center text-lg font-medium min-h-[44px] min-w-[44px]"
-                          >
-                            −
-                          </button>
-                          <span className="w-8 text-center font-medium">{qty}</span>
+        <div className="pb-24 space-y-6">
+          {sections.map((section) => (
+            <section key={section.title}>
+              <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">{section.title}</h2>
+              <div className="space-y-4">
+                {section.items.map((p) => {
+                  const variants = (p.variants ?? []).filter((v) => v.isAvailable !== false);
+                  const selectedVariantId = selectedVariantByProduct[p.id];
+                  const selectedVariant = variants.find((v) => v.id === selectedVariantId) ?? null;
+                  const lineId = `${p.id}:${selectedVariant?.id ?? ''}`;
+                  const qty =
+                    storeId === store.id
+                      ? items.find((i) => i.lineId === lineId)?.quantity ?? 0
+                      : 0;
+                  const available = !p.isOutOfStock && store.isOpenNow !== false;
+                  const unitPrice = selectedVariant ? Number(selectedVariant.price) : Number(p.price);
+                  const mustPickVariant = variants.length > 0 && !selectedVariant;
+
+                  return (
+                    <Card key={p.id} className={`transition-all duration-200 ${!available ? 'opacity-60' : ''}`}>
+                      <div className="flex gap-4">
+                        <div className="w-20 h-20 rounded-button bg-white border border-slate-100 relative overflow-hidden shrink-0 flex items-center justify-center">
+                          {p.imageUrl ? (
+                            <Image src={p.imageUrl} alt={p.name} fill className="object-cover" sizes="80px" unoptimized />
+                          ) : (
+                            <Image src="/store-shelf.png" alt="" width={56} height={56} className="object-contain" />
+                          )}
+                          {!available && (
+                            <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center">
+                              <span className="text-white text-xs font-medium">Out of stock</span>
+                            </div>
+                          )}
                         </div>
-                      )}
-                      <Button
-                        variant="accent"
-                        size="sm"
-                        className="min-h-[44px] min-w-[44px]"
-                        onClick={() => {
-                          addItem({
-                            productId: p.id,
-                            storeId: store.id,
-                            name: p.name,
-                            unitPrice: Number(p.price),
-                            quantityKg: 1,
-                            imageUrl: p.imageUrl,
-                          });
-                        }}
-                      >
-                        +
-                      </Button>
-                    </>
-                  )}
-                </div>
-              </Card>
-            );
-          })}
+
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-slate-800">{p.name}</p>
+                          <p className="text-accent font-semibold">Rs {unitPrice.toFixed(0)}</p>
+
+                          {variants.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {variants.map((v) => {
+                                const active = v.id === selectedVariantId;
+                                return (
+                                  <button
+                                    key={v.id}
+                                    type="button"
+                                    disabled={!available}
+                                    onClick={() => setSelectedVariantByProduct((m) => ({ ...m, [p.id]: v.id }))}
+                                    className={`px-3 py-1.5 rounded-pill text-xs font-medium border transition-colors ${
+                                      active
+                                        ? 'bg-primary text-white border-primary'
+                                        : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                                    } ${!available ? 'cursor-not-allowed' : ''}`}
+                                  >
+                                    {v.name}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {mustPickVariant && (
+                            <p className="text-xs text-amber-700 mt-2">Select a size</p>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {available && (
+                            <>
+                              {qty > 0 && (
+                                <div className="flex items-center gap-1 min-h-[44px]">
+                                  <button
+                                    type="button"
+                                    onClick={() => updateQty(lineId, qty - 1)}
+                                    className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center text-lg font-medium min-h-[44px] min-w-[44px]"
+                                  >
+                                    −
+                                  </button>
+                                  <span className="w-8 text-center font-medium">{qty}</span>
+                                </div>
+                              )}
+                              <Button
+                                variant="accent"
+                                size="sm"
+                                className="min-h-[44px] min-w-[44px]"
+                                disabled={mustPickVariant}
+                                onClick={() => {
+                                  if (mustPickVariant) return;
+                                  addItem({
+                                    productId: p.id,
+                                    variantId: selectedVariant?.id ?? null,
+                                    variantName: selectedVariant?.name ?? null,
+                                    storeId: store.id,
+                                    name: p.name,
+                                    unitPrice,
+                                    quantity: 1,
+                                    imageUrl: p.imageUrl,
+                                  });
+                                }}
+                              >
+                                +
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
         </div>
         <div className="fixed bottom-20 inset-x-0 safe-bottom z-30 pointer-events-none">
           <div className="app-shell-narrow pointer-events-auto">

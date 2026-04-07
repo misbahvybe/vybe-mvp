@@ -29,7 +29,7 @@ export default function CartPage() {
           <>
             <div className="space-y-4">
               {items.map((item) => (
-                <Card key={item.productId} className="flex gap-4">
+                <Card key={item.lineId} className="flex gap-4">
                   <div className="w-20 h-20 rounded-button bg-slate-100 relative overflow-hidden shrink-0">
                     <Image
                       src={item.imageUrl || FALLBACK_PRODUCT_IMAGE}
@@ -41,13 +41,28 @@ export default function CartPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-slate-800">{item.name}</p>
+                    {item.variantName ? (
+                      <p className="text-xs text-slate-500 mt-0.5">Size: {item.variantName}</p>
+                    ) : null}
                     {item.calories != null && <p className="text-sm text-slate-500">{item.calories} cal</p>}
                     <p className="text-accent font-semibold text-sm">Rs {item.unitPrice.toFixed(0)}</p>
                   </div>
                   <div className="flex flex-col items-center justify-center gap-1">
-                    <button type="button" className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-lg" onClick={() => updateQty(item.productId, item.quantityKg + 1)}>+</button>
-                    <span className="text-sm font-medium">{String(item.quantityKg).padStart(2, '0')}</span>
-                    <button type="button" className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-lg" onClick={() => updateQty(item.productId, item.quantityKg - 1)}>−</button>
+                    <button
+                      type="button"
+                      className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-lg"
+                      onClick={() => updateQty(item.lineId, item.quantity + 1)}
+                    >
+                      +
+                    </button>
+                    <span className="text-sm font-medium">{String(item.quantity).padStart(2, '0')}</span>
+                    <button
+                      type="button"
+                      className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-lg"
+                      onClick={() => updateQty(item.lineId, item.quantity - 1)}
+                    >
+                      −
+                    </button>
                   </div>
                 </Card>
               ))}

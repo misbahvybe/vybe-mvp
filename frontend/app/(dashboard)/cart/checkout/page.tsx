@@ -39,7 +39,7 @@ function CheckoutContent() {
   const cartKey = useMemo(
     () =>
       JSON.stringify(
-        items.map((i) => ({ productId: i.productId, quantity: i.quantityKg, price: i.unitPrice })),
+        items.map((i) => ({ lineId: i.lineId, productId: i.productId, variantId: i.variantId ?? null, quantity: i.quantity, price: i.unitPrice })),
       ),
     [items],
   );
@@ -57,7 +57,8 @@ function CheckoutContent() {
         addressId: selectedAddressId,
         items: items.map((i) => ({
           productId: i.productId,
-          quantity: i.quantityKg,
+          variantId: i.variantId ?? undefined,
+          quantity: i.quantity,
           price: i.unitPrice,
         })),
         paymentMethod: 'COD',
@@ -106,7 +107,8 @@ function CheckoutContent() {
         addressId: selectedAddressId,
         items: items.map((i) => ({
           productId: i.productId,
-          quantity: i.quantityKg,
+          variantId: i.variantId ?? undefined,
+          quantity: i.quantity,
           price: i.unitPrice,
         })),
         paymentMethod: 'COD',
@@ -174,9 +176,13 @@ function CheckoutContent() {
         <h2 className="text-lg font-bold text-slate-800 mb-2">Order summary</h2>
         <Card className="mb-4">
           {items.map((i) => (
-            <div key={i.productId} className="flex justify-between py-2 border-b border-slate-100 last:border-0">
-              <span className="text-slate-800">{i.name} × {i.quantityKg} kg</span>
-              <span className="text-accent font-semibold">Rs {(i.unitPrice * i.quantityKg).toFixed(0)}</span>
+            <div key={i.lineId} className="flex justify-between py-2 border-b border-slate-100 last:border-0">
+              <span className="text-slate-800">
+                {i.name}
+                {i.variantName ? <span className="text-slate-500"> ({i.variantName})</span> : null}
+                {' '}× {i.quantity}
+              </span>
+              <span className="text-accent font-semibold">Rs {(i.unitPrice * i.quantity).toFixed(0)}</span>
             </div>
           ))}
           <div className="flex justify-between py-2 text-slate-600">
