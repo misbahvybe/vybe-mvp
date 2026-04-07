@@ -6,6 +6,7 @@ import { StickyHeader } from '@/components/layout/StickyHeader';
 import { ContentPanel } from '@/components/layout/ContentPanel';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { Loader } from '@/components/ui/Loader';
 import { GalleryImageInput } from '@/components/ui/GalleryImageInput';
 import {
   Package,
@@ -303,7 +304,7 @@ export default function StoreDashboardPage() {
             <>
               {loading ? (
                 <div className="flex justify-center py-12">
-                  <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  <Loader size={44} />
                 </div>
               ) : earnings ? (
                 <>
@@ -545,7 +546,7 @@ function StoreProductsTab({
   if (loading) {
     return (
       <div className="flex justify-center py-12">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <Loader size={44} />
       </div>
     );
   }
@@ -836,7 +837,7 @@ function StoreSettingsTab({
   if (loading) {
     return (
       <div className="flex justify-center py-12">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <Loader size={44} />
       </div>
     );
   }

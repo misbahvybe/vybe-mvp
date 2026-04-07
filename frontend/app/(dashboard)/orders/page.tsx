@@ -7,6 +7,7 @@ import { useAuthStore } from '@/store/authStore';
 import { StickyHeader } from '@/components/layout/StickyHeader';
 import { ContentPanel } from '@/components/layout/ContentPanel';
 import { Card } from '@/components/ui/Card';
+import { Loader } from '@/components/ui/Loader';
 import api from '@/services/api';
 import { useCustomerOrdersRealtime } from '@/hooks/useOrdersRealtime';
 
@@ -76,7 +77,7 @@ export default function OrdersPage() {
         </div>
         {loading ? (
           <div className="flex justify-center py-12">
-            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <Loader size={44} />
           </div>
         ) : (
           <div className="space-y-4">

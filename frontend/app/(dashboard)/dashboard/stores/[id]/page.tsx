@@ -10,6 +10,7 @@ import { StickyHeader } from '@/components/layout/StickyHeader';
 import { ContentPanel } from '@/components/layout/ContentPanel';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { Loader } from '@/components/ui/Loader';
 import api from '@/services/api';
 
 interface Product {
@@ -119,7 +120,7 @@ export default function StoreDetailPage() {
         <StickyHeader title="Store" backHref="/dashboard" />
         <ContentPanel bottomPadding="sm">
           <main className="app-shell-narrow py-8 flex flex-col items-center justify-center min-h-[40vh]">
-            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <Loader size={40} />
           </main>
         </ContentPanel>
       </div>
@@ -133,7 +134,7 @@ export default function StoreDetailPage() {
         <ContentPanel bottomPadding="sm">
           <main className="app-shell-narrow py-8">
             <div className="flex flex-col items-center justify-center gap-3 min-h-[40vh] text-slate-600">
-              <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              <Loader size={44} />
               <p className="text-sm">Loading menu…</p>
             </div>
           </main>

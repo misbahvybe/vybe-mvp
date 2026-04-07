@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { reverseGeocode } from '@/services/geoapify';
+import { Loader } from '@/components/ui/Loader';
 
 const LAHORE_CENTER = { lat: 31.5204, lng: 74.3587 };
 
@@ -173,7 +174,7 @@ export function AddressMapPicker({
         <div ref={containerRef} className="absolute inset-0 leaflet-container" />
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center bg-white/60 z-[1000] pointer-events-none">
-            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <Loader size={44} />
           </div>
         )}
         {ready && (

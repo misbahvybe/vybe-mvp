@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { Loader } from '@/components/ui/Loader';
 import api from '@/services/api';
 
 interface Partner {
@@ -57,7 +58,7 @@ export default function AdminPartnersPage() {
       <Card className="overflow-hidden">
         {loading ? (
           <div className="p-8 text-center">
-            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+            <Loader size={44} className="mx-auto" />
           </div>
         ) : (
           <div className="overflow-x-auto">

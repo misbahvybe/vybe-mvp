@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/Card';
+import { Loader } from '@/components/ui/Loader';
 import { BarChart3 } from 'lucide-react';
 import api from '@/services/api';
 
@@ -25,7 +26,7 @@ export default function AdminMetricsPage() {
   if (loading) {
     return (
       <div className="flex justify-center py-12">
-        <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <Loader size={44} />
       </div>
     );
   }

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { Loader } from '@/components/ui/Loader';
 import { Wallet, Download } from 'lucide-react';
 import api from '@/services/api';
 
@@ -90,7 +91,7 @@ export default function AdminFinancePage() {
   if (loading) {
     return (
       <div className="flex justify-center py-12">
-        <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <Loader size={44} />
       </div>
     );
   }

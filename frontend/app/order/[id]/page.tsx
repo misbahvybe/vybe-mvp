@@ -7,6 +7,7 @@ import { StickyHeader } from '@/components/layout/StickyHeader';
 import { ContentPanel } from '@/components/layout/ContentPanel';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { Loader } from '@/components/ui/Loader';
 import api from '@/services/api';
 import { useOrderDetailRealtime } from '@/hooks/useOrdersRealtime';
 
@@ -148,7 +149,7 @@ export default function OrderDetailPage() {
           {notFound ? (
             <p className="text-slate-600">Order not found or you don&apos;t have access.</p>
           ) : (
-            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <Loader size={44} />
           )}
         </div>
       </div>

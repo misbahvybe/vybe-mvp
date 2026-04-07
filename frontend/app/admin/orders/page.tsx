@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { Loader } from '@/components/ui/Loader';
 import api from '@/services/api';
 import { useAuthStore } from '@/store/authStore';
 import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
@@ -119,7 +120,7 @@ function AdminOrdersContent() {
       <Card className="overflow-hidden">
         {loading ? (
           <div className="p-12 text-center">
-            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+            <Loader size={44} className="mx-auto" />
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -196,7 +197,13 @@ function AdminOrdersContent() {
 
 export default function AdminOrdersPage() {
   return (
-    <Suspense fallback={<div className="p-12 text-center"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" /></div>}>
+    <Suspense
+      fallback={
+        <div className="p-12 text-center">
+          <Loader size={44} className="mx-auto" />
+        </div>
+      }
+    >
       <AdminOrdersContent />
     </Suspense>
   );

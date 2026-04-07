@@ -6,6 +6,7 @@ import { StickyHeader } from '@/components/layout/StickyHeader';
 import { ContentPanel } from '@/components/layout/ContentPanel';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { Loader } from '@/components/ui/Loader';
 import {
   Package,
   MapPin,
@@ -304,7 +305,7 @@ export default function RiderDashboardPage() {
                 </p>
                 {availLoading && availableOrders.length === 0 ? (
                   <div className="flex justify-center py-8">
-                    <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    <Loader size={44} />
                   </div>
                 ) : availableOrders.length === 0 ? (
                   <Card className="p-4 text-center text-sm text-slate-500">No open pickup orders.</Card>
@@ -344,7 +345,7 @@ export default function RiderDashboardPage() {
 
               {loading ? (
                 <div className="flex justify-center py-12">
-                  <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  <Loader size={44} />
                 </div>
               ) : activeOrder ? (
                 <Card className="mb-6 border-2 border-primary/40 overflow-hidden">
@@ -545,7 +546,7 @@ export default function RiderDashboardPage() {
                 </>
               ) : (
                 <div className="flex justify-center py-12">
-                  <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  <Loader size={44} />
                 </div>
               )}
             </>

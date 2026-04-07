@@ -10,6 +10,7 @@ import { StickyHeader } from '@/components/layout/StickyHeader';
 import { BRAND_FULL } from '@/constants/brand';
 import { ContentPanel } from '@/components/layout/ContentPanel';
 import { Card } from '@/components/ui/Card';
+import { Loader } from '@/components/ui/Loader';
 
 const CATEGORY_CARDS = [
   { id: 'food', label: 'Food', image: '/food-plate.png', href: '/dashboard/category/food', comingSoon: false },
@@ -36,7 +37,7 @@ export default function DashboardPage() {
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <Loader size={44} />
       </div>
     );
   }

@@ -25,6 +25,39 @@ body {
   @apply bg-primary-dark text-[var(--foreground)] antialiased min-h-screen w-full overflow-x-hidden;
 }
 
+/* Brand loader (matches --primary). Usage: <div class="vybe-loader" /> */
+.vybe-loader {
+  width: 50px;
+  aspect-ratio: 1;
+  display: grid;
+  border: 4px solid #0000;
+  border-radius: 50%;
+  border-color: rgba(124, 58, 237, 0.25) #0000;
+  animation: vybe-loader-spin 1s infinite linear;
+}
+.vybe-loader::before,
+.vybe-loader::after {
+  content: "";
+  grid-area: 1/1;
+  margin: 2px;
+  border: inherit;
+  border-radius: 50%;
+}
+.vybe-loader::before {
+  border-color: var(--primary, #7c3aed) #0000;
+  animation: inherit;
+  animation-duration: 0.5s;
+  animation-direction: reverse;
+}
+.vybe-loader::after {
+  margin: 8px;
+}
+@keyframes vybe-loader-spin {
+  100% {
+    transform: rotate(1turn);
+  }
+}
+
 /* Content panel: white background with rounded top corners */
 .content-panel {
   background-color: var(--background);
