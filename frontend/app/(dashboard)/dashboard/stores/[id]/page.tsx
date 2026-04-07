@@ -66,7 +66,7 @@ export default function StoreDetailPage() {
     <div className="min-h-screen flex flex-col">
       <StickyHeader title={store.name} backHref="/dashboard" />
       <ContentPanel>
-      <main className="max-w-lg mx-auto px-4 py-4">
+      <main className="app-shell-narrow py-4">
         {store.imageUrl && (
           <div className="aspect-video w-full max-h-48 rounded-card overflow-hidden bg-slate-100 mb-4 relative">
             <Image src={store.imageUrl} alt={store.name} fill className="object-cover" sizes="(max-width: 512px) 100vw, 512px" unoptimized />
@@ -144,30 +144,32 @@ export default function StoreDetailPage() {
             );
           })}
         </div>
-        <div className="fixed bottom-20 left-0 right-0 max-w-lg mx-auto px-4 safe-bottom">
-          {store.isOpenNow === false ? (
-            <Button variant="outline" size="lg" fullWidth className="min-h-[44px]" disabled>
-              Store closed – orders unavailable
-            </Button>
-          ) : storeId === store.id && items.length > 0 ? (
-            <>
-              <div className="bg-white rounded-card shadow-soft-lg p-4 mb-2 flex justify-between items-center">
-                <span className="font-semibold text-slate-800">Cart total</span>
-                <span className="text-accent font-bold">Rs {total().toFixed(0)}</span>
-              </div>
+        <div className="fixed bottom-20 inset-x-0 safe-bottom z-30 pointer-events-none">
+          <div className="app-shell-narrow pointer-events-auto">
+            {store.isOpenNow === false ? (
+              <Button variant="outline" size="lg" fullWidth className="min-h-[44px]" disabled>
+                Store closed – orders unavailable
+              </Button>
+            ) : storeId === store.id && items.length > 0 ? (
+              <>
+                <div className="bg-white rounded-card shadow-soft-lg p-4 mb-2 flex justify-between items-center">
+                  <span className="font-semibold text-slate-800">Cart total</span>
+                  <span className="text-accent font-bold">Rs {total().toFixed(0)}</span>
+                </div>
+                <Link href="/cart">
+                  <Button variant="primary" size="lg" fullWidth className="min-h-[44px]">
+                    View Cart
+                  </Button>
+                </Link>
+              </>
+            ) : (
               <Link href="/cart">
                 <Button variant="primary" size="lg" fullWidth className="min-h-[44px]">
                   View Cart
                 </Button>
               </Link>
-            </>
-          ) : (
-            <Link href="/cart">
-              <Button variant="primary" size="lg" fullWidth className="min-h-[44px]">
-                View Cart
-              </Button>
-            </Link>
-          )}
+            )}
+          </div>
         </div>
       </main>
       </ContentPanel>

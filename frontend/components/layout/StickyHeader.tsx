@@ -7,13 +7,16 @@ interface StickyHeaderProps {
   title: string;
   backHref?: string;
   rightAction?: React.ReactNode;
+  /** Wider column on desktop (store / rider / staff order view). Customer shell stays phone-width. */
+  wideShell?: boolean;
 }
 
-export function StickyHeader({ title, backHref, rightAction }: StickyHeaderProps) {
+export function StickyHeader({ title, backHref, rightAction, wideShell = false }: StickyHeaderProps) {
   const isBrand = !backHref && title === BRAND_FULL;
+  const shell = wideShell ? 'app-shell-wide' : 'app-shell-narrow';
   return (
     <header className="sticky top-0 z-40 bg-primary-dark safe-top">
-      <div className="flex items-center justify-between min-h-14 py-1.5 px-4 max-w-lg mx-auto">
+      <div className={`${shell} flex items-center justify-between min-h-14 py-1.5`}>
         <div className="w-10 flex items-center shrink-0">
           {backHref ? (
             <Link href={backHref} className="p-2 -ml-2 text-white" aria-label="Back">

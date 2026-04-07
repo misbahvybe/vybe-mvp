@@ -50,7 +50,7 @@ export default function SearchPage() {
     <div className="min-h-screen flex flex-col">
       <StickyHeader title="Search" backHref="/dashboard" />
       <ContentPanel>
-      <main className="max-w-lg mx-auto px-4 py-4">
+      <main className="app-shell-narrow py-4">
         <input
           type="search"
           value={search}

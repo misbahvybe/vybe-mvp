@@ -6,7 +6,7 @@ export default function AdminSettingsPage() {
   return (
     <div>
       <h1 className="text-2xl font-bold text-slate-800 mb-6">Settings</h1>
-      <Card className="p-6 max-w-xl">
+      <Card className="p-6 w-full max-w-xl xl:max-w-2xl">
         <p className="text-slate-600 mb-4">Global platform configuration. Changes require backend update.</p>
         <div className="space-y-4">
           <div>

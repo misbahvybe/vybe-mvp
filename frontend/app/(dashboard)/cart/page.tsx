@@ -19,7 +19,7 @@ export default function CartPage() {
     <div className="min-h-screen flex flex-col">
       <StickyHeader title="Cart" backHref="/dashboard" />
       <ContentPanel>
-      <main className="max-w-lg mx-auto px-4 py-4">
+      <main className="app-shell-narrow py-4">
         {items.length === 0 ? (
           <Card className="text-center py-8">
             <p className="text-slate-600 mb-4">Your cart is empty</p>

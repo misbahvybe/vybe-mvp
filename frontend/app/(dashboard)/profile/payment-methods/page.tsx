@@ -109,7 +109,7 @@ export default function PaymentMethodsPage() {
     <div className="min-h-screen flex flex-col">
       <StickyHeader title="Payment Methods" backHref="/more" />
       <ContentPanel>
-      <main className="max-w-lg mx-auto px-4 py-4">
+      <main className="app-shell-narrow py-4">
         {(storeError || formError) && (
           <p className="text-red-600 text-sm mb-4">{storeError || formError}</p>
         )}

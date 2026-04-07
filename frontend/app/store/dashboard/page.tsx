@@ -141,10 +141,10 @@ export default function StoreDashboardPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <StickyHeader title="Store Dashboard" />
+      <StickyHeader title="Store Dashboard" wideShell />
       <ContentPanel>
         <div className="border-b border-slate-200 bg-surface sticky top-0 z-10">
-          <div className="flex overflow-x-auto">
+          <div className="app-shell-wide flex overflow-x-auto">
             {tabs.map((t) => (
               <button
                 key={t.id}
@@ -160,7 +160,7 @@ export default function StoreDashboardPage() {
             ))}
           </div>
         </div>
-        <main className="max-w-lg mx-auto px-4 py-4">
+        <main className="app-shell-wide py-4">
           {tab === 'orders' && (
             <>
               <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">New Orders</h2>

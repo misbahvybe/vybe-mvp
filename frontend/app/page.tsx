@@ -28,15 +28,15 @@ export default function LandingPage() {
     return (
       <div className="min-h-screen flex flex-col">
         <div className="relative flex-1 min-h-[400px] rounded-b-3xl bg-white flex flex-col items-center justify-center overflow-hidden">
-          <div className="relative z-10 w-full max-w-sm px-6 text-center">
-            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight px-2">{BRAND_FULL}</h1>
+          <div className="relative z-10 w-full max-w-sm sm:max-w-md lg:max-w-lg px-4 sm:px-6 text-center">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 tracking-tight px-2">{BRAND_FULL}</h1>
             <p className="mt-2 text-slate-600 text-sm font-medium">
               Order food, groceries &amp; medicine — simple and fast
             </p>
           </div>
         </div>
-        <div className="bg-primary-dark rounded-t-3xl shadow-soft-lg px-6 mb-10 pt-14 pb-14 safe-bottom min-h-[20px] flex flex-col justify-center">
-          <div className="max-w-sm mx-auto space-y-4">
+        <div className="bg-primary-dark rounded-t-3xl shadow-soft-lg px-4 sm:px-8 mb-10 pt-14 pb-14 safe-bottom min-h-[20px] flex flex-col justify-center w-full min-w-0">
+          <div className="w-full max-w-sm sm:max-w-md lg:max-w-lg mx-auto space-y-4">
             <Link href="/auth/signup" className="block">
               <Button variant="accent" size="lg" fullWidth>
                 Order Now
@@ -61,12 +61,19 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen flex flex-col bg-primary-dark">
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="relative h-[65vh] min-h-[220px] bg-white overflow-hidden rounded-b-3xl flex flex-col items-center justify-center">
-          <div className="w-92 h-92 rounded-2xl bg-white flex items-center justify-center p-3 ">
-            <Image src={current.image} alt={current.title} width={312} height={312} className="object-contain" />
+        <div className="relative h-[55vh] sm:h-[60vh] min-h-[200px] max-h-[640px] bg-white overflow-hidden rounded-b-3xl flex flex-col items-center justify-center px-4">
+          <div className="w-full max-w-[min(88vw,312px)] aspect-square max-h-[min(50vh,312px)] rounded-2xl bg-white flex items-center justify-center p-3">
+            <Image
+              src={current.image}
+              alt={current.title}
+              width={312}
+              height={312}
+              className="object-contain w-full h-full max-w-[280px] sm:max-w-[312px]"
+              sizes="(max-width: 640px) 85vw, 312px"
+            />
           </div>
         </div>
-        <div className="bg-primary-dark rounded-t-3xl px-6 pt-6 pb-10 safe-bottom flex-1 flex flex-col justify-center relative z-10">
+        <div className="bg-primary-dark rounded-t-3xl px-4 sm:px-8 pt-6 pb-10 safe-bottom flex-1 flex flex-col justify-center relative z-10 w-full min-w-0">
           <div className="flex justify-center gap-2 mb-3">
             {SLIDES.map((_, i) => (
               <button
@@ -80,8 +87,8 @@ export default function LandingPage() {
               />
             ))}
           </div>
-          <h2 className="text-lg font-bold text-white mb-2">{current.title}</h2>
-          <p className="text-white/90 text-sm mb-5">{current.description}</p>
+          <h2 className="text-lg sm:text-xl font-bold text-white mb-2">{current.title}</h2>
+          <p className="text-white/90 text-sm sm:text-base mb-5 max-w-xl">{current.description}</p>
           <button
             type="button"
             onClick={(e) => {

@@ -102,6 +102,8 @@ export default function OrderDetailPage() {
   const [riders, setRiders] = useState<{ id: string; name: string; phone: string }[]>([]);
   const [cancelReason, setCancelReason] = useState('');
 
+  const wideOrderShell = Boolean(user?.role && user.role !== 'CUSTOMER');
+
   const orderIdParam = typeof params?.id === 'string' ? params.id : Array.isArray(params?.id) ? params.id[0] : '';
 
   const fetchOrder = useCallback(() => {
@@ -141,7 +143,7 @@ export default function OrderDetailPage() {
   if (!order) {
     return (
       <div className="min-h-screen flex flex-col">
-        <StickyHeader title="Order" backHref={getBackHref(user?.role ?? 'CUSTOMER')} />
+        <StickyHeader title="Order" backHref={getBackHref(user?.role ?? 'CUSTOMER')} wideShell={wideOrderShell} />
         <div className="flex-1 flex items-center justify-center px-4">
           {notFound ? (
             <p className="text-slate-600">Order not found or you don&apos;t have access.</p>
@@ -158,9 +160,9 @@ export default function OrderDetailPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <StickyHeader title="Order details" backHref={getBackHref(user?.role ?? 'CUSTOMER')} />
+      <StickyHeader title="Order details" backHref={getBackHref(user?.role ?? 'CUSTOMER')} wideShell={wideOrderShell} />
       <ContentPanel bottomPadding="sm">
-      <main className="max-w-lg mx-auto px-4 py-4">
+      <main className={`${wideOrderShell ? 'app-shell-wide' : 'app-shell-narrow'} py-4`}>
         <Card className="mb-4">
           <p className="text-slate-600 text-sm">Order #{order.id.slice(-8)}</p>
           <p className="font-semibold text-slate-800">{order.store?.name}</p>

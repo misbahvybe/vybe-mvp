@@ -59,7 +59,7 @@ export default function DashboardPage() {
         }
       />
       <ContentPanel>
-      <main className="max-w-lg mx-auto px-4 py-4">
+      <main className="app-shell-narrow py-4">
         <section className="mb-6">
           <h1 className="text-xl font-bold text-slate-800">Hi, {firstName}</h1>
           <p className="text-slate-600 text-sm mt-1">What would you like to order today?</p>

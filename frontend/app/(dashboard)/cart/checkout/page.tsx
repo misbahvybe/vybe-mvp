@@ -129,7 +129,7 @@ function CheckoutContent() {
     <div className="min-h-screen flex flex-col">
       <StickyHeader title="Checkout" backHref="/cart" />
       <ContentPanel>
-      <main className="max-w-lg mx-auto px-4 py-4">
+      <main className="app-shell-narrow py-4">
         <h2 className="text-lg font-bold text-slate-800 mb-2">Delivery address</h2>
         {addresses.length === 0 ? (
           <Card className="mb-4">

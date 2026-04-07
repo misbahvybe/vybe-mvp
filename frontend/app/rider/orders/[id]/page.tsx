@@ -92,7 +92,7 @@ export default function RiderOrderDetailPage() {
   if (!order) {
     return (
       <div className="min-h-screen flex flex-col">
-        <StickyHeader title="Order" backHref="/rider/dashboard" />
+        <StickyHeader title="Order" backHref="/rider/dashboard" wideShell />
         <div className="flex-1 flex items-center justify-center">
           <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
         </div>
@@ -105,9 +105,9 @@ export default function RiderOrderDetailPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <StickyHeader title={`Order #${order.id.slice(-8)}`} backHref="/rider/dashboard" />
+      <StickyHeader title={`Order #${order.id.slice(-8)}`} backHref="/rider/dashboard" wideShell />
       <ContentPanel>
-        <main className="max-w-lg mx-auto px-4 py-4 space-y-4">
+        <main className="app-shell-wide py-4 space-y-4">
           <Card className="p-4">
             <p className="text-sm font-semibold text-slate-600 uppercase mb-3">Timeline</p>
             <div className="space-y-2">

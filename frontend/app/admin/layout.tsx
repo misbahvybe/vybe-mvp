@@ -93,7 +93,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </button>
         </div>
       </aside>
-      <div className="flex-1 flex flex-col md:ml-64">
+      <div className="flex-1 flex flex-col md:ml-64 min-w-0">
         <header className="sticky top-0 z-30 h-14 bg-white border-b border-slate-200 flex items-center px-4">
           <button
             type="button"
@@ -103,7 +103,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <Menu className="w-6 h-6" />
           </button>
         </header>
-        <main className="flex-1 p-4 md:p-6 overflow-auto">{children}</main>
+        <main className="flex-1 min-w-0 w-full p-4 md:p-6 overflow-x-auto overflow-y-auto">{children}</main>
       </div>
       {sidebarOpen && (
         <div

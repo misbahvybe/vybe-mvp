@@ -42,8 +42,8 @@ export default function PartnerLoginPage() {
       <header className="p-4">
         <Link href="/" className="text-white font-medium">← Back</Link>
       </header>
-      <div className="flex-1 flex flex-col items-center justify-center px-6 pb-20 bg-surface rounded-t-3xl">
-        <Card className="w-full max-w-sm">
+      <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-8 pb-20 bg-surface rounded-t-3xl w-full min-w-0">
+        <Card className="w-full max-w-sm sm:max-w-md lg:max-w-lg">
           <h1 className="text-xl font-bold text-slate-800 mb-1">Partner Login</h1>
           <p className="text-slate-600 text-sm mb-6">Riders & Store Owners – sign in with your email/phone and password</p>
           {error && <p className="text-red-600 text-sm mb-4">{error}</p>}

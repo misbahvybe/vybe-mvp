@@ -15,8 +15,6 @@ export const viewport: Viewport = {
   themeColor: '#1a1a1a',
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
 };
 
 export default function RootLayout({
@@ -25,8 +23,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className="min-h-screen">
+    <html lang="en" className="overflow-x-hidden">
+      <body className="min-h-screen w-full overflow-x-hidden">
         <AuthListener />
         {children}
       </body>

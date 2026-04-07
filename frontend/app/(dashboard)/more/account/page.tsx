@@ -11,7 +11,7 @@ export default function AccountPage() {
     <div className="min-h-screen flex flex-col">
       <StickyHeader title="Account Information" backHref="/more" />
       <ContentPanel bottomPadding="sm">
-      <main className="max-w-lg mx-auto px-4 py-4">
+      <main className="app-shell-narrow py-4">
         <Card>
           {user && (
             <>

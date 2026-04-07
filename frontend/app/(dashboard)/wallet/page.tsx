@@ -11,7 +11,7 @@ export default function WalletPage() {
     <div className="min-h-screen flex flex-col">
       <StickyHeader title="Wallet" backHref="/dashboard" />
       <ContentPanel>
-      <main className="max-w-lg mx-auto px-4 py-4">
+      <main className="app-shell-narrow py-4">
         <Card className="text-center py-8 mb-6">
           <span className="block w-20 h-20 mx-auto mb-4 relative">
             <Image src="/wallet.png" alt="" width={80} height={80} className="object-contain mx-auto" />

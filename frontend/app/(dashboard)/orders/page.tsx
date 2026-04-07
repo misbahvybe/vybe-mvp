@@ -60,7 +60,7 @@ export default function OrdersPage() {
     <div className="min-h-screen flex flex-col">
       <StickyHeader title="My orders" rightAction={<Search className="w-5 h-5" strokeWidth={2} />} />
       <ContentPanel bottomPadding="sm">
-      <main className="max-w-lg mx-auto px-4 py-4">
+      <main className="app-shell-narrow py-4">
         <div className="flex gap-2 mb-4">
           {filters.map((f) => (
             <button

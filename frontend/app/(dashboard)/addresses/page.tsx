@@ -34,7 +34,7 @@ export default function AddressesPage() {
     <div className="min-h-screen flex flex-col">
       <StickyHeader title="Delivery Address" backHref="/more" />
       <ContentPanel bottomPadding="sm">
-      <main className="max-w-lg mx-auto px-4 py-4">
+      <main className="app-shell-narrow py-4">
         {loading ? (
           <div className="flex justify-center py-12">
             <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />

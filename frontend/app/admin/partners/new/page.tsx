@@ -35,7 +35,7 @@ export default function CreatePartnerPage() {
     return (
       <div>
         <h1 className="text-2xl font-bold text-slate-800 mb-4">Invite Sent</h1>
-        <Card className="p-6 max-w-lg">
+        <Card className="p-6 w-full max-w-lg xl:max-w-2xl">
           <p className="text-green-600 font-medium mb-2">Partner created successfully</p>
           <p className="text-slate-600 text-sm mb-4">Send this link to the partner. It expires in 24 hours.</p>
           <div className="bg-slate-100 rounded-lg p-3 mb-4 break-all text-sm font-mono">{inviteLink}</div>
@@ -51,7 +51,7 @@ export default function CreatePartnerPage() {
   return (
     <div>
       <h1 className="text-2xl font-bold text-slate-800 mb-4">Invite Partner</h1>
-      <Card className="p-6 max-w-lg">
+      <Card className="p-6 w-full max-w-lg xl:max-w-2xl">
           <form onSubmit={handleSubmit}>
             <label className="block text-sm font-medium text-slate-700 mb-2">Name</label>
             <input

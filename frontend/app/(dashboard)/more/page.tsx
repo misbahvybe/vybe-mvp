@@ -30,7 +30,7 @@ export default function MorePage() {
     <div className="min-h-screen flex flex-col">
       <StickyHeader title="Profile" />
       <ContentPanel bottomPadding="sm">
-      <main className="max-w-lg mx-auto px-4 py-4">
+      <main className="app-shell-narrow py-4">
         {user && (
           <div className="text-center mb-6">
             <div className="w-20 h-20 rounded-full bg-primary mx-auto flex items-center justify-center text-3xl text-white">

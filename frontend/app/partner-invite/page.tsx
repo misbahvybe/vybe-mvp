@@ -83,8 +83,8 @@ export default function PartnerInvitePage() {
 
   if (status === 'invalid') {
     return (
-      <div className="min-h-screen bg-primary-dark flex flex-col items-center justify-center px-6">
-        <Card className="max-w-sm w-full text-center py-8">
+      <div className="min-h-screen bg-primary-dark flex flex-col items-center justify-center px-4 sm:px-8 w-full min-w-0">
+        <Card className="w-full max-w-sm sm:max-w-md lg:max-w-lg text-center py-8">
           <h1 className="text-xl font-bold text-slate-800 mb-2">Invalid or Expired</h1>
           <p className="text-slate-600 text-sm mb-6">
             This invitation link is invalid or expired. Please contact admin.
@@ -98,8 +98,8 @@ export default function PartnerInvitePage() {
   }
 
   return (
-    <div className="min-h-screen bg-primary-dark flex flex-col items-center justify-center px-6">
-      <Card className="max-w-sm w-full">
+    <div className="min-h-screen bg-primary-dark flex flex-col items-center justify-center px-4 sm:px-8 w-full min-w-0">
+      <Card className="w-full max-w-sm sm:max-w-md lg:max-w-lg">
         <h1 className="text-xl font-bold text-slate-800 mb-1">Set Your Password</h1>
         <p className="text-slate-600 text-sm mb-6">Welcome, {userName}. Create a secure password to complete your account setup.</p>
         {error && <p className="text-red-600 text-sm mb-4">{error}</p>}

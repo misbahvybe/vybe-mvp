@@ -2,6 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+  /** Customer PWA-style column: stays phone-width on large screens. */
+  .app-shell-narrow {
+    @apply w-full max-w-lg mx-auto px-4 sm:px-6;
+  }
+  /** Store / rider (and non-customer order detail): grows with viewport on desktop. */
+  .app-shell-wide {
+    @apply w-full max-w-lg sm:max-w-xl md:max-w-2xl lg:max-w-3xl xl:max-w-4xl 2xl:max-w-5xl mx-auto px-4 sm:px-6;
+  }
+}
+
 :root {
   --primary: #7c3aed;
   --primary-dark: #1a1a1a;
@@ -11,7 +22,7 @@
 }
 
 body {
-  @apply bg-primary-dark text-[var(--foreground)] antialiased;
+  @apply bg-primary-dark text-[var(--foreground)] antialiased min-h-screen w-full overflow-x-hidden;
 }
 
 /* Content panel: white background with rounded top corners */

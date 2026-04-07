@@ -65,7 +65,7 @@ export default function NewAddressPage() {
     <div className="min-h-screen flex flex-col">
       <StickyHeader title="Add Address" backHref="/addresses" />
       <ContentPanel>
-      <main className="max-w-lg mx-auto px-4 py-4">
+      <main className="app-shell-narrow py-4">
         <p className="text-sm text-slate-600 mb-3">
           Allow location when asked — we&apos;ll place the pin for you. You can still move the pin or type the address below if needed.
         </p>

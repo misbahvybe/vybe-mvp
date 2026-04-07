@@ -39,7 +39,7 @@ export default function StoresPage() {
     <div className="min-h-screen flex flex-col">
       <StickyHeader title="Stores" backHref="/dashboard" />
       <ContentPanel>
-      <main className="max-w-lg mx-auto px-4 py-4">
+      <main className="app-shell-narrow py-4">
         <div className="grid grid-cols-2 gap-4">
           {stores.map((store) => {
             const firstProduct = store.products[0];
