@@ -4,7 +4,10 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { UpstashService } from '../../common/upstash/upstash.service';
+import { StoresService } from '../stores/stores.service';
 import { CheckoutServiceFeeMode, Role, StoreStatus } from '@prisma/client';
 import { CreatePartnerDto } from './dto/create-partner.dto';
 import { PatchPlatformCheckoutSettingsDto } from './dto/patch-platform-checkout-settings.dto';
@@ -12,7 +15,22 @@ import * as crypto from 'crypto';
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
+    private readonly upstash: UpstashService,
+    private readonly stores: StoresService,
+  ) {}
+
+  private adminMetricsTtlSeconds(): number {
+    const n = Number(this.config.get<string>('ADMIN_METRICS_CACHE_TTL_SECONDS') ?? 45);
+    return Number.isFinite(n) && n > 0 ? Math.min(n, 300) : 45;
+  }
+
+  private adminChartsTtlSeconds(): number {
+    const n = Number(this.config.get<string>('ADMIN_METRICS_CHARTS_CACHE_TTL_SECONDS') ?? 120);
+    return Number.isFinite(n) && n > 0 ? Math.min(n, 600) : 120;
+  }
 
   private inviteExpiryMs(): number {
     return 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -59,6 +77,7 @@ export class AdminService {
           isOpen: true,
         },
       });
+      await this.stores.invalidatePublicStoreListCache().catch(() => undefined);
     }
     await this.prisma.adminLog.create({
       data: { adminId, action: `CREATE_PARTNER_${dto.role}`, targetId: user.id },
@@ -114,6 +133,7 @@ export class AdminService {
         isOpen: true,
       },
     });
+    await this.stores.invalidatePublicStoreListCache().catch(() => undefined);
     return { store, created: true };
   }
 
@@ -127,6 +147,11 @@ export class AdminService {
   }
 
   async getMetrics() {
+    const ttl = this.adminMetricsTtlSeconds();
+    return this.upstash.wrapJson('admin:metrics:v1', ttl, () => this.computeMetrics());
+  }
+
+  private async computeMetrics() {
     const now = new Date();
     const todayStart = new Date(now);
     todayStart.setHours(0, 0, 0, 0);
@@ -302,11 +327,13 @@ export class AdminService {
   async setStoreStatus(storeId: string, status: StoreStatus) {
     const store = await this.prisma.store.findUnique({ where: { id: storeId } });
     if (!store) throw new NotFoundException('Store not found');
-    return this.prisma.store.update({
+    const updated = await this.prisma.store.update({
       where: { id: storeId },
       data: { status },
       select: { id: true, status: true },
     });
+    await this.stores.invalidatePublicStoreListCache().catch(() => undefined);
+    return updated;
   }
 
   /** Platform verticals (Food / Grocery / Medicine tabs on customer app). */
@@ -342,6 +369,7 @@ export class AdminService {
         await tx.storeToCategory.create({ data: { storeId, categoryId: cat.id } });
       }
     });
+    await this.stores.invalidatePublicStoreListCache().catch(() => undefined);
     return this.getStorePlatformCategories(storeId);
   }
 
@@ -529,6 +557,11 @@ export class AdminService {
   }
 
   async getMetricsCharts() {
+    const ttl = this.adminChartsTtlSeconds();
+    return this.upstash.wrapJson('admin:metrics:charts:v1', ttl, () => this.computeMetricsCharts());
+  }
+
+  private async computeMetricsCharts() {
     const days: { date: string; orders: number; revenue: number }[] = [];
     const now = new Date();
     for (let i = 29; i >= 0; i--) {

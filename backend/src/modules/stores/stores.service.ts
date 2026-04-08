@@ -1,6 +1,8 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { UpstashService } from '../../common/upstash/upstash.service';
 import { Role, StoreStatus } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { UpdateStoreDto } from './dto/update-store.dto';
@@ -13,7 +15,35 @@ import { UpdateProductVariantDto } from './dto/update-product-variant.dto';
 
 @Injectable()
 export class StoresService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
+    private readonly upstash: UpstashService,
+  ) {}
+
+  private storeListCacheKey(category?: string): string {
+    const c = category?.trim().toLowerCase() || 'all';
+    return `stores:list:v1:${c}`;
+  }
+
+  private storeListCacheTtlSeconds(): number {
+    const n = Number(this.config.get<string>('STORE_LIST_CACHE_TTL_SECONDS') ?? 60);
+    return Number.isFinite(n) && n > 0 ? Math.min(n, 600) : 60;
+  }
+
+  /** Call after any change that affects customer-facing store listings. */
+  async invalidatePublicStoreListCache(): Promise<void> {
+    if (!this.upstash.enabled) return;
+    const keys = new Set<string>([
+      this.storeListCacheKey(),
+      this.storeListCacheKey('food'),
+      this.storeListCacheKey('grocery'),
+      this.storeListCacheKey('medicine'),
+    ]);
+    const cats = await this.prisma.storeCategory.findMany({ select: { name: true } });
+    for (const c of cats) keys.add(this.storeListCacheKey(c.name));
+    await this.upstash.delMany([...keys]);
+  }
 
   /** Legacy owners may have no Store row; create one on first use (same defaults as admin bootstrap). */
   private async bootstrapStoreIfMissing(ownerId: string): Promise<void> {
@@ -67,7 +97,9 @@ export class StoresService {
     if (dto.openingTime !== undefined) data.openingTime = dto.openingTime;
     if (dto.closingTime !== undefined) data.closingTime = dto.closingTime;
     if (dto.isOpen !== undefined) data.isOpen = dto.isOpen;
-    return this.prisma.store.update({ where: { id: store.id }, data });
+    const updated = await this.prisma.store.update({ where: { id: store.id }, data });
+    await this.invalidatePublicStoreListCache().catch(() => undefined);
+    return updated;
   }
 
   async getEarnings(ownerId: string) {
@@ -120,19 +152,23 @@ export class StoresService {
 
   async createCategory(ownerId: string, dto: CreateProductCategoryDto) {
     const store = await this.getOwnedStoreOrThrow(ownerId);
-    return this.prisma.productCategory.create({
+    const row = await this.prisma.productCategory.create({
       data: { storeId: store.id, name: dto.name, sortOrder: dto.sortOrder ?? 0 },
     });
+    await this.invalidatePublicStoreListCache().catch(() => undefined);
+    return row;
   }
 
   async updateCategory(ownerId: string, categoryId: string, dto: UpdateProductCategoryDto) {
     const store = await this.getOwnedStoreOrThrow(ownerId);
     const cat = await this.prisma.productCategory.findFirst({ where: { id: categoryId, storeId: store.id } });
     if (!cat) throw new ForbiddenException('Category not found');
-    return this.prisma.productCategory.update({
+    const row = await this.prisma.productCategory.update({
       where: { id: categoryId },
       data: { ...(dto.name !== undefined && { name: dto.name }), ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }) },
     });
+    await this.invalidatePublicStoreListCache().catch(() => undefined);
+    return row;
   }
 
   async deleteCategory(ownerId: string, categoryId: string) {
@@ -140,7 +176,9 @@ export class StoresService {
     const cat = await this.prisma.productCategory.findFirst({ where: { id: categoryId, storeId: store.id } });
     if (!cat) throw new ForbiddenException('Category not found');
     await this.prisma.product.updateMany({ where: { productCategoryId: categoryId }, data: { productCategoryId: null } });
-    return this.prisma.productCategory.delete({ where: { id: categoryId } });
+    const row = await this.prisma.productCategory.delete({ where: { id: categoryId } });
+    await this.invalidatePublicStoreListCache().catch(() => undefined);
+    return row;
   }
 
   async getProducts(ownerId: string) {
@@ -158,7 +196,7 @@ export class StoresService {
       const cat = await this.prisma.productCategory.findFirst({ where: { id: dto.productCategoryId, storeId: store.id } });
       if (!cat) throw new ForbiddenException('Category not found');
     }
-    return this.prisma.product.create({
+    const row = await this.prisma.product.create({
       data: {
         storeId: store.id,
         name: dto.name,
@@ -170,6 +208,8 @@ export class StoresService {
         productCategoryId: dto.productCategoryId || null,
       },
     });
+    await this.invalidatePublicStoreListCache().catch(() => undefined);
+    return row;
   }
 
   async updateProduct(ownerId: string, productId: string, dto: UpdateProductDto) {
@@ -192,24 +232,30 @@ export class StoresService {
     if (dto.imageUrl !== undefined) data.imageUrl = dto.imageUrl;
     if (dto.productCategoryId !== undefined) data.productCategoryId = dto.productCategoryId || null;
     if (dto.isAvailable === false) data.isOutOfStock = true;
-    return this.prisma.product.update({ where: { id: productId }, data });
+    const row = await this.prisma.product.update({ where: { id: productId }, data });
+    await this.invalidatePublicStoreListCache().catch(() => undefined);
+    return row;
   }
 
   async deleteProduct(ownerId: string, productId: string) {
     const store = await this.getOwnedStoreOrThrow(ownerId);
     const prod = await this.prisma.product.findFirst({ where: { id: productId, storeId: store.id } });
     if (!prod) throw new ForbiddenException('Product not found');
-    return this.prisma.product.delete({ where: { id: productId } });
+    const row = await this.prisma.product.delete({ where: { id: productId } });
+    await this.invalidatePublicStoreListCache().catch(() => undefined);
+    return row;
   }
 
   async setProductOutOfStock(ownerId: string, productId: string, isOutOfStock: boolean) {
     const store = await this.getOwnedStoreOrThrow(ownerId);
     const prod = await this.prisma.product.findFirst({ where: { id: productId, storeId: store.id } });
     if (!prod) throw new ForbiddenException('Product not found');
-    return this.prisma.product.update({
+    const row = await this.prisma.product.update({
       where: { id: productId },
       data: { isOutOfStock, isAvailable: !isOutOfStock },
     });
+    await this.invalidatePublicStoreListCache().catch(() => undefined);
+    return row;
   }
 
   async listProductVariants(ownerId: string, productId: string) {
@@ -223,7 +269,7 @@ export class StoresService {
     const store = await this.getOwnedStoreOrThrow(ownerId);
     const prod = await this.prisma.product.findFirst({ where: { id: productId, storeId: store.id } });
     if (!prod) throw new ForbiddenException('Product not found');
-    return this.prisma.productVariant.create({
+    const row = await this.prisma.productVariant.create({
       data: {
         productId,
         name: dto.name.trim(),
@@ -232,6 +278,8 @@ export class StoresService {
         sortOrder: dto.sortOrder ?? 0,
       },
     });
+    await this.invalidatePublicStoreListCache().catch(() => undefined);
+    return row;
   }
 
   async updateProductVariant(ownerId: string, productId: string, variantId: string, dto: UpdateProductVariantDto) {
@@ -245,7 +293,9 @@ export class StoresService {
     if (dto.price !== undefined) data.price = new Decimal(dto.price);
     if (dto.isAvailable !== undefined) data.isAvailable = dto.isAvailable;
     if (dto.sortOrder !== undefined) data.sortOrder = dto.sortOrder;
-    return this.prisma.productVariant.update({ where: { id: variantId }, data });
+    const row = await this.prisma.productVariant.update({ where: { id: variantId }, data });
+    await this.invalidatePublicStoreListCache().catch(() => undefined);
+    return row;
   }
 
   async deleteProductVariant(ownerId: string, productId: string, variantId: string) {
@@ -254,7 +304,9 @@ export class StoresService {
     if (!prod) throw new ForbiddenException('Product not found');
     const variant = await this.prisma.productVariant.findFirst({ where: { id: variantId, productId } });
     if (!variant) throw new ForbiddenException('Variant not found');
-    return this.prisma.productVariant.delete({ where: { id: variantId } });
+    const row = await this.prisma.productVariant.delete({ where: { id: variantId } });
+    await this.invalidatePublicStoreListCache().catch(() => undefined);
+    return row;
   }
 
   private isStoreOpen(store: { isOpen: boolean; openingTime: string | null; closingTime: string | null }): boolean {
@@ -271,6 +323,12 @@ export class StoresService {
   }
 
   async listApproved(category?: string) {
+    const ttl = this.storeListCacheTtlSeconds();
+    const key = this.storeListCacheKey(category);
+    return this.upstash.wrapJson(key, ttl, () => this.listApprovedUncached(category));
+  }
+
+  private async listApprovedUncached(category?: string) {
     const where: { isApproved: boolean; categories?: { some: { category: { name: string } } } } = {
       isApproved: true,
     };
@@ -293,25 +351,24 @@ export class StoresService {
       },
       orderBy: { createdAt: 'desc' },
     });
-    return stores
-      .map((s) => {
-        const isOpenNow = this.isStoreOpen(s);
-        const products = s.status === StoreStatus.ACTIVE ? s.products : [];
-        return {
-          ...s,
-          products,
-          isOpenNow,
-          menuAvailable: s.status === StoreStatus.ACTIVE && products.length > 0,
-          menuMessage:
-            s.status === StoreStatus.INVITED
-              ? 'Menu not available yet'
-              : s.status === StoreStatus.INACTIVE
-                ? 'Store is currently unavailable'
-                : products.length === 0
-                  ? 'Menu not available yet'
-                  : null,
-        };
-      });
+    return stores.map((s) => {
+      const isOpenNow = this.isStoreOpen(s);
+      const products = s.status === StoreStatus.ACTIVE ? s.products : [];
+      return {
+        ...s,
+        products,
+        isOpenNow,
+        menuAvailable: s.status === StoreStatus.ACTIVE && products.length > 0,
+        menuMessage:
+          s.status === StoreStatus.INVITED
+            ? 'Menu not available yet'
+            : s.status === StoreStatus.INACTIVE
+              ? 'Store is currently unavailable'
+              : products.length === 0
+                ? 'Menu not available yet'
+                : null,
+      };
+    });
   }
 
   async getById(id: string) {

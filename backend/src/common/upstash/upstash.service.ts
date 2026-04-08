@@ -63,6 +63,11 @@ export class UpstashService implements OnModuleInit {
     await this.client.del(key);
   }
 
+  async delMany(keys: string[]): Promise<void> {
+    if (!this.client || keys.length === 0) return;
+    await this.client.del(...keys);
+  }
+
   /**
    * Cache-aside helper: return cached JSON or compute, store, and return.
    */
