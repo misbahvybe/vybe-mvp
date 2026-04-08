@@ -277,7 +277,8 @@ export class StoresService {
     if (category?.trim()) {
       const cat = category.trim().toLowerCase();
       where.categories = {
-        some: { category: { name: cat } },
+        // Be resilient to existing DB values like "Food" vs "food"
+        some: { category: { name: { equals: cat, mode: 'insensitive' } } as any },
       };
     }
     const stores = await this.prisma.store.findMany({
