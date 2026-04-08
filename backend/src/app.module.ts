@@ -17,6 +17,7 @@ import { StoresModule } from './modules/stores/stores.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { HealthModule } from './modules/health/health.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
+import { BankPaymentsModule } from './modules/bank-payments/bank-payments.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { UploadsModule } from './modules/uploads/uploads.module';
     AdminModule,
     HealthModule,
     UploadsModule,
+    BankPaymentsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

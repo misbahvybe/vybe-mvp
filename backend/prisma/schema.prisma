@@ -33,6 +33,10 @@ enum PendingPaymentProvider {
   XPAY
   JAZZCASH
   EASYPAISA
+  /// Placeholders for HBL / Meezan / Allied redirect integrations (see BankPaymentsModule).
+  BANK_HBL
+  BANK_MEEZAN
+  BANK_ALLIED
 }
 
 enum OrderStatus {
