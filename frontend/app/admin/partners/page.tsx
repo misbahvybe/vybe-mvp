@@ -23,6 +23,7 @@ export default function AdminPartnersPage() {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [loading, setLoading] = useState(true);
   const [bootstrappingId, setBootstrappingId] = useState<string | null>(null);
+  const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
 
   const load = () =>
     api.get<Partner[]>('/admin/partners').then((r) => setPartners(r.data ?? [])).catch(() => setPartners([]));
@@ -43,6 +44,33 @@ export default function AdminPartnersPage() {
       alert(String(msg));
     } finally {
       setBootstrappingId(null);
+    }
+  };
+
+  const regenerateInvite = async (userId: string) => {
+    setRegeneratingId(userId);
+    try {
+      const { data } = await api.post<{ inviteLink: string; invitationExpiresAt: string }>(
+        `/admin/partners/${userId}/regenerate-invite`,
+      );
+      const link = data?.inviteLink;
+      if (link) {
+        if (typeof navigator !== 'undefined' && navigator.clipboard) {
+          await navigator.clipboard.writeText(link);
+          alert('New invite link generated and copied to clipboard.');
+        } else {
+          alert(`New invite link:\n\n${link}`);
+        }
+      } else {
+        alert('Invite regenerated.');
+      }
+      await load();
+    } catch (e: unknown) {
+      const msg =
+        (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Request failed';
+      alert(String(msg));
+    } finally {
+      setRegeneratingId(null);
     }
   };
 
@@ -72,6 +100,7 @@ export default function AdminPartnersPage() {
                   <th className="text-left p-3 font-medium">Active</th>
                   <th className="text-left p-3 font-medium">Password Set</th>
                   <th className="text-left p-3 font-medium">Invite Expiry</th>
+                  <th className="text-left p-3 font-medium">Invite</th>
                   <th className="text-right p-3 font-medium">Store</th>
                 </tr>
               </thead>
@@ -89,6 +118,21 @@ export default function AdminPartnersPage() {
                       <span className={p.passwordSet ? 'text-green-600' : 'text-amber-600'}>{p.passwordSet ? 'Yes' : 'Pending'}</span>
                     </td>
                     <td className="p-3">{p.invitationExpiresAt ? new Date(p.invitationExpiresAt).toLocaleDateString() : '—'}</td>
+                    <td className="p-3">
+                      {!p.passwordSet ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          loading={regeneratingId === p.id}
+                          onClick={() => regenerateInvite(p.id)}
+                        >
+                          New link
+                        </Button>
+                      ) : (
+                        <span className="text-slate-400 text-xs">—</span>
+                      )}
+                    </td>
                     <td className="p-3 text-right">
                       {p.role === 'STORE_OWNER' ? (
                         <Button

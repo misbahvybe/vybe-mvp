@@ -14,6 +14,14 @@ import * as crypto from 'crypto';
 export class AdminService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private inviteExpiryMs(): number {
+    return 7 * 24 * 60 * 60 * 1000; // 7 days
+  }
+
+  private inviteBaseUrl(): string {
+    return process.env.FRONTEND_URL || 'http://localhost:3000';
+  }
+
   async createPartner(adminId: string, dto: CreatePartnerDto) {
     const existing = await this.prisma.user.findFirst({
       where: {
@@ -24,7 +32,7 @@ export class AdminService {
       throw new ConflictException('Email or phone already registered');
     }
     const invitationToken = crypto.randomBytes(32).toString('hex');
-    const invitationExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const invitationExpiresAt = new Date(Date.now() + this.inviteExpiryMs());
     const normalizedPhone = dto.phone.replace(/\D/g, '').replace(/^0/, '92');
     const user = await this.prisma.user.create({
       data: {
@@ -55,9 +63,31 @@ export class AdminService {
     await this.prisma.adminLog.create({
       data: { adminId, action: `CREATE_PARTNER_${dto.role}`, targetId: user.id },
     });
-    const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    const inviteLink = `${baseUrl}/partner-invite?token=${invitationToken}`;
+    const inviteLink = `${this.inviteBaseUrl()}/partner-invite?token=${invitationToken}`;
     return { user: { id: user.id, name: user.name, email: user.email, role: user.role }, inviteLink };
+  }
+
+  /**
+   * Regenerate invite token for an existing partner (store owner / rider) whose link expired.
+   * Does NOT delete or recreate their Store or products.
+   */
+  async regeneratePartnerInvite(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+    if (user.role === Role.CUSTOMER) {
+      throw new BadRequestException('Only riders/store owners can receive partner invite links');
+    }
+    if (user.passwordSet) {
+      throw new BadRequestException('This partner already set a password. Use partner login instead.');
+    }
+    const invitationToken = crypto.randomBytes(32).toString('hex');
+    const invitationExpiresAt = new Date(Date.now() + this.inviteExpiryMs());
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { invitationToken, invitationExpiresAt },
+    });
+    const inviteLink = `${this.inviteBaseUrl()}/partner-invite?token=${invitationToken}`;
+    return { inviteLink, invitationExpiresAt };
   }
 
   /**

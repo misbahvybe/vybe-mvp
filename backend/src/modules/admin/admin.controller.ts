@@ -44,6 +44,11 @@ export class AdminController {
     return this.admin.bootstrapStoreForPartnerUser(userId);
   }
 
+  @Post('partners/:userId/regenerate-invite')
+  async regeneratePartnerInvite(@Param('userId') userId: string) {
+    return this.admin.regeneratePartnerInvite(userId);
+  }
+
   @Get('metrics')
   async getMetrics(@CurrentUser() _user: User) {
     return this.admin.getMetrics();
