@@ -40,6 +40,7 @@ export default function StoreDetailPage() {
   const params = useParams();
   const router = useRouter();
   const token = useAuthStore((s) => s.token);
+  const hasHydrated = useAuthStore((s) => s._hasHydrated);
   const [store, setStore] = useState<Store | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -49,6 +50,7 @@ export default function StoreDetailPage() {
   const { items, storeId, total } = useCartStore();
 
   useEffect(() => {
+    if (!hasHydrated) return;
     if (!token) {
       router.replace('/auth/login');
       return;
@@ -84,7 +86,7 @@ export default function StoreDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [token, router, params?.id]);
+  }, [hasHydrated, token, router, params?.id]);
 
   const productsList = store?.products ?? [];
   const availableProducts = useMemo(

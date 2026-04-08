@@ -16,10 +16,12 @@ import type { Address } from '@/types';
 export default function AddressesPage() {
   const router = useRouter();
   const token = useAuthStore((s) => s.token);
+  const hasHydrated = useAuthStore((s) => s._hasHydrated);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!hasHydrated) return;
     if (!token) {
       router.replace('/auth/login');
       return;
@@ -29,7 +31,7 @@ export default function AddressesPage() {
       .then((res) => setAddresses(res.data))
       .catch(() => setAddresses([]))
       .finally(() => setLoading(false));
-  }, [token, router]);
+  }, [hasHydrated, token, router]);
 
   return (
     <div className="min-h-screen flex flex-col">

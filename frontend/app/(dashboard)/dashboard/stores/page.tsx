@@ -10,8 +10,7 @@ import { ContentPanel } from '@/components/layout/ContentPanel';
 import { Card } from '@/components/ui/Card';
 import api from '@/services/api';
 
-const SHOP_PLACEHOLDER =
-  'https://images.unsplash.com/photo-1550989460-0adf9ea622e2?w=600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0';
+const SHOP_PLACEHOLDER = '/storefront.png';
 
 interface StoreSummary {
   id: string;
@@ -25,15 +24,17 @@ interface StoreSummary {
 export default function StoresPage() {
   const router = useRouter();
   const token = useAuthStore((s) => s.token);
+  const hasHydrated = useAuthStore((s) => s._hasHydrated);
   const [stores, setStores] = useState<StoreSummary[]>([]);
 
   useEffect(() => {
+    if (!hasHydrated) return;
     if (!token) {
       router.replace('/auth/login');
       return;
     }
     api.get<StoreSummary[]>('/stores').then((res) => setStores(res.data)).catch(() => setStores([]));
-  }, [token, router]);
+  }, [hasHydrated, token, router]);
 
   return (
     <div className="min-h-screen flex flex-col">

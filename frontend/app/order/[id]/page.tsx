@@ -97,7 +97,8 @@ export default function OrderDetailPage() {
   const router = useRouter();
   const token = useAuthStore((s) => s.token);
   const user = useAuthStore((s) => s.user);
-  const [order, setOrder] = useState<OrderDetail | null>(null);
+  const hasHydrated = useAuthStore((s) => s._hasHydrated);
+  const [order, setOrder] = useState<OrderDetail | null | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [riderId, setRiderId] = useState('');
   const [riders, setRiders] = useState<{ id: string; name: string; phone: string }[]>([]);
@@ -109,12 +110,17 @@ export default function OrderDetailPage() {
 
   const fetchOrder = useCallback(() => {
     if (!orderIdParam) return;
-    api.get<OrderDetail>(`/orders/${orderIdParam}`).then((res) => setOrder(res.data)).catch(() => setOrder(null));
+    setOrder(undefined);
+    api
+      .get<OrderDetail>(`/orders/${orderIdParam}`)
+      .then((res) => setOrder(res.data))
+      .catch(() => setOrder(null));
   }, [orderIdParam]);
 
-  const notFound = order === null && token;
+  const notFound = order === null && !!token;
 
   useEffect(() => {
+    if (!hasHydrated) return;
     if (!token) {
       router.replace('/auth/login');
       return;
@@ -123,7 +129,7 @@ export default function OrderDetailPage() {
     if (user?.role === 'ADMIN') {
       api.get<{ id: string; name: string; phone: string }[]>('/orders/riders/list').then((res) => setRiders(res.data ?? [])).catch(() => {});
     }
-  }, [token, router, orderIdParam, user?.role, fetchOrder]);
+  }, [hasHydrated, token, router, orderIdParam, user?.role, fetchOrder]);
 
   useOrderDetailRealtime(!!token && !!orderIdParam, orderIdParam, token, fetchOrder, 30000);
 
@@ -141,17 +147,25 @@ export default function OrderDetailPage() {
     }
   };
 
-  if (!order) {
+  if (order == null) {
     return (
       <div className="min-h-screen flex flex-col">
         <StickyHeader title="Order" backHref={getBackHref(user?.role ?? 'CUSTOMER')} wideShell={wideOrderShell} />
-        <div className="flex-1 flex items-center justify-center px-4">
-          {notFound ? (
-            <p className="text-slate-600">Order not found or you don&apos;t have access.</p>
-          ) : (
-            <Loader size={44} />
-          )}
-        </div>
+        <ContentPanel bottomPadding="sm">
+          <main className={`${wideOrderShell ? 'app-shell-wide' : 'app-shell-narrow'} py-8 flex items-center justify-center`}>
+            {order === null && notFound ? (
+              <div className="text-center">
+                <p className="text-slate-700 font-medium">Order not found</p>
+                <p className="text-sm text-slate-600 mt-1">It may be cancelled, deleted, or you don&apos;t have access.</p>
+                <Button className="mt-4" variant="outline" onClick={() => router.replace(getBackHref(user?.role ?? 'CUSTOMER'))}>
+                  Go back
+                </Button>
+              </div>
+            ) : (
+              <Loader size={44} />
+            )}
+          </main>
+        </ContentPanel>
       </div>
     );
   }

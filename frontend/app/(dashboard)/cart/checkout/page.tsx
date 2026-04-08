@@ -32,6 +32,7 @@ function CheckoutContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = useAuthStore((s) => s.token);
+  const hasHydrated = useAuthStore((s) => s._hasHydrated);
   const { items, storeId, total, clearCart } = useCartStore();
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
@@ -87,6 +88,7 @@ function CheckoutContent() {
   }, [searchParams]);
 
   useEffect(() => {
+    if (!hasHydrated) return;
     if (!token) {
       router.replace('/auth/login');
       return;
@@ -96,7 +98,7 @@ function CheckoutContent() {
       const defaultAddr = (res.data ?? []).find((a) => a.isDefault) ?? (res.data ?? [])[0];
       if (defaultAddr) setSelectedAddressId(defaultAddr.id);
     });
-  }, [token, router]);
+  }, [hasHydrated, token, router]);
 
   const placeOrder = async () => {
     if (!selectedAddressId || !storeId || items.length === 0) {
@@ -129,6 +131,7 @@ function CheckoutContent() {
 
   const canPlaceOrder = selectedAddressId && items.length > 0 && addresses.length > 0;
 
+  if (!hasHydrated) return null;
   if (!token) return null;
 
   return (

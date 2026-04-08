@@ -14,6 +14,7 @@ interface StoreSummary {
   id: string;
   name: string;
   description: string | null;
+  imageUrl?: string | null;
   products: { id: string; name: string; price: number }[];
 }
 
@@ -33,6 +34,7 @@ export default function CategoryPage() {
   const params = useParams();
   const router = useRouter();
   const token = useAuthStore((s) => s.token);
+  const hasHydrated = useAuthStore((s) => s._hasHydrated);
   const type = (params?.type as string) || 'grocery';
   const [stores, setStores] = useState<StoreSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,6 +47,7 @@ export default function CategoryPage() {
   }, [search]);
 
   useEffect(() => {
+    if (!hasHydrated) return;
     if (!token) {
       router.replace('/auth/login');
       return;
@@ -52,7 +55,7 @@ export default function CategoryPage() {
     setLoading(true);
     const params = ['food', 'grocery', 'medicine'].includes(type) ? { category: type } : {};
     api.get<StoreSummary[]>('/stores', { params }).then((res) => setStores(res.data)).catch(() => setStores([])).finally(() => setLoading(false));
-  }, [token, router, type]);
+  }, [hasHydrated, token, router, type]);
 
   const filteredStores = useMemo(() => {
     if (!debouncedSearch.trim()) return stores;
@@ -97,7 +100,20 @@ export default function CategoryPage() {
                 <Link key={store.id} href={`/dashboard/stores/${store.id}`}>
                   <Card className="overflow-hidden hover:shadow-soft-lg transition-shadow border border-slate-200">
                     <div className="aspect-square bg-white border-b border-slate-100 rounded-t-card flex items-center justify-center p-4">
-                      <Image src="/store-shelf.png" alt="" width={96} height={96} className="object-contain" />
+                      {store.imageUrl ? (
+                        <div className="relative w-full h-full">
+                          <Image
+                            src={store.imageUrl}
+                            alt={store.name}
+                            fill
+                            className="object-cover"
+                            sizes="50vw"
+                            unoptimized
+                          />
+                        </div>
+                      ) : (
+                        <Image src="/storefront.png" alt="" width={96} height={96} className="object-contain" />
+                      )}
                     </div>
                     <div className="pt-3">
                       <p className="font-semibold text-slate-800">{store.name}</p>

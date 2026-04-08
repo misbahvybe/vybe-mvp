@@ -10,19 +10,20 @@ import { ContentPanel } from '@/components/layout/ContentPanel';
 import { Card } from '@/components/ui/Card';
 import api from '@/services/api';
 
-const SHOP_FRONT_IMAGE =
-  'https://images.unsplash.com/photo-1550989460-0adf9ea622e2?w=600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0';
+const SHOP_FRONT_IMAGE = '/storefront.png';
 
 interface StoreSummary {
   id: string;
   name: string;
   description: string | null;
+  imageUrl?: string | null;
   products: { id: string; name: string; price: number }[];
 }
 
 export default function SearchPage() {
   const router = useRouter();
   const token = useAuthStore((s) => s.token);
+  const hasHydrated = useAuthStore((s) => s._hasHydrated);
   const [stores, setStores] = useState<StoreSummary[]>([]);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -33,12 +34,13 @@ export default function SearchPage() {
   }, [search]);
 
   useEffect(() => {
+    if (!hasHydrated) return;
     if (!token) {
       router.replace('/auth/login');
       return;
     }
     api.get<StoreSummary[]>('/stores').then((res) => setStores(res.data)).catch(() => setStores([]));
-  }, [token, router]);
+  }, [hasHydrated, token, router]);
 
   const filteredStores = useMemo(() => {
     if (!debouncedSearch.trim()) return stores;
@@ -66,7 +68,7 @@ export default function SearchPage() {
               <Link key={store.id} href={`/dashboard/stores/${store.id}`}>
                 <Card className="flex gap-4">
                   <div className="w-16 h-16 rounded-button bg-slate-100 relative overflow-hidden shrink-0">
-                    <Image src={SHOP_FRONT_IMAGE} alt={store.name} fill className="object-cover" sizes="64px" />
+                    <Image src={store.imageUrl ?? SHOP_FRONT_IMAGE} alt={store.name} fill className="object-cover" sizes="64px" unoptimized={!!store.imageUrl} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-slate-800">{store.name}</p>

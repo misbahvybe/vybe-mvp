@@ -20,6 +20,7 @@ const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
 export default function PaymentMethodsPage() {
   const router = useRouter();
   const token = useAuthStore((s) => s.token);
+  const hasHydrated = useAuthStore((s) => s._hasHydrated);
   const { cards, loading, error: storeError, fetchCards, addCard, addCardWithStripe, setDefault, removeCard, clearError } = usePaymentMethodsStore();
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -33,9 +34,10 @@ export default function PaymentMethodsPage() {
   });
 
   useEffect(() => {
+    if (!hasHydrated) return;
     if (!token) router.replace('/auth/login');
     else fetchCards();
-  }, [token, router, fetchCards]);
+  }, [hasHydrated, token, router, fetchCards]);
 
   const maskCardNumber = (value: string) => {
     const digits = value.replace(/\D/g, '');
@@ -103,6 +105,7 @@ export default function PaymentMethodsPage() {
     }
   };
 
+  if (!hasHydrated) return null;
   if (!token) return null;
 
   return (

@@ -23,9 +23,14 @@ api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401 && typeof window !== 'undefined') {
-      localStorage.removeItem('vybe_token');
-      localStorage.removeItem('vybe_user');
-      window.dispatchEvent(new Event('vybe_unauthorized'));
+      // Avoid nuking auth during initial hydration where token may not yet be copied to `vybe_token`.
+      const hadToken = Boolean(localStorage.getItem('vybe_token'));
+      const hadAuthHeader = Boolean(err?.config?.headers?.Authorization);
+      if (hadToken || hadAuthHeader) {
+        localStorage.removeItem('vybe_token');
+        localStorage.removeItem('vybe_user');
+        window.dispatchEvent(new Event('vybe_unauthorized'));
+      }
     }
     return Promise.reject(err);
   }
