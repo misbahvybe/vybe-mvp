@@ -89,6 +89,10 @@ export default function StoreDetailPage() {
   }, [hasHydrated, token, router, params?.id]);
 
   const productsList = store?.products ?? [];
+  const naturalByName = useMemo(() => {
+    return (a: { name: string }, b: { name: string }) =>
+      a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+  }, []);
   const availableProducts = useMemo(
     () => productsList.filter((p) => p.isAvailable !== false),
     [productsList],
@@ -109,11 +113,16 @@ export default function StoreDetailPage() {
       [
         ...(store?.productCategories ?? []).map((c) => ({
           title: c.name,
-          items: (c.products ?? []).filter((p) => p.isAvailable !== false),
+          items: (c.products ?? [])
+            .filter((p) => p.isAvailable !== false)
+            .slice()
+            .sort(naturalByName),
         })),
-        ...(uncategorized.length > 0 ? [{ title: 'More', items: uncategorized }] : []),
+        ...(uncategorized.length > 0
+          ? [{ title: 'More', items: uncategorized.slice().sort(naturalByName) }]
+          : []),
       ].filter((s) => s.items.length > 0),
-    [store?.productCategories, uncategorized],
+    [store?.productCategories, uncategorized, naturalByName],
   );
 
   if (!token) {

@@ -323,12 +323,14 @@ export class StoresService {
           include: {
             products: {
               where: { isAvailable: true, isOutOfStock: false },
+              orderBy: { name: 'asc' },
               include: { variants: { where: { isAvailable: true }, orderBy: { sortOrder: 'asc' } } },
             },
           },
         },
         products: {
           where: { isAvailable: true, isOutOfStock: false },
+          orderBy: { name: 'asc' },
           include: { variants: { where: { isAvailable: true }, orderBy: { sortOrder: 'asc' } } },
         },
       },
