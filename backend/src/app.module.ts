@@ -18,10 +18,12 @@ import { AdminModule } from './modules/admin/admin.module';
 import { HealthModule } from './modules/health/health.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { BankPaymentsModule } from './modules/bank-payments/bank-payments.module';
+import { UpstashModule } from './common/upstash/upstash.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    UpstashModule,
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
     StripeModule,
     XPayModule,
