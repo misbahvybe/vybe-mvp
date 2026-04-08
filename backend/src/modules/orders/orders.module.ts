@@ -4,9 +4,11 @@ import { OrdersController } from './orders.controller';
 import { PricingModule } from '../pricing/pricing.module';
 import { RealtimeModule } from '../realtime/realtime.module';
 import { StoresModule } from '../stores/stores.module';
+import { JazzCashModule } from '../jazzcash/jazzcash.module';
+import { EasypaisaModule } from '../easypaisa/easypaisa.module';
 
 @Module({
-  imports: [PricingModule, RealtimeModule, StoresModule],
+  imports: [PricingModule, RealtimeModule, StoresModule, JazzCashModule, EasypaisaModule],
   controllers: [OrdersController],
   providers: [OrdersService],
   exports: [OrdersService],
