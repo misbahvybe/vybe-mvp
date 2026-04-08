@@ -29,6 +29,12 @@ enum PaymentStatus {
   PAID
 }
 
+enum PendingPaymentProvider {
+  XPAY
+  JAZZCASH
+  EASYPAISA
+}
+
 enum OrderStatus {
   PENDING
   STORE_ACCEPTED
@@ -459,6 +465,10 @@ model PendingPayment {
   itemsJson    String   @map("items_json")   // JSON: [{productId, quantity, price}]
   amountPkr    Decimal  @map("amount_pkr") @db.Decimal(10, 2)
   xpayIntentId String?  @map("xpay_intent_id")
+  provider     PendingPaymentProvider @default(XPAY) @map("provider")
+  providerRef  String?  @map("provider_ref") // e.g. pp_TxnRefNo (JazzCash) / orderRef
+  providerPayloadJson String? @map("provider_payload_json") // raw gateway response (JSON)
+  orderId      String?  @map("order_id")
   status       String   @default("PENDING")  // PENDING | COMPLETED | EXPIRED
   expiresAt    DateTime @map("expires_at")
   createdAt    DateTime @default(now()) @map("created_at")
@@ -467,6 +477,7 @@ model PendingPayment {
 
   @@index([customerId])
   @@index([status, expiresAt])
+  @@index([provider, providerRef])
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

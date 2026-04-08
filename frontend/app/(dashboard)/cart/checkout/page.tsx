@@ -36,6 +36,7 @@ function CheckoutContent() {
   const { items, storeId, total, clearCart } = useCartStore();
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+  const [payment, setPayment] = useState<'COD' | 'JAZZCASH' | 'EASYPAISA'>('COD');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [quote, setQuote] = useState<OrderQuote | null>(null);
@@ -66,7 +67,7 @@ function CheckoutContent() {
           quantity: i.quantity,
           price: i.unitPrice,
         })),
-        paymentMethod: 'COD',
+        paymentMethod: payment === 'COD' ? 'COD' : 'CARD',
       })
       .then((r) => {
         if (!cancelled) setQuote(r.data ?? null);
@@ -80,7 +81,7 @@ function CheckoutContent() {
     return () => {
       cancelled = true;
     };
-  }, [token, storeId, selectedAddressId, cartKey, items.length]);
+  }, [token, storeId, selectedAddressId, cartKey, items.length, payment]);
 
   useEffect(() => {
     const err = searchParams?.get('error');
@@ -100,6 +101,21 @@ function CheckoutContent() {
     });
   }, [hasHydrated, token, router]);
 
+  const submitPostForm = (postUrl: string, fields: Record<string, string>) => {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = postUrl;
+    for (const [k, v] of Object.entries(fields)) {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = k;
+      input.value = v;
+      form.appendChild(input);
+    }
+    document.body.appendChild(form);
+    form.submit();
+  };
+
   const placeOrder = async () => {
     if (!selectedAddressId || !storeId || items.length === 0) {
       setError('Select a delivery address and ensure cart is not empty.');
@@ -108,7 +124,25 @@ function CheckoutContent() {
     setError('');
     setLoading(true);
     try {
-      const res = await api.post<{ id: string }>('/orders', {
+      if (payment === 'COD') {
+        const res = await api.post<{ id: string }>('/orders', {
+          storeId,
+          addressId: selectedAddressId,
+          items: items.map((i) => ({
+            productId: i.productId,
+            variantId: i.variantId ?? undefined,
+            quantity: i.quantity,
+            price: i.unitPrice,
+          })),
+          paymentMethod: 'COD',
+        });
+        clearCart();
+        router.push(`/order/${res.data.id}`);
+        return;
+      }
+
+      const endpoint = payment === 'JAZZCASH' ? '/orders/prepare-jazzcash' : '/orders/prepare-easypaisa';
+      const prep = await api.post<{ postUrl: string; fields: Record<string, string> }>(endpoint, {
         storeId,
         addressId: selectedAddressId,
         items: items.map((i) => ({
@@ -117,10 +151,11 @@ function CheckoutContent() {
           quantity: i.quantity,
           price: i.unitPrice,
         })),
-        paymentMethod: 'COD',
       });
-      clearCart();
-      router.push(`/order/${res.data.id}`);
+
+      // After redirect payment, the gateway returns to backend callback which redirects to /order/:id.
+      // Keep cart intact until we confirm paid order exists.
+      submitPostForm(prep.data.postUrl, prep.data.fields);
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Failed to place order';
       setError(msg);
@@ -169,15 +204,59 @@ function CheckoutContent() {
 
         <h2 className="text-lg font-bold text-slate-800 mb-2">Payment method</h2>
         <div className="space-y-2 mb-6">
-          <Card className="ring-2 ring-primary rounded-card">
-            <div className="flex items-center gap-3">
-              <MdPayments className="w-5 h-5 text-primary shrink-0" />
-              <div>
-                <p className="font-medium text-slate-800">Cash on Delivery</p>
-                <p className="text-xs text-slate-500">Pay when you receive</p>
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => setPayment('COD')}
+            onKeyDown={(e) => e.key === 'Enter' && setPayment('COD')}
+            className={`cursor-pointer ${payment === 'COD' ? 'ring-2 ring-primary rounded-card' : ''}`}
+          >
+            <Card>
+              <div className="flex items-center gap-3">
+                <MdPayments className="w-5 h-5 text-primary shrink-0" />
+                <div>
+                  <p className="font-medium text-slate-800">Cash on Delivery</p>
+                  <p className="text-xs text-slate-500">Pay when you receive</p>
+                </div>
               </div>
-            </div>
-          </Card>
+            </Card>
+          </div>
+
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => setPayment('JAZZCASH')}
+            onKeyDown={(e) => e.key === 'Enter' && setPayment('JAZZCASH')}
+            className={`cursor-pointer ${payment === 'JAZZCASH' ? 'ring-2 ring-primary rounded-card' : ''}`}
+          >
+            <Card>
+              <div className="flex items-center gap-3">
+                <MdPayments className="w-5 h-5 text-primary shrink-0" />
+                <div>
+                  <p className="font-medium text-slate-800">Pay with JazzCash</p>
+                  <p className="text-xs text-slate-500">Redirect to JazzCash checkout</p>
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => setPayment('EASYPAISA')}
+            onKeyDown={(e) => e.key === 'Enter' && setPayment('EASYPAISA')}
+            className={`cursor-pointer ${payment === 'EASYPAISA' ? 'ring-2 ring-primary rounded-card' : ''}`}
+          >
+            <Card>
+              <div className="flex items-center gap-3">
+                <MdPayments className="w-5 h-5 text-primary shrink-0" />
+                <div>
+                  <p className="font-medium text-slate-800">Pay with Easypaisa</p>
+                  <p className="text-xs text-slate-500">Redirect to Easypaisa checkout</p>
+                </div>
+              </div>
+            </Card>
+          </div>
         </div>
 
         <h2 className="text-lg font-bold text-slate-800 mb-2">Order summary</h2>

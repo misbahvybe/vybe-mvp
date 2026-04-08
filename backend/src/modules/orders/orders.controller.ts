@@ -41,6 +41,68 @@ export class OrdersController {
     }
   }
 
+  @Public()
+  @Post('jazzcash-callback')
+  async jazzcashCallback(@Body() body: any, @Res() res: Response) {
+    const txnRefNo = String(body?.pp_TxnRefNo ?? '');
+    const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
+    if (!txnRefNo) {
+      return res.redirect(`${frontendUrl}/cart/checkout?error=missing_params`);
+    }
+    try {
+      const order = await this.orders.completeJazzCashPayment(txnRefNo, body ?? {});
+      return res.redirect(`${frontendUrl}/order/${order.id}`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Payment failed';
+      return res.redirect(`${frontendUrl}/cart/checkout?error=${encodeURIComponent(msg)}`);
+    }
+  }
+
+  @Public()
+  @Get('easypaisa-postback')
+  async easypaisaPostback(@Query('auth_token') authToken: string, @Query('orderRefNum') orderRefNum: string, @Res() res: Response) {
+    const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
+    const backendUrl = process.env.BACKEND_URL ?? 'http://localhost:4000';
+    if (!authToken || !orderRefNum) {
+      return res.redirect(`${frontendUrl}/cart/checkout?error=missing_params`);
+    }
+
+    const confirmUrl = `${process.env.EASYPAISA_BASE_URL ?? 'https://easypaystg.easypaisa.com.pk'}/easypay/Confirm.jsf`;
+    const resultUrl = `${backendUrl}/api/v1/orders/easypaisa-result?orderRefNum=${encodeURIComponent(orderRefNum)}`;
+
+    // Easypaisa expects a browser POST to Confirm.jsf with auth_token + postBackURL.
+    const html = `<!doctype html>
+<html>
+  <head><meta charset="utf-8"><title>Redirecting…</title></head>
+  <body>
+    <form id="f" method="post" action="${confirmUrl}">
+      <input type="hidden" name="auth_token" value="${String(authToken).replace(/"/g, '&quot;')}" />
+      <input type="hidden" name="postBackURL" value="${String(resultUrl).replace(/"/g, '&quot;')}" />
+    </form>
+    <script>document.getElementById('f').submit();</script>
+  </body>
+</html>`;
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.send(html);
+  }
+
+  @Public()
+  @Get('easypaisa-result')
+  async easypaisaResult(@Query() query: any, @Res() res: Response) {
+    const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
+    const orderRefNum = String(query?.orderRefNum ?? query?.orderRefNumber ?? '');
+    if (!orderRefNum) {
+      return res.redirect(`${frontendUrl}/cart/checkout?error=missing_params`);
+    }
+    try {
+      const order = await this.orders.completeEasypaisaPayment(orderRefNum, query ?? {});
+      return res.redirect(`${frontendUrl}/order/${order.id}`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Payment failed';
+      return res.redirect(`${frontendUrl}/cart/checkout?error=${encodeURIComponent(msg)}`);
+    }
+  }
+
   @UseGuards(JwtAuthGuard)
   @Post('payment-intent')
   async createPaymentIntent(@CurrentUser() user: User, @Body() dto: CreatePaymentIntentDto) {
@@ -51,6 +113,18 @@ export class OrdersController {
   @Post('prepare-xpay')
   async prepareXPay(@CurrentUser() user: User, @Body() dto: PrepareXPayDto) {
     return this.orders.prepareXPay(user.id, dto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('prepare-jazzcash')
+  async prepareJazzCash(@CurrentUser() user: User, @Body() dto: PrepareXPayDto) {
+    return this.orders.prepareJazzCash(user.id, dto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('prepare-easypaisa')
+  async prepareEasypaisa(@CurrentUser() user: User, @Body() dto: PrepareXPayDto) {
+    return this.orders.prepareEasypaisa(user.id, dto);
   }
 
   @UseGuards(JwtAuthGuard)

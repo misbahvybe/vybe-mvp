@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { StripeService } from '../stripe/stripe.service';
 import { XPayService } from '../xpay/xpay.service';
+import { JazzCashService } from '../jazzcash/jazzcash.service';
+import { EasypaisaService } from '../easypaisa/easypaisa.service';
 import { OrderStatus, Product, ProductVariant, Role } from '@prisma/client';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
@@ -25,11 +27,232 @@ export class OrdersService {
     private readonly prisma: PrismaService,
     private readonly stripe: StripeService,
     private readonly xpay: XPayService,
+    private readonly jazzcash: JazzCashService,
+    private readonly easypaisa: EasypaisaService,
     private readonly config: ConfigService,
     private readonly pricing: PricingService,
     private readonly ordersGateway: OrdersGateway,
     private readonly stores: StoresService,
   ) {}
+
+  async prepareJazzCash(customerId: string, dto: PrepareXPayDto) {
+    // NOTE: We reuse PrepareXPayDto shape: storeId, addressId, items.
+    // This keeps frontend changes small.
+    const address = await this.prisma.address.findFirst({
+      where: { id: dto.addressId, userId: customerId },
+    });
+    if (!address) throw new ForbiddenException('Address not found');
+    const store = await this.prisma.store.findFirst({
+      where: { id: dto.storeId, isApproved: true },
+    });
+    if (!store) throw new ForbiddenException('Store not found');
+    if (!this.isStoreOpen(store)) {
+      throw new BadRequestException('Store is closed. Please try again during business hours.');
+    }
+    if (!this.jazzcash.isConfigured()) {
+      throw new BadRequestException('JazzCash is not configured');
+    }
+
+    const { subtotal: subtotalAmount } = await this.assertItemsAndSubtotal(this.prisma, dto.storeId, dto.items, {
+      checkStock: true,
+    });
+    const q = await this.pricing.buildQuote({
+      storeId: dto.storeId,
+      addressLat: Number(address.latitude),
+      addressLng: Number(address.longitude),
+      storeLat: store.latitude != null ? Number(store.latitude) : null,
+      storeLng: store.longitude != null ? Number(store.longitude) : null,
+      subtotal: subtotalAmount,
+      paymentMethod: 'CARD',
+    });
+
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: customerId },
+      select: { email: true, phone: true },
+    });
+
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+    const txnRefNo = this.jazzcash.generateTxnRefNo();
+    const pending = await this.prisma.pendingPayment.create({
+      data: {
+        customerId,
+        storeId: dto.storeId,
+        addressId: dto.addressId,
+        itemsJson: JSON.stringify(dto.items),
+        amountPkr: q.totalAmount,
+        status: 'PENDING',
+        expiresAt,
+        provider: 'JAZZCASH' as any,
+        providerRef: txnRefNo,
+      },
+    });
+
+    const backendUrl = this.config.get<string>('BACKEND_URL') ?? 'http://localhost:4000';
+    const returnUrl = `${backendUrl}/api/v1/orders/jazzcash-callback`;
+
+    const prep = this.jazzcash.prepareHostedCheckout({
+      amountPkr: Number(q.totalAmount),
+      txnRefNo,
+      billReference: pending.id,
+      description: `VYBE order (${dto.items.length} item${dto.items.length === 1 ? '' : 's'})`,
+      returnUrl,
+      txnType: 'PAY',
+      customerEmail: user.email ?? null,
+      customerMobile: user.phone ?? null,
+    });
+
+    return { pendingId: pending.id, ...prep };
+  }
+
+  async completeJazzCashPayment(txnRefNo: string, callbackBody: Record<string, any>) {
+    const pending = await this.prisma.pendingPayment.findFirst({
+      where: { provider: 'JAZZCASH' as any, providerRef: txnRefNo, status: 'PENDING' },
+    });
+    if (!pending) throw new BadRequestException('Invalid or expired payment session');
+    if (new Date() > pending.expiresAt) {
+      await this.prisma.pendingPayment.update({ where: { id: pending.id }, data: { status: 'EXPIRED' } });
+      throw new BadRequestException('Payment session expired');
+    }
+
+    const verify = this.jazzcash.verifyCallback(callbackBody);
+    if (!verify.ok) throw new BadRequestException(verify.reason ?? 'JazzCash verification failed');
+
+    const responseCode = String(callbackBody.pp_ResponseCode ?? callbackBody.pp_responsecode ?? '');
+    const isPaid = responseCode === '000' || responseCode.toUpperCase() === 'T00';
+    if (!isPaid) {
+      await this.prisma.pendingPayment.update({
+        where: { id: pending.id },
+        data: { providerPayloadJson: JSON.stringify(callbackBody), status: 'EXPIRED' },
+      });
+      throw new BadRequestException(`JazzCash payment failed (${responseCode || 'unknown'})`);
+    }
+
+    const items = JSON.parse(pending.itemsJson) as { productId: string; variantId?: string; quantity: number; price?: number }[];
+    const dto: CreateOrderDto = {
+      storeId: pending.storeId,
+      addressId: pending.addressId,
+      items,
+      paymentMethod: 'CARD',
+      // we don't rely on client-supplied refs; order is created server-side here
+    } as any;
+
+    const order = await this.create(pending.customerId, dto);
+
+    await this.prisma.pendingPayment.update({
+      where: { id: pending.id },
+      data: {
+        status: 'COMPLETED',
+        providerPayloadJson: JSON.stringify(callbackBody),
+        orderId: order.id,
+      },
+    });
+
+    return order;
+  }
+
+  async prepareEasypaisa(customerId: string, dto: PrepareXPayDto) {
+    const address = await this.prisma.address.findFirst({
+      where: { id: dto.addressId, userId: customerId },
+    });
+    if (!address) throw new ForbiddenException('Address not found');
+    const store = await this.prisma.store.findFirst({
+      where: { id: dto.storeId, isApproved: true },
+    });
+    if (!store) throw new ForbiddenException('Store not found');
+    if (!this.isStoreOpen(store)) {
+      throw new BadRequestException('Store is closed. Please try again during business hours.');
+    }
+    if (!this.easypaisa.isConfigured()) {
+      throw new BadRequestException('Easypaisa is not configured');
+    }
+
+    const { subtotal: subtotalAmount } = await this.assertItemsAndSubtotal(this.prisma, dto.storeId, dto.items, {
+      checkStock: true,
+    });
+    const q = await this.pricing.buildQuote({
+      storeId: dto.storeId,
+      addressLat: Number(address.latitude),
+      addressLng: Number(address.longitude),
+      storeLat: store.latitude != null ? Number(store.latitude) : null,
+      storeLng: store.longitude != null ? Number(store.longitude) : null,
+      subtotal: subtotalAmount,
+      paymentMethod: 'CARD',
+    });
+
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: customerId },
+      select: { email: true, phone: true },
+    });
+
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+    const orderRefNum = this.easypaisa.generateOrderRefNum();
+    const pending = await this.prisma.pendingPayment.create({
+      data: {
+        customerId,
+        storeId: dto.storeId,
+        addressId: dto.addressId,
+        itemsJson: JSON.stringify(dto.items),
+        amountPkr: q.totalAmount,
+        status: 'PENDING',
+        expiresAt,
+        provider: 'EASYPAISA',
+        providerRef: orderRefNum,
+      },
+    });
+
+    const backendUrl = this.config.get<string>('BACKEND_URL') ?? 'http://localhost:4000';
+    const postBackUrl = `${backendUrl}/api/v1/orders/easypaisa-postback?orderRefNum=${encodeURIComponent(orderRefNum)}`;
+
+    const prep = this.easypaisa.preparePostMethod({
+      amountPkr: Number(q.totalAmount),
+      orderRefNum,
+      postBackUrl,
+      emailAddr: user.email ?? null,
+      mobileNum: user.phone ?? null,
+      autoRedirect: '0',
+    });
+
+    return { pendingId: pending.id, ...prep };
+  }
+
+  async completeEasypaisaPayment(orderRefNum: string, resultQuery: Record<string, any>) {
+    const pending = await this.prisma.pendingPayment.findFirst({
+      where: { provider: 'EASYPAISA', providerRef: orderRefNum, status: 'PENDING' },
+    });
+    if (!pending) throw new BadRequestException('Invalid or expired payment session');
+    if (new Date() > pending.expiresAt) {
+      await this.prisma.pendingPayment.update({ where: { id: pending.id }, data: { status: 'EXPIRED' } });
+      throw new BadRequestException('Payment session expired');
+    }
+
+    const status = String(resultQuery.status ?? '').toLowerCase();
+    const desc = String(resultQuery.desc ?? '');
+    const isPaid = status === 'success' || status === 'paid';
+    if (!isPaid) {
+      await this.prisma.pendingPayment.update({
+        where: { id: pending.id },
+        data: { providerPayloadJson: JSON.stringify(resultQuery), status: 'EXPIRED' },
+      });
+      throw new BadRequestException(`Easypaisa payment failed (${desc || status || 'unknown'})`);
+    }
+
+    const items = JSON.parse(pending.itemsJson) as { productId: string; variantId?: string; quantity: number; price?: number }[];
+    const dto: CreateOrderDto = {
+      storeId: pending.storeId,
+      addressId: pending.addressId,
+      items,
+      paymentMethod: 'CARD',
+    } as any;
+
+    const order = await this.create(pending.customerId, dto);
+
+    await this.prisma.pendingPayment.update({
+      where: { id: pending.id },
+      data: { status: 'COMPLETED', providerPayloadJson: JSON.stringify(resultQuery), orderId: order.id },
+    });
+
+    return order;
+  }
 
   /**
    * Validates line items against catalog prices (anti-tamper) and optionally stock.
