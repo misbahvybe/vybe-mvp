@@ -19,5 +19,5 @@ RUN npx prisma generate
 
 EXPOSE 4000
 
-# NestJS outputs to dist/src/ when preserving source structure
-CMD ["node", "dist/src/main.js"]
+# Apply pending DB migrations before boot (required when schema changes between deploys)
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/main.js"]
