@@ -30,4 +30,10 @@ export class CreateProductDto {
   @IsOptional()
   @IsString()
   productCategoryId?: string;
+
+  /** When true, product is hidden from customers until approved (admin / bulk import). */
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  isDraft?: boolean;
 }

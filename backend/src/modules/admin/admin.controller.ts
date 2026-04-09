@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { PharmacyIngestionService } from './pharmacy-ingestion.service';
 import { StoresService } from '../stores/stores.service';
@@ -63,9 +63,14 @@ export class AdminController {
     return this.admin.getAlerts();
   }
 
+  /** @query platform Optional filter: `food`, `grocery`, or `medicine` (platform tabs). */
   @Get('stores')
-  async getStores(@CurrentUser() _user: User) {
-    return this.admin.getStores();
+  async getStores(
+    @CurrentUser() _user: User,
+    @Query('platform') platform?: string,
+    @Query('includeUnapproved') includeUnapproved?: string,
+  ) {
+    return this.admin.getStores(platform, includeUnapproved === 'true');
   }
 
   /**

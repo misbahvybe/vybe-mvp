@@ -346,14 +346,19 @@ export class StoresService {
   }
 
   private async listApprovedUncached(category?: string) {
-    const where: { isApproved: boolean; categories?: { some: { category: { name: string } } } } = {
+    const where: {
+      isApproved: boolean;
+      categories?: { some: { category: { name: { in: string[] } } } };
+    } = {
       isApproved: true,
     };
     if (category?.trim()) {
       const cat = category.trim().toLowerCase();
+      const title = cat.length > 0 ? cat.charAt(0).toUpperCase() + cat.slice(1) : cat;
+      // Match both normalized slugs (food) and legacy Title Case rows (Food) in StoreCategory.name
+      const nameVariants = cat === title ? [cat] : [...new Set([cat, title])];
       where.categories = {
-        // Be resilient to existing DB values like "Food" vs "food"
-        some: { category: { name: { equals: cat, mode: 'insensitive' } } as any },
+        some: { category: { name: { in: nameVariants } } },
       };
     }
     const stores = await this.prisma.store.findMany({
@@ -483,6 +488,7 @@ export class StoresService {
       const cat = await this.prisma.productCategory.findFirst({ where: { id: dto.productCategoryId, storeId } });
       if (!cat) throw new BadRequestException('Category not found');
     }
+    const asDraft = dto.isDraft === true;
     const row = await this.prisma.product.create({
       data: {
         storeId,
@@ -490,12 +496,14 @@ export class StoresService {
         nameNormalized: normalizeProductName(dto.name),
         description: dto.description,
         price: new Decimal(dto.price),
-        stock: dto.stock ?? 999,
-        isAvailable: dto.isAvailable ?? true,
+        stock: asDraft ? new Decimal(0) : new Decimal(dto.stock ?? 999),
+        isAvailable: asDraft ? false : (dto.isAvailable ?? true),
+        isOutOfStock: asDraft ? true : Number(dto.stock ?? 999) <= 0,
         imageUrl: dto.imageUrl,
         productCategoryId: dto.productCategoryId || null,
-        isDraft: false,
-        isVerified: true,
+        isDraft: asDraft,
+        isVerified: !asDraft,
+        source: asDraft ? 'kaggle_import' : undefined,
         formHint: inferMedicineFormHint(dto.name),
       },
     });

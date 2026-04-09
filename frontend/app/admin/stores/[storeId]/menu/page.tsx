@@ -61,6 +61,7 @@ export default function AdminStoreMenuPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [platformCategorySlugs, setPlatformCategorySlugs] = useState<string[]>([]);
   const [platformSaving, setPlatformSaving] = useState(false);
+  const [platformSaveMsg, setPlatformSaveMsg] = useState<string | null>(null);
   const [newVariant, setNewVariant] = useState({ name: '', price: '', sortOrder: '0' });
   const [editForm, setEditForm] = useState({
     name: '',
@@ -206,8 +207,18 @@ export default function AdminStoreMenuPage() {
   const savePlatformCategories = async () => {
     if (!storeId) return;
     setPlatformSaving(true);
+    setPlatformSaveMsg(null);
     try {
-      await api.post(`/admin/platform-store-categories/${storeId}`, { names: platformCategorySlugs });
+      const res = await api.post<{ names: string[] }>(`/admin/platform-store-categories/${storeId}`, {
+        names: platformCategorySlugs,
+      });
+      const names = res.data?.names ?? platformCategorySlugs;
+      setPlatformCategorySlugs(names);
+      setPlatformSaveMsg(
+        names.length === 0
+          ? 'No platform tabs selected — the store will not appear under Food, Grocery, or Medicine until you select at least one.'
+          : `Saved. This store is listed under: ${names.join(', ')}. Customers see it on those tabs after the store is approved and has menu items.`,
+      );
     } catch (e) {
       alert(
         (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
@@ -397,6 +408,11 @@ export default function AdminStoreMenuPage() {
             <Button type="button" size="sm" onClick={savePlatformCategories} disabled={platformSaving}>
               {platformSaving ? 'Saving…' : 'Save platform categories'}
             </Button>
+            {platformSaveMsg && (
+              <p className="mt-3 text-sm text-slate-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                {platformSaveMsg}
+              </p>
+            )}
           </Card>
 
           <Card className="p-4">

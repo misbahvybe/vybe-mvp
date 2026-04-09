@@ -8,7 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { UpstashService } from '../../common/upstash/upstash.service';
 import { StoresService } from '../stores/stores.service';
-import { CheckoutServiceFeeMode, Role, StoreStatus } from '@prisma/client';
+import { CheckoutServiceFeeMode, Prisma, Role, StoreStatus } from '@prisma/client';
 import { CreatePartnerDto } from './dto/create-partner.dto';
 import { PatchPlatformCheckoutSettingsDto } from './dto/patch-platform-checkout-settings.dto';
 import * as crypto from 'crypto';
@@ -298,13 +298,30 @@ export class AdminService {
     }).map((s) => ({ id: s.id, name: s.name }));
   }
 
-  async getStores() {
+  /**
+   * @param platform Optional slug: `food` | `grocery` | `medicine` — only stores linked to that platform tab.
+   * @param includeUnapproved When true (e.g. bulk import tooling), include stores not yet approved.
+   */
+  async getStores(platform?: string, includeUnapproved = false) {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
+    const where: Prisma.StoreWhereInput = {};
+    if (!includeUnapproved) {
+      where.isApproved = true;
+    }
+    if (platform?.trim()) {
+      const slug = platform.trim().toLowerCase();
+      const title = slug.charAt(0).toUpperCase() + slug.slice(1);
+      const nameVariants = [...new Set([slug, title])];
+      where.categories = {
+        some: { category: { name: { in: nameVariants } } },
+      };
+    }
     const stores = await this.prisma.store.findMany({
-      where: { isApproved: true },
+      where,
       include: {
         owner: { select: { name: true } },
+        categories: { include: { category: { select: { name: true } } } },
         orders: { where: { createdAt: { gte: todayStart } }, select: { id: true, totalAmount: true, orderStatus: true } },
         earnings: { where: { createdAt: { gte: todayStart } }, select: { commissionAmount: true, storeAmount: true } },
       },
@@ -321,6 +338,7 @@ export class AdminService {
       isApproved: s.isApproved,
       commissionPercentOverride:
         s.commissionPercentOverride != null ? Number(s.commissionPercentOverride) : null,
+      platformCategories: s.categories.map((c) => c.category.name),
     }));
   }
 
