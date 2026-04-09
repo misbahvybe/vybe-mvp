@@ -1,12 +1,5 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
-import {
-  ClerkProvider,
-  Show,
-  SignInButton,
-  SignUpButton,
-  UserButton,
-} from '@clerk/nextjs';
 import { AuthListener } from '@/components/auth/AuthListener';
 import { BRAND_FULL } from '@/constants/brand';
 
@@ -54,27 +47,8 @@ export default function RootLayout({
   return (
     <html lang="en" className="overflow-x-hidden">
       <body className="min-h-screen w-full overflow-x-hidden">
-        <ClerkProvider>
-          <header className="flex flex-wrap items-center justify-end gap-2 border-b border-white/10 bg-primary-dark px-4 py-2 text-sm text-white">
-            <Show when="signed-out">
-              <SignInButton mode="modal">
-                <button type="button" className="rounded-lg px-3 py-1.5 font-medium text-white/90 hover:bg-white/10">
-                  Sign in
-                </button>
-              </SignInButton>
-              <SignUpButton mode="modal">
-                <button type="button" className="rounded-lg bg-accent px-3 py-1.5 font-medium text-white hover:opacity-90">
-                  Sign up
-                </button>
-              </SignUpButton>
-            </Show>
-            <Show when="signed-in">
-              <UserButton />
-            </Show>
-          </header>
-          <AuthListener />
-          {children}
-        </ClerkProvider>
+        <AuthListener />
+        {children}
       </body>
     </html>
   );
