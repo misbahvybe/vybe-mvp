@@ -38,6 +38,7 @@ export default function CategoryPage() {
   const type = (params?.type as string) || 'grocery';
   const [stores, setStores] = useState<StoreSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
@@ -53,8 +54,28 @@ export default function CategoryPage() {
       return;
     }
     setLoading(true);
+    setError(null);
     const params = ['food', 'grocery', 'medicine'].includes(type) ? { category: type } : {};
-    api.get<StoreSummary[]>('/stores', { params }).then((res) => setStores(res.data)).catch(() => setStores([])).finally(() => setLoading(false));
+    api
+      .get<StoreSummary[]>('/stores', { params })
+      .then((res) => setStores(res.data))
+      .catch((e: unknown) => {
+        setStores([]);
+        const status = (e as { response?: { status?: number } })?.response?.status;
+        const base = api.defaults.baseURL;
+        if (status === 401) {
+          setError('Unauthorized (401). Your login token is missing/expired. Please login again.');
+          return;
+        }
+        if (typeof window !== 'undefined' && base?.includes('localhost') && window.location.hostname !== 'localhost') {
+          setError(
+            `API URL misconfigured. Your frontend is calling "${base}". Set NEXT_PUBLIC_API_URL on Vercel to your Railway backend URL ending with /api/v1.`,
+          );
+          return;
+        }
+        setError('Failed to load stores. Check API URL and backend logs.');
+      })
+      .finally(() => setLoading(false));
   }, [hasHydrated, token, router, type]);
 
   const filteredStores = useMemo(() => {
@@ -79,13 +100,19 @@ export default function CategoryPage() {
             className="w-full px-4 py-3 rounded-button border border-slate-300 focus:ring-2 focus:ring-primary focus:border-primary outline-none"
           />
         </div>
+        {!loading && error && (
+          <Card className="py-6 px-4 mt-4">
+            <p className="text-slate-800 font-medium mb-1">Couldn&apos;t load stores</p>
+            <p className="text-slate-600 text-sm break-words">{error}</p>
+          </Card>
+        )}
         {loading ? (
           <div className="grid grid-cols-2 gap-4 mt-4">
             {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
               <StoreCardSkeleton key={i} />
             ))}
           </div>
-        ) : filteredStores.length === 0 ? (
+        ) : error ? null : filteredStores.length === 0 ? (
           <Card className="py-16 text-center mt-4">
             <p className="text-slate-500 text-lg mb-2">No stores found</p>
             <p className="text-slate-400 text-sm">

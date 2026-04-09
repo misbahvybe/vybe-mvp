@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { AuthListener } from '@/components/auth/AuthListener';
+import { AuthHydrate } from '@/components/auth/AuthHydrate';
 import { BRAND_FULL } from '@/constants/brand';
 
 /** Vercel preview + Deployment Protection returns 401 for static files; skip manifest link so the browser does not request it. */
@@ -47,6 +48,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="overflow-x-hidden">
       <body className="min-h-screen w-full overflow-x-hidden">
+        <AuthHydrate />
         <AuthListener />
         {children}
       </body>
