@@ -75,6 +75,15 @@ enum CheckoutServiceFeeMode {
   PERCENT
 }
 
+/// Heuristic category for pharmacy SKUs (from name or import metadata).
+enum MedicineFormHint {
+  TABLET
+  SYRUP
+  CAPSULE
+  INJECTION
+  OTHER
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // 1️⃣ USERS
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -277,6 +286,15 @@ model Product {
   isOutOfStock       Boolean  @default(false) @map("is_out_of_stock")
   imageUrl           String?  @map("image_url")
   isAvailable        Boolean  @default(true) @map("is_available")
+  /// Draft / unverified catalog rows (e.g. reference import). Hidden from customers until verified.
+  isDraft            Boolean  @default(false) @map("is_draft")
+  /// Set false for imported reference data until pharmacy confirms.
+  isVerified         Boolean  @default(true) @map("is_verified")
+  /// Lowercase single-spaced name for deduplication within a store.
+  nameNormalized     String   @default("") @map("name_normalized")
+  /// e.g. manual | csv | reference_seed
+  source             String?  @map("source")
+  formHint           MedicineFormHint? @map("form_hint")
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
@@ -284,6 +302,9 @@ model Product {
   category         ProductCategory? @relation(fields: [productCategoryId], references: [id], onDelete: SetNull)
   variants         ProductVariant[]
   orderItems       OrderItem[]
+
+  @@index([storeId, nameNormalized])
+  @@index([storeId, isDraft])
 }
 
 model ProductVariant {

@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Put, UseGuards } from '@nestjs/common';
 import { AdminService } from './admin.service';
+import { PharmacyIngestionService } from './pharmacy-ingestion.service';
 import { StoresService } from '../stores/stores.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -18,6 +19,8 @@ import { PatchPlatformCheckoutSettingsDto } from './dto/patch-platform-checkout-
 import { UpdateStoreCommissionOverrideDto } from './dto/update-store-commission-override.dto';
 import { UpdateStoreStatusDto } from './dto/update-store-status.dto';
 import { SetStorePlatformCategoriesDto } from './dto/set-store-platform-categories.dto';
+import { IngestReferenceDto } from './dto/ingest-reference.dto';
+import { ApproveDraftProductDto } from '../stores/dto/approve-draft-product.dto';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -26,6 +29,7 @@ export class AdminController {
   constructor(
     private readonly admin: AdminService,
     private readonly stores: StoresService,
+    private readonly pharmacyIngestion: PharmacyIngestionService,
   ) {}
 
   @Post('partners')
@@ -195,6 +199,30 @@ export class AdminController {
   @Get('stores/:storeId/products')
   async adminStoreProducts(@Param('storeId') storeId: string) {
     return this.stores.adminGetProducts(storeId);
+  }
+
+  @Get('stores/:storeId/products/drafts')
+  async adminDraftProducts(@Param('storeId') storeId: string) {
+    return this.stores.adminGetDraftProducts(storeId);
+  }
+
+  @Post('stores/:storeId/products/ingest-reference/preview')
+  async ingestReferencePreview(@Param('storeId') storeId: string) {
+    return this.pharmacyIngestion.previewReferenceSeed(storeId);
+  }
+
+  @Post('stores/:storeId/products/ingest-reference')
+  async ingestReference(@Param('storeId') storeId: string, @Body() dto: IngestReferenceDto) {
+    return this.pharmacyIngestion.ingestReferenceSeed(storeId, dto.dryRun ?? false);
+  }
+
+  @Patch('stores/:storeId/products/:productId/verify')
+  async approveDraftProduct(
+    @Param('storeId') storeId: string,
+    @Param('productId') productId: string,
+    @Body() dto: ApproveDraftProductDto,
+  ) {
+    return this.stores.adminApproveDraftProduct(storeId, productId, dto);
   }
 
   @Post('stores/:storeId/products')

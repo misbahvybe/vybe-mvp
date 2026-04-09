@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { GalleryImageInput } from '@/components/ui/GalleryImageInput';
 import api from '@/services/api';
-import { ArrowLeft, LayoutGrid, UtensilsCrossed } from 'lucide-react';
+import { ArrowLeft, LayoutGrid, Pill, UtensilsCrossed } from 'lucide-react';
 
 const PLATFORM_VERTICALS = [
   { slug: 'food', label: 'Food' },
@@ -34,6 +34,10 @@ interface Product {
   imageUrl?: string | null;
   category?: { id: string; name: string } | null;
   variants?: { id: string; name: string; price: number; isAvailable: boolean; sortOrder: number }[];
+  /** Reference / unverified catalog row — not shown to customers until approved. */
+  isDraft?: boolean;
+  isVerified?: boolean;
+  formHint?: string | null;
 }
 
 export default function AdminStoreMenuPage() {
@@ -67,6 +71,9 @@ export default function AdminStoreMenuPage() {
     imageUrl: '',
     isAvailable: true,
   });
+  const [ingestBusy, setIngestBusy] = useState(false);
+  const [ingestPreview, setIngestPreview] = useState<Record<string, unknown> | null>(null);
+  const [draftApprove, setDraftApprove] = useState<Record<string, { price: string; stock: string }>>({});
 
   const fetchAll = useCallback(() => {
     if (!storeId) return;
@@ -101,6 +108,73 @@ export default function AdminStoreMenuPage() {
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+
+  useEffect(() => {
+    setDraftApprove((prev) => {
+      const next = { ...prev };
+      for (const p of products) {
+        if (!p.isDraft) continue;
+        if (next[p.id] === undefined) {
+          next[p.id] = {
+            price: String(Number(p.price) || 0),
+            stock: String(Number(p.stock) ?? 0),
+          };
+        }
+      }
+      return next;
+    });
+  }, [products]);
+
+  const previewReferenceIngest = async () => {
+    if (!storeId) return;
+    setIngestBusy(true);
+    setIngestPreview(null);
+    try {
+      const r = await api.post(`/admin/stores/${storeId}/products/ingest-reference/preview`);
+      setIngestPreview(r.data as Record<string, unknown>);
+    } catch (e) {
+      alert((e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Preview failed');
+    } finally {
+      setIngestBusy(false);
+    }
+  };
+
+  const runReferenceIngest = async (dryRun: boolean) => {
+    if (!storeId) return;
+    if (!dryRun && !confirm('Import reference medicines as draft products? Existing names will be skipped.')) return;
+    setIngestBusy(true);
+    try {
+      const r = await api.post(`/admin/stores/${storeId}/products/ingest-reference`, { dryRun });
+      setIngestPreview(r.data as Record<string, unknown>);
+      fetchAll();
+    } catch (e) {
+      alert((e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Import failed');
+    } finally {
+      setIngestBusy(false);
+    }
+  };
+
+  const approveDraftProduct = async (productId: string) => {
+    if (!storeId) return;
+    const vals = draftApprove[productId];
+    if (!vals) return;
+    const price = Number(vals.price);
+    const stock = Number(vals.stock);
+    if (!Number.isFinite(price) || price <= 0) {
+      alert('Enter a valid price greater than 0');
+      return;
+    }
+    if (!Number.isFinite(stock) || stock < 0) {
+      alert('Enter a valid stock (0 or more)');
+      return;
+    }
+    try {
+      await api.patch(`/admin/stores/${storeId}/products/${productId}/verify`, { price, stock });
+      fetchAll();
+    } catch (e) {
+      alert((e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Approve failed');
+    }
+  };
 
   const addCategory = async () => {
     if (!storeId || !newCategoryName.trim()) return;
@@ -351,6 +425,107 @@ export default function AdminStoreMenuPage() {
                   </li>
                 ))}
               </ul>
+            )}
+          </Card>
+
+          <Card className="p-4">
+            <h2 className="font-semibold text-slate-800 mb-1 flex items-center gap-2">
+              <Pill className="w-5 h-5 text-primary" />
+              Pharmacy reference catalog
+            </h2>
+            <p className="text-slate-600 text-sm mb-3">
+              When the pharmacy has no export, use the bundled reference list (common medicines) as{' '}
+              <strong>draft</strong> rows — not visible to customers until you set price and approve. Prefer your own
+              CSV or POS data when you have it. Do not scrape third-party sites without permission.
+            </p>
+            <div className="flex flex-wrap gap-2 mb-3">
+              <Button type="button" size="sm" variant="outline" disabled={ingestBusy} onClick={previewReferenceIngest}>
+                {ingestBusy ? '…' : 'Preview counts'}
+              </Button>
+              <Button type="button" size="sm" variant="outline" disabled={ingestBusy} onClick={() => runReferenceIngest(true)}>
+                Dry run (no DB)
+              </Button>
+              <Button type="button" size="sm" disabled={ingestBusy} onClick={() => runReferenceIngest(false)}>
+                Import drafts
+              </Button>
+            </div>
+            {ingestPreview && (
+              <pre className="text-xs bg-slate-50 border border-slate-200 rounded-lg p-3 overflow-x-auto max-h-48 text-slate-700">
+                {JSON.stringify(ingestPreview, null, 2)}
+              </pre>
+            )}
+
+            {products.some((p) => p.isDraft) && (
+              <div className="mt-4 border-t border-slate-100 pt-4">
+                <h3 className="font-medium text-slate-800 mb-2">Draft items — approve to publish</h3>
+                <p className="text-xs text-slate-500 mb-2">Set retail price and stock, then approve. Items appear on the menu after approval.</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50">
+                      <tr>
+                        <th className="text-left p-2 font-medium">Name</th>
+                        <th className="text-left p-2 font-medium">Hint</th>
+                        <th className="text-right p-2 font-medium w-28">Price (PKR)</th>
+                        <th className="text-right p-2 font-medium w-24">Stock</th>
+                        <th className="p-2 w-28" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {products
+                        .filter((p) => p.isDraft)
+                        .map((p) => (
+                          <tr key={p.id} className="border-t border-slate-100">
+                            <td className="p-2 align-top">
+                              <div className="font-medium">{p.name}</div>
+                              {p.description ? <p className="text-xs text-slate-500 mt-1">{p.description}</p> : null}
+                            </td>
+                            <td className="p-2 text-slate-600 text-xs">{p.formHint ?? '—'}</td>
+                            <td className="p-2">
+                              <input
+                                type="number"
+                                min={0}
+                                step={0.01}
+                                className="w-full border border-slate-200 rounded px-2 py-1 text-right text-sm"
+                                value={draftApprove[p.id]?.price ?? ''}
+                                onChange={(e) =>
+                                  setDraftApprove((prev) => ({
+                                    ...prev,
+                                    [p.id]: {
+                                      price: e.target.value,
+                                      stock: prev[p.id]?.stock ?? String(Number(p.stock) ?? 0),
+                                    },
+                                  }))
+                                }
+                              />
+                            </td>
+                            <td className="p-2">
+                              <input
+                                type="number"
+                                min={0}
+                                className="w-full border border-slate-200 rounded px-2 py-1 text-right text-sm"
+                                value={draftApprove[p.id]?.stock ?? ''}
+                                onChange={(e) =>
+                                  setDraftApprove((prev) => ({
+                                    ...prev,
+                                    [p.id]: {
+                                      stock: e.target.value,
+                                      price: prev[p.id]?.price ?? String(Number(p.price) || 0),
+                                    },
+                                  }))
+                                }
+                              />
+                            </td>
+                            <td className="p-2 text-right">
+                              <Button type="button" size="sm" onClick={() => approveDraftProduct(p.id)}>
+                                Approve
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             )}
           </Card>
 
@@ -638,14 +813,20 @@ export default function AdminStoreMenuPage() {
                           </td>
                           <td className="p-3 text-right">{Number(p.stock)}</td>
                           <td className="p-3">
-                            <span className={p.isOutOfStock || !p.isAvailable ? 'text-amber-700' : 'text-green-700'}>
-                              {p.isOutOfStock || !p.isAvailable ? 'Unavailable' : 'Live'}
-                            </span>
+                            {p.isDraft ? (
+                              <span className="text-amber-800 font-medium">Draft</span>
+                            ) : (
+                              <span className={p.isOutOfStock || !p.isAvailable ? 'text-amber-700' : 'text-green-700'}>
+                                {p.isOutOfStock || !p.isAvailable ? 'Unavailable' : 'Live'}
+                              </span>
+                            )}
                           </td>
                           <td className="p-3 space-x-1 whitespace-nowrap text-right">
+                            {!p.isDraft && (
                             <Button type="button" variant="outline" size="sm" onClick={() => toggleOos(p)}>
                               {p.isOutOfStock ? 'Mark in stock' : 'Mark OOS'}
                             </Button>
+                            )}
                             <Button type="button" variant="outline" size="sm" onClick={() => startEdit(p)}>
                               Edit
                             </Button>

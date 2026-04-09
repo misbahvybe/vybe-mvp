@@ -12,6 +12,8 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { CreateProductVariantDto } from './dto/create-product-variant.dto';
 import { UpdateProductVariantDto } from './dto/update-product-variant.dto';
+import { normalizeProductName, inferMedicineFormHint } from '../../common/product/product-name.util';
+import { ApproveDraftProductDto } from './dto/approve-draft-product.dto';
 
 @Injectable()
 export class StoresService {
@@ -20,6 +22,13 @@ export class StoresService {
     private readonly config: ConfigService,
     private readonly upstash: UpstashService,
   ) {}
+
+  /** Customer-facing menu: exclude drafts and unavailable items. */
+  private readonly publicProductCatalogWhere = {
+    isDraft: false,
+    isAvailable: true,
+    isOutOfStock: false,
+  } as const;
 
   private storeListCacheKey(category?: string): string {
     const c = category?.trim().toLowerCase() || 'all';
@@ -200,12 +209,16 @@ export class StoresService {
       data: {
         storeId: store.id,
         name: dto.name,
+        nameNormalized: normalizeProductName(dto.name),
         description: dto.description,
         price: new Decimal(dto.price),
         stock: dto.stock ?? 999,
         isAvailable: dto.isAvailable ?? true,
         imageUrl: dto.imageUrl,
         productCategoryId: dto.productCategoryId || null,
+        isDraft: false,
+        isVerified: true,
+        formHint: inferMedicineFormHint(dto.name),
       },
     });
     await this.invalidatePublicStoreListCache().catch(() => undefined);
@@ -221,7 +234,11 @@ export class StoresService {
       if (!cat) throw new ForbiddenException('Category not found');
     }
     const data: Record<string, unknown> = {};
-    if (dto.name !== undefined) data.name = dto.name;
+    if (dto.name !== undefined) {
+      data.name = dto.name;
+      data.nameNormalized = normalizeProductName(dto.name);
+      data.formHint = inferMedicineFormHint(dto.name);
+    }
     if (dto.description !== undefined) data.description = dto.description;
     if (dto.price !== undefined) data.price = new Decimal(dto.price);
     if (dto.stock !== undefined) {
@@ -344,7 +361,7 @@ export class StoresService {
       include: {
         owner: { select: { name: true } },
         products: {
-          where: { isAvailable: true, isOutOfStock: false },
+          where: { ...this.publicProductCatalogWhere },
           take: 4,
           include: { variants: { where: { isAvailable: true }, orderBy: { sortOrder: 'asc' } } },
         },
@@ -380,14 +397,14 @@ export class StoresService {
           orderBy: { sortOrder: 'asc' },
           include: {
             products: {
-              where: { isAvailable: true, isOutOfStock: false },
+              where: { ...this.publicProductCatalogWhere },
               orderBy: { name: 'asc' },
               include: { variants: { where: { isAvailable: true }, orderBy: { sortOrder: 'asc' } } },
             },
           },
         },
         products: {
-          where: { isAvailable: true, isOutOfStock: false },
+          where: { ...this.publicProductCatalogWhere },
           orderBy: { name: 'asc' },
           include: { variants: { where: { isAvailable: true }, orderBy: { sortOrder: 'asc' } } },
         },
@@ -466,18 +483,24 @@ export class StoresService {
       const cat = await this.prisma.productCategory.findFirst({ where: { id: dto.productCategoryId, storeId } });
       if (!cat) throw new BadRequestException('Category not found');
     }
-    return this.prisma.product.create({
+    const row = await this.prisma.product.create({
       data: {
         storeId,
         name: dto.name,
+        nameNormalized: normalizeProductName(dto.name),
         description: dto.description,
         price: new Decimal(dto.price),
         stock: dto.stock ?? 999,
         isAvailable: dto.isAvailable ?? true,
         imageUrl: dto.imageUrl,
         productCategoryId: dto.productCategoryId || null,
+        isDraft: false,
+        isVerified: true,
+        formHint: inferMedicineFormHint(dto.name),
       },
     });
+    await this.invalidatePublicStoreListCache().catch(() => undefined);
+    return row;
   }
 
   async adminUpdateProduct(storeId: string, productId: string, dto: UpdateProductDto) {
@@ -489,7 +512,11 @@ export class StoresService {
       if (!cat) throw new BadRequestException('Category not found');
     }
     const data: Record<string, unknown> = {};
-    if (dto.name !== undefined) data.name = dto.name;
+    if (dto.name !== undefined) {
+      data.name = dto.name;
+      data.nameNormalized = normalizeProductName(dto.name);
+      data.formHint = inferMedicineFormHint(dto.name);
+    }
     if (dto.description !== undefined) data.description = dto.description;
     if (dto.price !== undefined) data.price = new Decimal(dto.price);
     if (dto.stock !== undefined) {
@@ -500,7 +527,9 @@ export class StoresService {
     if (dto.imageUrl !== undefined) data.imageUrl = dto.imageUrl;
     if (dto.productCategoryId !== undefined) data.productCategoryId = dto.productCategoryId || null;
     if (dto.isAvailable === false) data.isOutOfStock = true;
-    return this.prisma.product.update({ where: { id: productId }, data });
+    const row = await this.prisma.product.update({ where: { id: productId }, data });
+    await this.invalidatePublicStoreListCache().catch(() => undefined);
+    return row;
   }
 
   async adminDeleteProduct(storeId: string, productId: string) {
@@ -508,7 +537,9 @@ export class StoresService {
     const prod = await this.prisma.product.findFirst({ where: { id: productId, storeId } });
     if (!prod) throw new BadRequestException('Product not found');
     try {
-      return await this.prisma.product.delete({ where: { id: productId } });
+      const row = await this.prisma.product.delete({ where: { id: productId } });
+      await this.invalidatePublicStoreListCache().catch(() => undefined);
+      return row;
     } catch (e) {
       if (e instanceof PrismaClientKnownRequestError && e.code === 'P2003') {
         throw new BadRequestException(
@@ -517,6 +548,43 @@ export class StoresService {
       }
       throw e;
     }
+  }
+
+  async adminGetDraftProducts(storeId: string) {
+    await this.requireStore(storeId);
+    return this.prisma.product.findMany({
+      where: { storeId, isDraft: true },
+      include: { category: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async adminApproveDraftProduct(storeId: string, productId: string, dto: ApproveDraftProductDto) {
+    await this.requireStore(storeId);
+    const prod = await this.prisma.product.findFirst({ where: { id: productId, storeId } });
+    if (!prod) throw new BadRequestException('Product not found');
+    if (!prod.isDraft) throw new BadRequestException('Product is not a draft');
+    if (dto.price <= 0) throw new BadRequestException('Price must be greater than 0');
+    if (dto.productCategoryId) {
+      const cat = await this.prisma.productCategory.findFirst({ where: { id: dto.productCategoryId, storeId } });
+      if (!cat) throw new BadRequestException('Category not found');
+    }
+    const stock = dto.stock === undefined ? prod.stock : new Decimal(dto.stock);
+    const stockNum = Number(stock);
+    const row = await this.prisma.product.update({
+      where: { id: productId },
+      data: {
+        isDraft: false,
+        isVerified: true,
+        isAvailable: stockNum > 0,
+        price: new Decimal(dto.price),
+        stock,
+        isOutOfStock: stockNum <= 0,
+        productCategoryId: dto.productCategoryId ?? prod.productCategoryId,
+      },
+    });
+    await this.invalidatePublicStoreListCache().catch(() => undefined);
+    return row;
   }
 
   async adminSetProductOutOfStock(storeId: string, productId: string, isOutOfStock: boolean) {

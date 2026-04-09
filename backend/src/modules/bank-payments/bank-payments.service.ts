@@ -87,6 +87,9 @@ export class BankPaymentsService {
     for (const item of items) {
       const prod = productById.get(item.productId);
       if (!prod) throw new BadRequestException(`Product ${item.productId} not found`);
+      if (prod.isDraft) {
+        throw new BadRequestException(`Product "${prod.name}" is not available for sale yet`);
+      }
       if (options.checkStock) {
         const stock = Number(prod.stock);
         if (prod.isOutOfStock || stock < item.quantity) {
