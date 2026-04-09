@@ -20,6 +20,8 @@ Usage
   python scripts/import_kaggle_pakistan_medicines.py --limit 500
   python scripts/import_kaggle_pakistan_medicines.py --publish --default-price 50
 
+By default only stores that have **Medicine** and **not** Food/Grocery get imports. If every pharmacy also has Food, use e.g. --store-name-contains Pharmacy to target it, or --allow-mixed-platform-stores for all Medicine-tagged stores.
+
 Default mode imports as **draft** (hidden from customers) so you can set prices in admin.
 Use --publish to create live products (still verify prices for your pharmacy).
 
@@ -109,6 +111,43 @@ def normalize_name(name: str) -> str:
     return re.sub(r"\s+", " ", str(name).strip().lower())
 
 
+def store_is_medicine_only(store: dict[str, Any]) -> bool:
+    """
+    True if the store is on the Medicine tab but not Food or Grocery.
+    Avoids importing drugs into burger/restaurant stores that also ticked Medicine.
+    """
+    cats = [str(c).strip().lower() for c in (store.get("platformCategories") or [])]
+    if "medicine" not in cats:
+        return False
+    if "food" in cats or "grocery" in cats:
+        return False
+    return True
+
+
+def build_product_body(
+    item: dict[str, Any],
+    *,
+    publish: bool,
+    legacy_no_isdraft: bool,
+) -> dict[str, Any]:
+    body: dict[str, Any] = {
+        "name": item["name"],
+        "price": item["price"],
+        "description": item.get("description"),
+    }
+    if item.get("imageUrl"):
+        body["imageUrl"] = item["imageUrl"]
+    if publish:
+        body["stock"] = 999
+        body["isAvailable"] = True
+    elif legacy_no_isdraft:
+        body["stock"] = 0
+        body["isAvailable"] = False
+    else:
+        body["isDraft"] = True
+    return body
+
+
 def parse_price(val: Any) -> float | None:
     if val is None or (isinstance(val, float) and pd.isna(val)):
         return None
@@ -153,6 +192,23 @@ def main() -> int:
         "--include-unapproved-stores",
         action="store_true",
         help="Also import into stores not yet approved (admin only).",
+    )
+    parser.add_argument(
+        "--allow-mixed-platform-stores",
+        action="store_true",
+        help="Import into every store tagged Medicine, even if it also has Food/Grocery.",
+    )
+    parser.add_argument(
+        "--store-name-contains",
+        metavar="TEXT",
+        default="",
+        help="Only stores whose name contains TEXT (case-insensitive). Use e.g. Pharmacy to target one store without importing into restaurants.",
+    )
+    parser.add_argument(
+        "--store-ids",
+        metavar="IDS",
+        default="",
+        help="Comma-separated store UUIDs to import into (must still be in Medicine platform list unless you use --allow-mixed-platform-stores with care).",
     )
     parser.add_argument("--sleep", type=float, default=0.05, help="Seconds between POSTs")
     args = parser.parse_args()
@@ -235,7 +291,45 @@ def main() -> int:
             print("No stores with Medicine platform category. Tag stores in Admin → Store menu → Platform categories.")
             return 1
 
-        print(f"Found {len(stores)} medicine store(s):", [s["name"] for s in stores])
+        targeted = bool((args.store_ids or "").strip() or (args.store_name_contains or "").strip())
+
+        if (args.store_ids or "").strip():
+            want = {x.strip() for x in args.store_ids.split(",") if x.strip()}
+            stores = [s for s in stores if s.get("id") in want]
+            if not stores:
+                print("No stores matched --store-ids.", file=sys.stderr)
+                return 1
+
+        if (args.store_name_contains or "").strip():
+            sub = args.store_name_contains.strip().lower()
+            stores = [s for s in stores if sub in str(s.get("name", "")).lower()]
+            if not stores:
+                print(f"No stores matched --store-name-contains {args.store_name_contains!r}.", file=sys.stderr)
+                return 1
+
+        use_medicine_only = not args.allow_mixed_platform_stores and not targeted
+        if use_medicine_only:
+            before = len(stores)
+            stores = [s for s in stores if store_is_medicine_only(s)]
+            skipped = before - len(stores)
+            if skipped:
+                print(
+                    f"Skipped {skipped} store(s) that also have Food/Grocery "
+                    f"(use --store-name-contains Pharmacy, --store-ids …, or --allow-mixed-platform-stores)."
+                )
+        if not stores:
+            print(
+                "No stores to import into. Options: (1) In Admin, remove Food/Grocery from your pharmacy so it is medicine-only; "
+                "(2) python scripts/import_kaggle_pakistan_medicines.py --store-name-contains Pharmacy …; "
+                "(3) --allow-mixed-platform-stores (imports into all Medicine-tagged stores, including restaurants).",
+                file=sys.stderr,
+            )
+            return 1
+
+        label = "medicine-only" if use_medicine_only else "selected"
+        print(f"Importing into {len(stores)} {label} store(s):", [s["name"] for s in stores])
+
+        legacy_no_isdraft: list[bool] = [False]
 
         for store in stores:
             sid = store["id"]
@@ -248,18 +342,19 @@ def main() -> int:
                 if normalize_name(item["name"]) in existing:
                     skipped += 1
                     continue
-                body: dict[str, Any] = {
-                    "name": item["name"],
-                    "price": item["price"],
-                    "description": item.get("description"),
-                    "isDraft": not args.publish,
-                }
-                if item.get("imageUrl"):
-                    body["imageUrl"] = item["imageUrl"]
-                if args.publish:
-                    body["stock"] = 999
-                    body["isAvailable"] = True
-                resp = client.post(f"/admin/stores/{sid}/products", json=body)
+                body = build_product_body(item, publish=args.publish, legacy_no_isdraft=legacy_no_isdraft[0])
+                url = f"/admin/stores/{sid}/products"
+                resp = client.post(url, json=body)
+                if resp.status_code == 400 and "isDraft" in resp.text and not args.publish:
+                    if not legacy_no_isdraft[0]:
+                        print(
+                            "  Note: API has no isDraft field; using stock=0 and isAvailable=false instead. "
+                            "Redeploy latest backend for full draft approval flow.",
+                            file=sys.stderr,
+                        )
+                        legacy_no_isdraft[0] = True
+                    body = build_product_body(item, publish=args.publish, legacy_no_isdraft=True)
+                    resp = client.post(url, json=body)
                 if resp.status_code >= 400:
                     print(f"  ERROR {sid} {item['name'][:40]}: {resp.status_code} {resp.text[:200]}")
                     continue
