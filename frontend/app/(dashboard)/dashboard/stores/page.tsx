@@ -26,6 +26,8 @@ export default function StoresPage() {
   const token = useAuthStore((s) => s.token);
   const hasHydrated = useAuthStore((s) => s._hasHydrated);
   const [stores, setStores] = useState<StoreSummary[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!hasHydrated) return;
@@ -33,7 +35,29 @@ export default function StoresPage() {
       router.replace('/auth/login');
       return;
     }
-    api.get<StoreSummary[]>('/stores').then((res) => setStores(res.data)).catch(() => setStores([]));
+    setLoading(true);
+    setError(null);
+    api
+      .get<StoreSummary[]>('/stores')
+      .then((res) => setStores(res.data))
+      .catch((e: unknown) => {
+        setStores([]);
+        const status = (e as { response?: { status?: number } })?.response?.status;
+        const base = api.defaults.baseURL;
+        if (status === 401) {
+          setError('Unauthorized (401). Your login token is missing/expired. Please login again.');
+          return;
+        }
+        // Common production misconfig: NEXT_PUBLIC_API_URL not set (defaults to localhost)
+        if (typeof window !== 'undefined' && base?.includes('localhost') && window.location.hostname !== 'localhost') {
+          setError(
+            `API URL misconfigured. Your frontend is calling "${base}". Set NEXT_PUBLIC_API_URL on Vercel to your Railway backend URL ending with /api/v1.`,
+          );
+          return;
+        }
+        setError('Failed to load stores. Check API URL and backend logs.');
+      })
+      .finally(() => setLoading(false));
   }, [hasHydrated, token, router]);
 
   return (
@@ -41,6 +65,17 @@ export default function StoresPage() {
       <StickyHeader title="Stores" backHref="/dashboard" />
       <ContentPanel>
       <main className="app-shell-narrow py-4">
+        {loading && (
+          <Card className="py-10 text-center">
+            <p className="text-slate-500">Loading stores…</p>
+          </Card>
+        )}
+        {!loading && error && (
+          <Card className="py-6 px-4">
+            <p className="text-slate-800 font-medium mb-1">Couldn&apos;t load stores</p>
+            <p className="text-slate-600 text-sm break-words">{error}</p>
+          </Card>
+        )}
         <div className="grid grid-cols-2 gap-4">
           {stores.map((store) => {
             const firstProduct = store.products[0];
@@ -68,7 +103,7 @@ export default function StoresPage() {
             );
           })}
         </div>
-        {stores.length === 0 && (
+        {!loading && !error && stores.length === 0 && (
           <Card className="py-12 text-center">
             <p className="text-slate-500">No stores available</p>
           </Card>
