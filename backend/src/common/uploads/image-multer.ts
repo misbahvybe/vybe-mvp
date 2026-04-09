@@ -1,26 +1,18 @@
-import { diskStorage, memoryStorage } from 'multer';
-import { extname, join } from 'path';
-import { randomUUID } from 'crypto';
+import { memoryStorage } from 'multer';
+import { join } from 'path';
 import type { Request } from 'express';
-import { isCloudinaryConfigured } from './cloudinary';
 
 export const PRODUCTS_UPLOAD_DIR = join(process.cwd(), 'uploads', 'products');
 
-/** Shared disk storage for product / store listing images (max 5 MB). */
+/**
+ * Product / store listing images (max 5 MB).
+ * Always use memory storage so `file.buffer` is set at request time. That way Cloudinary
+ * uploads work even if env vars were not visible when the module first loaded (and local
+ * fallback can write the buffer to disk in the controller).
+ */
 export function multerImageFileOptions() {
-  // For Cloudinary we want the file bytes in memory (buffer).
-  const useMemory = isCloudinaryConfigured();
   return {
-    storage: useMemory
-      ? memoryStorage()
-      : diskStorage({
-          destination: PRODUCTS_UPLOAD_DIR,
-          filename: (_req, file, cb) => {
-            const ext = extname(file.originalname || '').toLowerCase();
-            const safe = ['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext) ? ext : '.jpg';
-            cb(null, `${randomUUID()}${safe}`);
-          },
-        }),
+    storage: memoryStorage(),
     limits: { fileSize: 5 * 1024 * 1024 },
     fileFilter: (
       _req: Express.Request,
