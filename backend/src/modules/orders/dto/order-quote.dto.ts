@@ -5,6 +5,10 @@ class QuoteOrderItemDto {
   @IsString()
   productId: string;
 
+  @IsOptional()
+  @IsString()
+  variantId?: string;
+
   @IsNumber()
   quantity: number;
 
