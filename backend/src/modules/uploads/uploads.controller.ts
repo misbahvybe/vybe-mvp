@@ -53,6 +53,16 @@ export class UploadsController {
       throw new BadRequestException('Empty image upload');
     }
 
+    // Railway / Vercel / most PaaS: local disk is ephemeral — /uploads/... URLs 404 after restart.
+    const isProd = process.env.NODE_ENV === 'production';
+    if (isProd && !isCloudinaryConfigured()) {
+      throw new BadRequestException(
+        'Image storage is not configured. In production, set Cloudinary: either CLOUDINARY_URL ' +
+          '(cloudinary://API_KEY:API_SECRET@CLOUD_NAME from the Cloudinary dashboard) or ' +
+          'CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET on Railway, then redeploy.',
+      );
+    }
+
     // If Cloudinary is configured, prefer it (persists across deploys).
     if (isCloudinaryConfigured()) {
       const { secureUrl } = await uploadProductImageToCloudinary({

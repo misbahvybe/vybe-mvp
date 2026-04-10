@@ -5,12 +5,25 @@ import { IoAdapter } from '@nestjs/platform-socket.io';
 import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { AppModule } from './app.module';
+import { isCloudinaryConfigured } from './common/uploads/cloudinary';
 
 async function bootstrap() {
   const required = ['DATABASE_URL', 'JWT_SECRET'];
   const missing = required.filter((k) => !process.env[k]?.trim());
   if (missing.length > 0) {
     throw new Error(`Missing required env: ${missing.join(', ')}. Check backend/.env or deployment variables.`);
+  }
+
+  if (process.env.NODE_ENV === 'production' && !isCloudinaryConfigured()) {
+    console.error(
+      '[uploads] Cloudinary is not configured. Product/store images will fail to upload until you set CLOUDINARY_URL or CLOUDINARY_CLOUD_NAME + CLOUDINARY_API_KEY + CLOUDINARY_API_SECRET.',
+    );
+  } else if (!isCloudinaryConfigured()) {
+    console.warn(
+      '[uploads] Cloudinary not set — using local disk for images (fine for dev; use Cloudinary on Railway/production).',
+    );
+  } else {
+    console.log('[uploads] Cloudinary configured — images use durable URLs.');
   }
 
   const uploadsRoot = join(process.cwd(), 'uploads');
