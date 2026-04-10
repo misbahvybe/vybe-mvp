@@ -33,7 +33,13 @@ export function AddressMapPicker({
   const [geoState, setGeoState] = useState<GeoState>('idle');
   const [hasGeolocationApi, setHasGeolocationApi] = useState(false);
   const [loading, setLoading] = useState(false);
-  const mapRef = useRef<{ map: import('leaflet').Map; marker: import('leaflet').Marker } | null>(null);
+  const mapRef = useRef<{
+    map: import('leaflet').Map;
+    marker: import('leaflet').Marker;
+    streetLayer: import('leaflet').TileLayer;
+    satelliteLayer: import('leaflet').TileLayer;
+  } | null>(null);
+  const [satelliteMode, setSatelliteMode] = useState(false);
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
 
@@ -60,14 +66,15 @@ export function AddressMapPicker({
         const m = mapRef.current;
         if (m) {
           m.marker.setLatLng([lat, lng]);
-          m.map.flyTo([lat, lng], 16, { duration: 0.6 });
+          const zoom = satelliteMode ? 18 : 16;
+          m.map.flyTo([lat, lng], zoom, { duration: 0.6 });
         }
         void fetchAddress(lat, lng);
       },
       () => setGeoState('denied'),
       { enableHighAccuracy: true, maximumAge: 60_000, timeout: 14_000 },
     );
-  }, [fetchAddress]);
+  }, [fetchAddress, satelliteMode]);
 
   useEffect(() => {
     setHasGeolocationApi(typeof navigator !== 'undefined' && !!navigator.geolocation);
@@ -85,9 +92,21 @@ export function AddressMapPicker({
         zoomControl: true,
       }).setView([initialLat, initialLng], 14);
 
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
         attribution: '© OpenStreetMap',
-      }).addTo(map);
+      });
+
+      // Aerial imagery so users can align the pin with a building (OSM is streets-only).
+      const satelliteLayer = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        {
+          maxZoom: 19,
+          attribution: 'Tiles © Esri',
+        },
+      );
+
+      streetLayer.addTo(map);
 
       const marker = L.marker([initialLat, initialLng], {
         draggable: true,
@@ -105,7 +124,7 @@ export function AddressMapPicker({
         void fetchAddress(e.latlng.lat, e.latlng.lng);
       });
 
-      mapRef.current = { map, marker };
+      mapRef.current = { map, marker, streetLayer, satelliteLayer };
       setReady(true);
 
       if (navigator.geolocation) {
@@ -138,6 +157,18 @@ export function AddressMapPicker({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- map init once; geolocation uses latest fetchAddress via ref
   }, []);
+
+  useEffect(() => {
+    const m = mapRef.current;
+    if (!m?.streetLayer || !m.satelliteLayer) return;
+    if (satelliteMode) {
+      if (m.map.hasLayer(m.streetLayer)) m.map.removeLayer(m.streetLayer);
+      if (!m.map.hasLayer(m.satelliteLayer)) m.satelliteLayer.addTo(m.map);
+    } else {
+      if (m.map.hasLayer(m.satelliteLayer)) m.map.removeLayer(m.satelliteLayer);
+      if (!m.map.hasLayer(m.streetLayer)) m.streetLayer.addTo(m.map);
+    }
+  }, [satelliteMode]);
 
   return (
     <div className="space-y-2">
@@ -178,8 +209,33 @@ export function AddressMapPicker({
           </div>
         )}
         {ready && (
+          <div className="absolute top-2 right-2 z-[1000] flex rounded-lg overflow-hidden border border-white/80 shadow-md">
+            <button
+              type="button"
+              onClick={() => setSatelliteMode(false)}
+              className={`px-3 py-2 text-xs font-semibold min-h-[40px] transition-colors ${
+                !satelliteMode ? 'bg-primary text-white' : 'bg-white/95 text-slate-700 hover:bg-white'
+              }`}
+            >
+              Map
+            </button>
+            <button
+              type="button"
+              onClick={() => setSatelliteMode(true)}
+              className={`px-3 py-2 text-xs font-semibold min-h-[40px] transition-colors border-l border-white/50 ${
+                satelliteMode ? 'bg-primary text-white' : 'bg-white/95 text-slate-700 hover:bg-white'
+              }`}
+            >
+              Satellite
+            </button>
+          </div>
+        )}
+        {ready && (
           <p className="absolute bottom-2 left-2 right-2 text-center text-xs text-white bg-black/55 rounded py-2 px-2 z-[1000]">
-            Selected location is marked with the <span className="font-semibold">purple pin</span>. Tap the map or drag the pin to adjust.
+            <span className="block sm:inline">
+              The <span className="font-semibold">Map</span> view shows streets only — use <span className="font-semibold">Satellite</span> to see buildings, then place the purple pin on your home or gate.
+            </span>{' '}
+            Tap the map or drag the pin to adjust.
           </p>
         )}
       </div>
