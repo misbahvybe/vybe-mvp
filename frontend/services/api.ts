@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
+import { useAuthStore } from '@/store/authStore';
 
 let baseURL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
 // Ensure absolute URL (fixes Vercel env missing https://)
@@ -14,8 +15,11 @@ export const api: AxiosInstance = axios.create({
 
 api.interceptors.request.use((config) => {
   if (typeof window === 'undefined') return config;
-  const token = localStorage.getItem('vybe_token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  const token = useAuthStore.getState().token ?? localStorage.getItem('vybe_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+    if (!localStorage.getItem('vybe_token')) localStorage.setItem('vybe_token', token);
+  }
   return config;
 });
 

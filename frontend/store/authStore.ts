@@ -37,9 +37,12 @@ export const useAuthStore = create<AuthState>()(
       name: 'vybe_user',
       partialize: (s) => ({ user: s.user, token: s.token }),
       onRehydrateStorage: () => (state, err) => {
+        // Sync vybe_token before _hasHydrated so axios interceptors see the same token as the store
+        // (avoids 401 on /orders/* right after redirect, e.g. payment return to /order/:id).
+        if (!err && typeof window !== 'undefined' && state?.token) {
+          localStorage.setItem('vybe_token', state.token);
+        }
         useAuthStore.getState().setHasHydrated(true);
-        if (err || typeof window === 'undefined' || !state?.token) return;
-        localStorage.setItem('vybe_token', state.token);
       },
     }
   )
