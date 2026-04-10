@@ -725,6 +725,14 @@ export class OrdersService {
       throw new ForbiddenException('Order not found');
     }
 
+    if (
+      order.orderStatus === OrderStatus.READY_FOR_PICKUP &&
+      toStatus === OrderStatus.RIDER_ACCEPTED &&
+      order.riderId !== userId
+    ) {
+      throw new BadRequestException('Only the assigned captain can accept this order');
+    }
+
     if (!canTransition(order.orderStatus, toStatus, role)) {
       throw new BadRequestException(
         `Cannot change status from ${order.orderStatus} to ${toStatus}`
@@ -740,7 +748,12 @@ export class OrdersService {
         where: {
           riderId: userId,
           orderStatus: {
-            in: [OrderStatus.RIDER_ASSIGNED, OrderStatus.RIDER_ACCEPTED, OrderStatus.PICKED_UP],
+            in: [
+              OrderStatus.READY_FOR_PICKUP,
+              OrderStatus.RIDER_ASSIGNED,
+              OrderStatus.RIDER_ACCEPTED,
+              OrderStatus.PICKED_UP,
+            ],
           },
         },
       });
@@ -984,11 +997,26 @@ export class OrdersService {
       throw new BadRequestException('Rider not found or inactive');
     }
 
+    const advanceFromPickupPool = order.orderStatus === OrderStatus.READY_FOR_PICKUP;
+
     await this.prisma.$transaction(async (tx) => {
       await tx.order.update({
         where: { id: orderId },
-        data: { riderId: newRiderId, riderSelfAssigned: false },
+        data: {
+          riderId: newRiderId,
+          riderSelfAssigned: false,
+          ...(advanceFromPickupPool ? { orderStatus: OrderStatus.RIDER_ASSIGNED } : {}),
+        },
       });
+      if (advanceFromPickupPool) {
+        await tx.orderStatusHistory.create({
+          data: {
+            orderId,
+            status: OrderStatus.RIDER_ASSIGNED,
+            changedByUserId: adminId,
+          },
+        });
+      }
       const txAny = tx as any;
       await txAny.orderRiderChange.create({
         data: {

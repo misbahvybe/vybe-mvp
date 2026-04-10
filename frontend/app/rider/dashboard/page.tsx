@@ -193,9 +193,17 @@ export default function RiderDashboardPage() {
     }
   };
 
-  const active = orders.filter((o) => ['RIDER_ASSIGNED', 'RIDER_ACCEPTED', 'PICKED_UP'].includes(o.orderStatus));
+  /** Include READY_FOR_PICKUP: admin may assign captain before status was advanced (legacy) or edge cases. */
+  const active = orders.filter((o) =>
+    ['READY_FOR_PICKUP', 'RIDER_ASSIGNED', 'RIDER_ACCEPTED', 'PICKED_UP'].includes(o.orderStatus),
+  );
   const sortOrder = (a: Order, b: Order) => {
-    const prio: Record<string, number> = { RIDER_ACCEPTED: 0, PICKED_UP: 1, RIDER_ASSIGNED: 2 };
+    const prio: Record<string, number> = {
+      RIDER_ACCEPTED: 0,
+      PICKED_UP: 1,
+      RIDER_ASSIGNED: 2,
+      READY_FOR_PICKUP: 2,
+    };
     return (prio[a.orderStatus] ?? 99) - (prio[b.orderStatus] ?? 99);
   };
   const sortedActive = [...active].sort(sortOrder);
@@ -394,7 +402,8 @@ export default function RiderDashboardPage() {
                       )}
                     </div>
                     <div className="flex gap-3 pt-2">
-                      {activeOrder.orderStatus === 'RIDER_ASSIGNED' && (
+                      {(activeOrder.orderStatus === 'RIDER_ASSIGNED' ||
+                        activeOrder.orderStatus === 'READY_FOR_PICKUP') && (
                         <>
                           <Button
                             size="lg"
@@ -404,14 +413,16 @@ export default function RiderDashboardPage() {
                           >
                             <Check className="w-5 h-5 mr-2 inline" /> Accept Order
                           </Button>
-                          <Button
-                            size="lg"
-                            variant="outline"
-                            disabled={!!actionLoading}
-                            onClick={() => updateStatus(activeOrder.id, 'READY_FOR_PICKUP')}
-                          >
-                            <X className="w-5 h-5" />
-                          </Button>
+                          {activeOrder.orderStatus === 'RIDER_ASSIGNED' && (
+                            <Button
+                              size="lg"
+                              variant="outline"
+                              disabled={!!actionLoading}
+                              onClick={() => updateStatus(activeOrder.id, 'READY_FOR_PICKUP')}
+                            >
+                              <X className="w-5 h-5" />
+                            </Button>
+                          )}
                         </>
                       )}
                       {activeOrder.orderStatus === 'RIDER_ACCEPTED' && (

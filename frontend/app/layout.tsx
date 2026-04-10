@@ -4,8 +4,14 @@ import { AuthListener } from '@/components/auth/AuthListener';
 import { AuthHydrate } from '@/components/auth/AuthHydrate';
 import { BRAND_FULL } from '@/constants/brand';
 
-/** Vercel preview + Deployment Protection returns 401 for static files; skip manifest link so the browser does not request it. */
-const isVercelPreview = process.env.VERCEL_ENV === 'preview';
+/**
+ * Vercel preview / non-production + Deployment Protection returns 401 for static files.
+ * Skip manifest link so the browser does not request `/manifest.json` (401 spam in DevTools).
+ * Set SKIP_PWA_MANIFEST=1 locally to disable.
+ */
+const omitManifestLink =
+  process.env.SKIP_PWA_MANIFEST === '1' ||
+  (process.env.VERCEL === '1' && process.env.VERCEL_ENV !== 'production');
 
 const siteDescription =
   'Food, grocery, and medicine delivery. Order easily from your phone — cash on delivery.';
@@ -31,7 +37,7 @@ export const metadata: Metadata = {
     title: BRAND_FULL,
     description: siteDescription,
   },
-  ...(isVercelPreview ? {} : { manifest: '/manifest.json' }),
+  ...(omitManifestLink ? {} : { manifest: '/manifest.json' }),
 };
 
 export const viewport: Viewport = {

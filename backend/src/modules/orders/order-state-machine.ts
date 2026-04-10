@@ -12,7 +12,8 @@ const TRANSITIONS: Record<OrderStatus, Partial<Record<Role, OrderStatus[]>>> = {
   STORE_REJECTED: {},
   READY_FOR_PICKUP: {
     ADMIN: ['RIDER_ASSIGNED'],
-    RIDER: ['RIDER_ASSIGNED'],
+    /** Self-claim uses a dedicated path; RIDER_ACCEPTED only when admin already set riderId. */
+    RIDER: ['RIDER_ASSIGNED', 'RIDER_ACCEPTED'],
   },
   RIDER_ASSIGNED: {
     RIDER: ['RIDER_ACCEPTED', 'READY_FOR_PICKUP'],
