@@ -242,6 +242,8 @@ model PlatformCheckoutSettings {
   codTaxPercent Decimal @default(16) @map("cod_tax_percent") @db.Decimal(5, 2)
 
   updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("platform_checkout_settings")
 }
 
 model StoreToCategory {
