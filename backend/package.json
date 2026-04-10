@@ -8,6 +8,7 @@
     "start:dev": "nest start --watch",
     "start:prod": "node dist/src/main.js",
     "migrate:deploy": "node scripts/ensure-direct-url.cjs npx prisma migrate deploy",
+    "db:fix-earning-payouts": "node scripts/ensure-direct-url.cjs npx prisma db execute --file prisma/earning_payouts_apply_primary_db.sql --schema prisma/schema.prisma",
     "start:with-migrate": "node scripts/ensure-direct-url.cjs npx prisma migrate deploy && node dist/src/main.js",
     "prisma:seed": "ts-node prisma/seed.ts"
   },
