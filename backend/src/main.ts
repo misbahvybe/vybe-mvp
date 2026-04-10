@@ -8,6 +8,10 @@ import { AppModule } from './app.module';
 import { isCloudinaryConfigured } from './common/uploads/cloudinary';
 
 async function bootstrap() {
+  // Prisma schema references DIRECT_URL; Railway often only sets DATABASE_URL.
+  if (!process.env.DIRECT_URL?.trim() && process.env.DATABASE_URL?.trim()) {
+    process.env.DIRECT_URL = process.env.DATABASE_URL;
+  }
   const required = ['DATABASE_URL', 'JWT_SECRET'];
   const missing = required.filter((k) => !process.env[k]?.trim());
   if (missing.length > 0) {
@@ -33,6 +37,7 @@ async function bootstrap() {
   }
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  app.set('trust proxy', 1);
   app.useWebSocketAdapter(new IoAdapter(app));
   app.useStaticAssets(uploadsRoot, { prefix: '/uploads/' });
   app.setGlobalPrefix('api/v1');
@@ -53,6 +58,13 @@ async function bootstrap() {
   // Custom production domains (CORS origins must match exactly: scheme + host + port).
   const customProdOrigins = ['https://vybepk.com', 'https://www.vybepk.com'];
   for (const o of customProdOrigins) {
+    if (!corsOrigins.includes(o)) corsOrigins.push(o);
+  }
+  const extraOrigins = (process.env.CORS_EXTRA_ORIGINS ?? '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+  for (const o of extraOrigins) {
     if (!corsOrigins.includes(o)) corsOrigins.push(o);
   }
 
@@ -84,6 +96,8 @@ async function bootstrap() {
       callback(null, false);
     },
     credentials: true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
   });
   const port = process.env.PORT ?? 4000;
   await app.listen(port, '0.0.0.0');

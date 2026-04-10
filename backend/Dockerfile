@@ -6,9 +6,10 @@ WORKDIR /app
 
 COPY package*.json ./
 COPY prisma ./prisma/
+COPY scripts ./scripts/
 
 RUN npm ci
-RUN npx prisma generate
+RUN node scripts/ensure-direct-url.cjs npx prisma generate
 
 COPY . .
 
@@ -20,4 +21,4 @@ RUN npx prisma generate
 EXPOSE 4000
 
 # Apply pending DB migrations before boot (required when schema changes between deploys)
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/main.js"]
+CMD ["sh", "-c", "node scripts/ensure-direct-url.cjs npx prisma migrate deploy && node dist/src/main.js"]

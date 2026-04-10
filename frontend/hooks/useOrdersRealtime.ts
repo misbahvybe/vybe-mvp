@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { getSocketOrigin } from '@/services/socketUrl';
+import { getSocketOrigin, SOCKET_IO_CLIENT_OPTIONS } from '@/services/socketUrl';
 
 export type OrderCreatedEvent = {
   id: string;
@@ -69,7 +69,7 @@ export function useOrdersRealtime(
     let socket: Socket | null = null;
     try {
       socket = io(getSocketOrigin(), {
-        transports: ['websocket', 'polling'],
+        ...SOCKET_IO_CLIENT_OPTIONS,
         auth: { token },
         reconnectionAttempts: 12,
         reconnectionDelay: 1500,
@@ -128,7 +128,7 @@ export function useCustomerOrdersRealtime(
     let socket: Socket | null = null;
     try {
       socket = io(getSocketOrigin(), {
-        transports: ['websocket', 'polling'],
+        ...SOCKET_IO_CLIENT_OPTIONS,
         auth: { token },
         reconnectionAttempts: 12,
         reconnectionDelay: 1500,
@@ -169,7 +169,7 @@ export function useRiderAssignmentRealtime(
     let socket: Socket | null = null;
     try {
       socket = io(getSocketOrigin(), {
-        transports: ['websocket', 'polling'],
+        ...SOCKET_IO_CLIENT_OPTIONS,
         auth: { token },
         reconnectionAttempts: 12,
         reconnectionDelay: 1500,
@@ -208,7 +208,7 @@ export function useOrderDetailRealtime(
     let socket: Socket | null = null;
     try {
       socket = io(getSocketOrigin(), {
-        transports: ['websocket', 'polling'],
+        ...SOCKET_IO_CLIENT_OPTIONS,
         auth: { token },
         reconnectionAttempts: 12,
         reconnectionDelay: 1500,

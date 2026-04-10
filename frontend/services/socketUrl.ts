@@ -8,3 +8,8 @@ export function getSocketOrigin(): string {
     return 'http://localhost:4000';
   }
 }
+
+/** Polling first works reliably behind Railway/Vercel proxies; upgrades to websocket when possible. */
+export const SOCKET_IO_CLIENT_OPTIONS = {
+  transports: ['polling', 'websocket'] as const,
+};

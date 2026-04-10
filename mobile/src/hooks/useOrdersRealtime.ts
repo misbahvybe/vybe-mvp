@@ -37,7 +37,7 @@ export function useOrdersRealtime(
     let socket: Socket | null = null;
     try {
       socket = io(getSocketOrigin(), {
-        transports: ['websocket', 'polling'],
+        transports: ['polling', 'websocket'],
         auth: { token },
         reconnectionAttempts: 8,
         reconnectionDelay: 2000,
@@ -99,7 +99,7 @@ export function useRiderAssignmentRealtime(
     let socket: Socket | null = null;
     try {
       socket = io(getSocketOrigin(), {
-        transports: ['websocket', 'polling'],
+        transports: ['polling', 'websocket'],
         auth: { token },
         reconnectionAttempts: 8,
         reconnectionDelay: 2000,
