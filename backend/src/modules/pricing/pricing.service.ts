@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Decimal } from '@prisma/client/runtime/library';
+import { Decimal, PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { haversineDistanceKm } from '../../common/geo/haversine';
 import { CheckoutServiceFeeMode, PaymentMethod } from '@prisma/client';
@@ -38,6 +38,8 @@ type ResolvedCheckoutFees = {
 
 @Injectable()
 export class PricingService {
+  private readonly logger = new Logger(PricingService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
@@ -52,19 +54,37 @@ export class PricingService {
    * COD_GST_RATE env: decimal fraction (0.16) or percent (16) — normalized to 0–1.
    */
   private async resolveCheckoutFees(): Promise<ResolvedCheckoutFees> {
-    const row = await this.prisma.platformCheckoutSettings.findUnique({ where: { id: 'default' } });
     const envFee = Number(this.config.get<string>('MIN_SERVICE_FEE_PKR') ?? '19.99');
     const envCodRaw = Number(this.config.get<string>('COD_GST_RATE') ?? '0.16');
     const envCodRate = envCodRaw > 1 ? envCodRaw / 100 : envCodRaw;
     const cardProcessingRate = Number(this.config.get<string>('CARD_PROCESSING_RATE') ?? '0.05');
+    const envFallback = (): ResolvedCheckoutFees => ({
+      serviceFeeMode: CheckoutServiceFeeMode.FIXED,
+      serviceFeeFixed: envFee,
+      serviceFeePercent: 0,
+      codTaxRate: envCodRate,
+      cardProcessingRate,
+    });
+
+    let row: Awaited<ReturnType<PrismaService['platformCheckoutSettings']['findUnique']>> = null;
+    try {
+      row = await this.prisma.platformCheckoutSettings.findUnique({ where: { id: 'default' } });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const code = e instanceof PrismaClientKnownRequestError ? e.code : (e as { code?: string })?.code;
+      const missingTable =
+        code === 'P2021' ||
+        (msg.includes('does not exist') &&
+          (msg.includes('PlatformCheckoutSettings') || msg.includes('platform_checkout')));
+      if (!missingTable) throw e;
+      this.logger.warn(
+        'platform_checkout_settings table missing — using MIN_SERVICE_FEE_PKR / COD_GST_RATE env fallback. Point DATABASE_URL at your real Neon DB and run: npx prisma migrate deploy',
+      );
+      return envFallback();
+    }
+
     if (!row) {
-      return {
-        serviceFeeMode: CheckoutServiceFeeMode.FIXED,
-        serviceFeeFixed: envFee,
-        serviceFeePercent: 0,
-        codTaxRate: envCodRate,
-        cardProcessingRate,
-      };
+      return envFallback();
     }
     const codPct = Number(row.codTaxPercent.toString());
     return {
