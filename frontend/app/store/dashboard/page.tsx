@@ -1,5 +1,6 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useEffect, useState, useCallback } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { StickyHeader } from '@/components/layout/StickyHeader';
@@ -21,6 +22,18 @@ import {
 } from 'lucide-react';
 import api from '@/services/api';
 import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
+
+const StoreLocationMapPicker = dynamic(
+  () => import('@/components/map/StoreLocationMapPicker').then((m) => m.StoreLocationMapPicker),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[360px] flex items-center justify-center bg-slate-100 rounded-card border border-slate-200">
+        <Loader size={40} />
+      </div>
+    ),
+  },
+);
 
 const POLL_INTERVAL_MS = 120000;
 
@@ -911,6 +924,32 @@ function StoreSettingsTab({
             placeholder="Lahore"
             className="w-full px-3 py-2 border rounded-button"
           />
+        </div>
+        <div>
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1">
+            <MapPin className="w-4 h-4 text-primary shrink-0" />
+            Pin on map (orange dots = other food restaurants on Vybe)
+          </label>
+          <div className="mt-1">
+            <StoreLocationMapPicker
+              key={`${store.id}-${store.latitude ?? 'x'}-${store.longitude ?? 'x'}`}
+              storeId={store.id}
+              initialLat={store.latitude != null ? Number(store.latitude) : undefined}
+              initialLng={store.longitude != null ? Number(store.longitude) : undefined}
+              onSelect={(line, city, lat, lng) => {
+                setForm((f) => ({
+                  ...f,
+                  address: line || f.address,
+                  city: city || f.city,
+                  latitude: String(lat),
+                  longitude: String(lng),
+                }));
+              }}
+            />
+          </div>
+          <p className="text-xs text-slate-500 mt-2">
+            Coordinates are set from the purple pin. You can edit latitude / longitude below if needed.
+          </p>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
