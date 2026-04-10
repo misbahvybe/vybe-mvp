@@ -11,5 +11,6 @@ export function getSocketOrigin(): string {
 
 /** Polling first works reliably behind Railway/Vercel proxies; upgrades to websocket when possible. */
 export const SOCKET_IO_CLIENT_OPTIONS = {
-  transports: ['polling', 'websocket'] as const,
+  /** Mutable tuple — `as const` breaks Socket.IO ManagerOptions typing in strict builds. */
+  transports: ['polling', 'websocket'] as string[],
 };

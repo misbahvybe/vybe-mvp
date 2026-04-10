@@ -79,7 +79,26 @@ export default function StoreDashboardPage() {
   } | null>(null);
   const [earnings, setEarnings] = useState<{
     today: { orders: number; revenue: number; commission: number; net: number };
-    history: { orderId: string; createdAt: string; storeAmount: number; commissionAmount: number }[];
+    balance: {
+      storeId: string | null;
+      totalEarned: number;
+      totalPaidOut: number;
+      reserved: number;
+      available: number;
+    };
+    history: {
+      kind?: string;
+      orderId: string;
+      createdAt: string;
+      storeAmount: number;
+      commissionAmount: number;
+    }[];
+    payoutHistory: {
+      id: string;
+      withdrawRequestId: string;
+      createdAt: string;
+      amount: number;
+    }[];
   } | null>(null);
   const [categories, setCategories] = useState<{ id: string; name: string; sortOrder: number; products: unknown[] }[]>([]);
   const [products, setProducts] = useState<
@@ -323,16 +342,24 @@ export default function StoreDashboardPage() {
                 <>
                   <Card className="p-4 mb-6 flex items-center justify-between gap-4">
                     <div>
-                      <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Available balance</p>
+                      <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Available to withdraw</p>
                       <p className="text-2xl font-bold text-accent">
-                        {earnings.today.net.toLocaleString()} PKR
+                        {(earnings.balance?.available ?? earnings.today.net).toLocaleString()} PKR
+                      </p>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Earned {earnings.balance?.totalEarned?.toLocaleString() ?? '—'} PKR · Paid out{' '}
+                        {earnings.balance?.totalPaidOut?.toLocaleString() ?? '—'} PKR · Pending{' '}
+                        {earnings.balance?.reserved?.toLocaleString() ?? '—'} PKR
                       </p>
                     </div>
                     <Button
                       variant="primary"
                       size="sm"
                       onClick={() => {
-                        const amountStr = prompt('Withdraw amount (PKR)', String(earnings.today.net));
+                        const amountStr = prompt(
+                          'Withdraw amount (PKR)',
+                          String(earnings.balance?.available ?? earnings.today.net),
+                        );
                         if (!amountStr) return;
                         const amount = Number(amountStr);
                         if (!amount || amount <= 0) {
@@ -343,6 +370,8 @@ export default function StoreDashboardPage() {
                           try {
                             await api.post('/withdraw/request', { amount });
                             alert('Withdraw request submitted. Admin will process within 24 hours.');
+                            const { data } = await api.get('/store-owner/earnings');
+                            setEarnings(data);
                           } catch (e) {
                             alert(
                               (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
@@ -393,6 +422,27 @@ export default function StoreDashboardPage() {
                       </Card>
                     )}
                   </div>
+                  {earnings.payoutHistory && earnings.payoutHistory.length > 0 && (
+                    <>
+                      <h3 className="text-sm font-semibold text-slate-700 mb-2 mt-6">Withdrawals paid</h3>
+                      <div className="space-y-2">
+                        {earnings.payoutHistory.map((p) => (
+                          <Card
+                            key={p.id}
+                            className="p-3 flex justify-between items-center border-l-4 border-emerald-500"
+                          >
+                            <div>
+                              <p className="font-medium text-emerald-900">Paid to bank</p>
+                              <p className="text-xs text-slate-500">
+                                {new Date(p.createdAt).toLocaleString()}
+                              </p>
+                            </div>
+                            <p className="font-bold text-emerald-800">−{p.amount.toLocaleString()} PKR</p>
+                          </Card>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </>
               ) : (
                 <Card className="py-8 text-center">
@@ -852,6 +902,14 @@ function StoreSettingsTab({
       <div className="flex justify-center py-12">
         <Loader size={44} />
       </div>
+    );
+  }
+
+  if (!store) {
+    return (
+      <Card className="p-6 text-center text-sm text-slate-500">
+        Store could not be loaded. Go back to the Orders tab or refresh the page.
+      </Card>
     );
   }
 

@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { OrderStatus } from '@prisma/client';
+import { OrderStatus, Role } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { WithdrawService } from '../withdraw/withdraw.service';
 import { haversineDistanceKm } from '../../common/geo/haversine';
 
 function parseCoord(v: string | undefined): number | null {
@@ -28,7 +29,10 @@ function pickRefLatLng(
 
 @Injectable()
 export class RidersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly withdraw: WithdrawService,
+  ) {}
 
   /** Every rider endpoint should tolerate missing profile (legacy / race on first login). */
   private async ensureRiderProfile(riderId: string) {
@@ -89,7 +93,7 @@ export class RidersService {
     tomorrow.setDate(tomorrow.getDate() + 1);
     const weekStart = new Date(today);
     weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-    const [todayAgg, weekAgg, totalAgg, history] = await Promise.all([
+    const [todayAgg, weekAgg, totalAgg, history, balance, payoutHistory] = await Promise.all([
       this.prisma.riderEarning.aggregate({
         where: { riderId, createdAt: { gte: today, lt: tomorrow } },
         _sum: { earningAmount: true },
@@ -111,15 +115,36 @@ export class RidersService {
         take: 50,
         include: { order: { select: { id: true, createdAt: true } } },
       }),
+      this.withdraw.getRiderFinancialSnapshot(riderId),
+      this.prisma.earningPayout.findMany({
+        where: { userId: riderId, role: Role.RIDER },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+        select: {
+          id: true,
+          amountPkr: true,
+          createdAt: true,
+          withdrawRequestId: true,
+        },
+      }),
     ]);
     return {
       today: { amount: Number(todayAgg._sum.earningAmount ?? 0), count: todayAgg._count },
       week: { amount: Number(weekAgg._sum.earningAmount ?? 0), count: weekAgg._count },
       total: { amount: Number(totalAgg._sum.earningAmount ?? 0), count: totalAgg._count },
+      balance,
       history: history.map((e) => ({
+        kind: 'order' as const,
         orderId: e.orderId,
         createdAt: e.order.createdAt,
         amount: Number(e.earningAmount),
+      })),
+      payoutHistory: payoutHistory.map((p) => ({
+        kind: 'payout' as const,
+        id: p.id,
+        withdrawRequestId: p.withdrawRequestId,
+        createdAt: p.createdAt,
+        amount: Number(p.amountPkr),
       })),
     };
   }

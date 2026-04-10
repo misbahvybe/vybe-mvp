@@ -116,6 +116,7 @@ model User {
   adminLogs        AdminLog[]   @relation("AdminLogs")
   pendingPayments  PendingPayment[]
   withdrawRequests WithdrawRequest[]
+  earningPayouts    EarningPayout[]
   orderRiderChanges OrderRiderChange[] @relation("OrderRiderChangeAdmin")
 
   @@index([phone])
@@ -208,6 +209,7 @@ model Store {
   orders            Order[]
   categories        StoreToCategory[]
   earnings          StoreEarning[]
+  earningPayouts    EarningPayout[]
 
   @@index([city])
 }
@@ -538,7 +540,27 @@ model WithdrawRequest {
   processedAt DateTime? @map("processed_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  earningPayout EarningPayout?
 
   @@index([userId])
   @@index([status])
+}
+
+/// Money sent to rider/store (withdrawal settled). Reduces available balance vs raw order earnings.
+model EarningPayout {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  role              Role
+  storeId           String?  @map("store_id")
+  amountPkr         Decimal  @map("amount_pkr") @db.Decimal(10, 2)
+  withdrawRequestId String   @unique @map("withdraw_request_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  store             Store?           @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  withdrawRequest   WithdrawRequest  @relation(fields: [withdrawRequestId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([storeId])
+  @@map("earning_payouts")
 }

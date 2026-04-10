@@ -45,23 +45,35 @@ interface WithdrawRequest {
   };
 }
 
+interface EarningPayoutRow {
+  id: string;
+  amountPkr: unknown;
+  createdAt: string;
+  user: { name: string; phone: string; role: string };
+  withdrawRequest: { id: string; amount: unknown; status: string; note?: string | null };
+}
+
 export default function AdminFinancePage() {
   const [finance, setFinance] = useState<Finance | null>(null);
   const [loading, setLoading] = useState(true);
   const [withdraws, setWithdraws] = useState<WithdrawRequest[]>([]);
+  const [payouts, setPayouts] = useState<EarningPayoutRow[]>([]);
 
   useEffect(() => {
     Promise.all([
       api.get<Finance>('/admin/finance').then((r) => r.data),
       api.get<WithdrawRequest[]>('/withdraw/requests').then((r) => r.data ?? []),
+      api.get<EarningPayoutRow[]>('/withdraw/payouts').then((r) => r.data ?? []),
     ])
-      .then(([fin, wd]) => {
+      .then(([fin, wd, po]) => {
         setFinance(fin);
         setWithdraws(wd);
+        setPayouts(po);
       })
       .catch(() => {
         setFinance(null);
         setWithdraws([]);
+        setPayouts([]);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -170,6 +182,52 @@ export default function AdminFinancePage() {
               <span className="font-semibold">Rs {(finance?.month.cancellationLoss ?? 0).toLocaleString()}</span>
             </div>
           </div>
+        </Card>
+      </div>
+
+      <div className="mb-10">
+        <h2 className="text-xl font-semibold text-slate-800 mb-3">Withdrawals paid (ledger)</h2>
+        <Card className="p-0 overflow-hidden">
+          {payouts.length === 0 ? (
+            <p className="p-6 text-sm text-slate-500">No payouts recorded yet.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="text-left p-3 font-medium">User</th>
+                    <th className="text-left p-3 font-medium">Role</th>
+                    <th className="text-right p-3 font-medium">Amount</th>
+                    <th className="text-left p-3 font-medium">Paid at</th>
+                    <th className="text-left p-3 font-medium">Request</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {payouts.map((p) => (
+                    <tr key={p.id} className="border-t border-slate-100">
+                      <td className="p-3">
+                        <div className="font-medium">{p.user?.name ?? '—'}</div>
+                        <div className="text-xs text-slate-500">{p.user?.phone}</div>
+                      </td>
+                      <td className="p-3">{p.user?.role}</td>
+                      <td className="p-3 text-right font-semibold text-emerald-800">
+                        Rs {Number(p.amountPkr).toLocaleString()}
+                      </td>
+                      <td className="p-3 text-xs text-slate-500">
+                        {new Date(p.createdAt).toLocaleString('en-GB', {
+                          dateStyle: 'short',
+                          timeStyle: 'short',
+                        })}
+                      </td>
+                      <td className="p-3 text-xs font-mono text-slate-600">
+                        {p.withdrawRequest?.id?.slice(-8) ?? '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </Card>
       </div>
 

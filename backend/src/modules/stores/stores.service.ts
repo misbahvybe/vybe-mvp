@@ -4,6 +4,7 @@ import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { UpstashService } from '../../common/upstash/upstash.service';
 import { Role, StoreStatus } from '@prisma/client';
+import { WithdrawService } from '../withdraw/withdraw.service';
 import { Decimal } from '@prisma/client/runtime/library';
 import { UpdateStoreDto } from './dto/update-store.dto';
 import { CreateProductCategoryDto } from './dto/create-product-category.dto';
@@ -21,6 +22,7 @@ export class StoresService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly upstash: UpstashService,
+    private readonly withdraw: WithdrawService,
   ) {}
 
   /** Customer-facing menu: exclude drafts and unavailable items. */
@@ -117,7 +119,7 @@ export class StoresService {
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const [todayAgg, todayOrders, allEarnings] = await Promise.all([
+    const [todayAgg, todayOrders, allEarnings, balance, payoutHistory] = await Promise.all([
       this.prisma.storeEarning.aggregate({
         where: {
           storeId: store.id,
@@ -135,17 +137,38 @@ export class StoresService {
         take: 50,
         include: { order: { select: { id: true, createdAt: true } } },
       }),
+      this.withdraw.getStoreOwnerFinancialSnapshot(ownerId),
+      this.prisma.earningPayout.findMany({
+        where: { userId: ownerId, role: Role.STORE_OWNER, storeId: store.id },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+        select: {
+          id: true,
+          amountPkr: true,
+          createdAt: true,
+          withdrawRequestId: true,
+        },
+      }),
     ]);
     const revenue = Number(todayAgg._sum.storeAmount ?? 0) + Number(todayAgg._sum.commissionAmount ?? 0);
     const commission = Number(todayAgg._sum.commissionAmount ?? 0);
     const net = Number(todayAgg._sum.storeAmount ?? 0);
     return {
       today: { orders: todayOrders, revenue, commission, net },
+      balance,
       history: allEarnings.map((e) => ({
+        kind: 'order' as const,
         orderId: e.orderId,
         createdAt: e.order.createdAt,
         storeAmount: Number(e.storeAmount),
         commissionAmount: Number(e.commissionAmount),
+      })),
+      payoutHistory: payoutHistory.map((p) => ({
+        kind: 'payout' as const,
+        id: p.id,
+        withdrawRequestId: p.withdrawRequestId,
+        createdAt: p.createdAt,
+        amount: Number(p.amountPkr),
       })),
     };
   }

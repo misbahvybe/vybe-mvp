@@ -55,7 +55,20 @@ interface RiderEarnings {
   today: { amount: number; count: number };
   week: { amount: number; count: number };
   total: { amount: number; count: number };
-  history: { orderId: string; createdAt: string; amount: number }[];
+  balance: {
+    totalEarned: number;
+    totalPaidOut: number;
+    reserved: number;
+    available: number;
+  };
+  history: { kind?: 'order'; orderId: string; createdAt: string; amount: number }[];
+  payoutHistory: {
+    kind?: 'payout';
+    id: string;
+    withdrawRequestId: string;
+    createdAt: string;
+    amount: number;
+  }[];
 }
 
 function googleMapsUrl(lat?: number | string, lng?: number | string, address?: string): string {
@@ -119,8 +132,9 @@ export default function RiderDashboardPage() {
     Promise.allSettled([
       api.get<Order[]>('/orders').then((r) => r.data ?? []),
       api.get<RiderDashboard>('/riders/me').then((r) => r.data),
+      api.get<RiderEarnings>('/riders/me/earnings').then((r) => r.data),
     ]).then((results) => {
-      const [ordsRes, dashRes] = results;
+      const [ordsRes, dashRes, earnRes] = results;
       if (ordsRes.status === 'fulfilled') {
         setOrders(ordsRes.value);
       } else {
@@ -132,6 +146,9 @@ export default function RiderDashboardPage() {
         );
       } else {
         setDashboard({ isAvailable: true, todayEarnings: 0, completedToday: 0 });
+      }
+      if (earnRes.status === 'fulfilled' && earnRes.value) {
+        setEarnings(earnRes.value);
       }
       setLoading(false);
       void fetchAvailable();
@@ -272,7 +289,9 @@ export default function RiderDashboardPage() {
                     onClick={() => {
                       const amountStr = prompt(
                         'Withdraw amount (PKR)',
-                        String(Number(dashboard?.todayEarnings ?? 0)),
+                        String(
+                          Math.max(0, Number(earnings?.balance?.available ?? dashboard?.todayEarnings ?? 0)),
+                        ),
                       );
                       if (!amountStr) return;
                       const amount = Number(amountStr);
@@ -284,6 +303,8 @@ export default function RiderDashboardPage() {
                         try {
                           await api.post('/withdraw/request', { amount });
                           alert('Withdraw request submitted. Admin will process within 24 hours.');
+                          void fetchEarnings();
+                          fetchData();
                         } catch (e) {
                           alert(
                             (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
@@ -519,6 +540,17 @@ export default function RiderDashboardPage() {
             <>
               {earnings ? (
                 <>
+                  <Card className="p-4 mb-4 border border-emerald-100 bg-emerald-50/40">
+                    <p className="text-xs text-slate-600 uppercase tracking-wide mb-1">Available to withdraw</p>
+                    <p className="text-2xl font-bold text-emerald-800">
+                      {(earnings.balance?.available ?? 0).toLocaleString()} PKR
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Earned {(earnings.balance?.totalEarned ?? 0).toLocaleString()} PKR · Paid out{' '}
+                      {(earnings.balance?.totalPaidOut ?? 0).toLocaleString()} PKR · Pending requests{' '}
+                      {(earnings.balance?.reserved ?? 0).toLocaleString()} PKR
+                    </p>
+                  </Card>
                   <div className="grid grid-cols-3 gap-2 mb-6">
                     <Card className="p-4 text-center">
                       <p className="text-xs text-slate-500">Today</p>
@@ -554,6 +586,24 @@ export default function RiderDashboardPage() {
                       </Card>
                     )}
                   </div>
+                  {(earnings.payoutHistory ?? []).length > 0 && (
+                    <>
+                      <h3 className="text-sm font-semibold text-slate-700 mb-2 mt-6">Withdrawals paid</h3>
+                      <div className="space-y-2">
+                        {(earnings.payoutHistory ?? []).map((p) => (
+                          <Card key={p.id} className="p-4 flex justify-between items-center border-l-4 border-emerald-500">
+                            <div>
+                              <p className="font-medium text-emerald-900">Paid to bank</p>
+                              <p className="text-xs text-slate-500">
+                                {new Date(p.createdAt).toLocaleString()}
+                              </p>
+                            </div>
+                            <p className="font-bold text-emerald-800">−{p.amount.toLocaleString()} PKR</p>
+                          </Card>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </>
               ) : (
                 <div className="flex justify-center py-12">

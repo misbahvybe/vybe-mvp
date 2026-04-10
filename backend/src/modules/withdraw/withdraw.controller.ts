@@ -26,10 +26,17 @@ export class WithdrawController {
   @Patch('requests/:id')
   @Roles('ADMIN')
   async updateStatus(
+    @CurrentUser() admin: User,
     @Param('id') id: string,
     @Body() body: { status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'PAID'; note?: string },
   ) {
-    return this.withdraw.updateStatus(id, body.status, body.note);
+    return this.withdraw.updateStatus(id, body.status, body.note, admin.id);
+  }
+
+  @Get('payouts')
+  @Roles('ADMIN')
+  async listPayouts() {
+    return this.withdraw.listPayoutsForAdmin();
   }
 }
 

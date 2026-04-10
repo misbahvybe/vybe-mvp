@@ -5,13 +5,18 @@ import { AuthHydrate } from '@/components/auth/AuthHydrate';
 import { BRAND_FULL } from '@/constants/brand';
 
 /**
- * Vercel preview / non-production + Deployment Protection returns 401 for static files.
- * Skip manifest link so the browser does not request `/manifest.json` (401 spam in DevTools).
- * Set SKIP_PWA_MANIFEST=1 locally to disable.
+ * Vercel Deployment Protection returns 401 for unauthenticated fetches (including `/manifest.json`).
+ * - Local dev (no VERCEL): manifest on unless SKIP_PWA_MANIFEST=1.
+ * - Vercel preview: manifest off unless NEXT_PUBLIC_ENABLE_PWA_MANIFEST=true.
+ * - Vercel production: manifest on unless NEXT_PUBLIC_ENABLE_PWA_MANIFEST=false.
  */
-const omitManifestLink =
-  process.env.SKIP_PWA_MANIFEST === '1' ||
-  (process.env.VERCEL === '1' && process.env.VERCEL_ENV !== 'production');
+const enablePwaManifest =
+  process.env.SKIP_PWA_MANIFEST !== '1' &&
+  (process.env.NEXT_PUBLIC_ENABLE_PWA_MANIFEST === 'true' ||
+    process.env.VERCEL !== '1' ||
+    (process.env.VERCEL === '1' &&
+      process.env.VERCEL_ENV === 'production' &&
+      process.env.NEXT_PUBLIC_ENABLE_PWA_MANIFEST !== 'false'));
 
 const siteDescription =
   'Food, grocery, and medicine delivery. Order easily from your phone — cash on delivery.';
@@ -37,7 +42,7 @@ export const metadata: Metadata = {
     title: BRAND_FULL,
     description: siteDescription,
   },
-  ...(omitManifestLink ? {} : { manifest: '/manifest.json' }),
+  ...(enablePwaManifest ? { manifest: '/manifest.json' } : {}),
 };
 
 export const viewport: Viewport = {
