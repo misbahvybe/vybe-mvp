@@ -97,6 +97,11 @@ export class AdminController {
     return this.admin.getRiders();
   }
 
+  @Get('riders/:riderId')
+  async getRider(@CurrentUser() _user: User, @Param('riderId') riderId: string) {
+    return this.admin.getRiderById(riderId);
+  }
+
   /** Mark rider COD as received at office — clears balance and unblocks new pickups. */
   @Post('riders/:riderId/settle-cod')
   async settleRiderCod(@CurrentUser() user: User, @Param('riderId') riderId: string) {

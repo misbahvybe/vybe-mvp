@@ -9,6 +9,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { UpstashService } from '../../common/upstash/upstash.service';
 import { StoresService } from '../stores/stores.service';
 import { CheckoutServiceFeeMode, Prisma, Role, StoreStatus } from '@prisma/client';
+import { RIDER_COD_COLLECTION_LIMIT_PKR } from '../../common/constants/rider-cod';
 import { CreatePartnerDto } from './dto/create-partner.dto';
 import { PatchPlatformCheckoutSettingsDto } from './dto/patch-platform-checkout-settings.dto';
 import * as crypto from 'crypto';
@@ -391,45 +392,87 @@ export class AdminService {
     return this.getStorePlatformCategories(storeId);
   }
 
+  private mapRiderUserToAdminListRow(
+    r: Prisma.UserGetPayload<{
+      include: {
+        riderProfile: true;
+        ordersAsRider: { include: { statusHistory: true } };
+        riderEarnings: true;
+      };
+    }>,
+    todayStart: Date,
+  ) {
+    const todayOrders = r.ordersAsRider.filter((o) => new Date(o.createdAt) >= todayStart);
+    const delivered = r.ordersAsRider.filter((o) => o.orderStatus === 'DELIVERED');
+    let avgDeliveryMins = 0;
+    delivered.forEach((o) => {
+      const ready = o.statusHistory.find(
+        (h) => h.status === 'READY_FOR_PICKUP' || h.status === 'RIDER_ASSIGNED',
+      )?.createdAt;
+      const deliv = o.statusHistory.find((h) => h.status === 'DELIVERED')?.createdAt;
+      if (ready && deliv) avgDeliveryMins += (new Date(deliv).getTime() - new Date(ready).getTime()) / 60000;
+    });
+    if (delivered.length > 0) avgDeliveryMins /= delivered.length;
+    const assigned = r.ordersAsRider.filter((o) => o.orderStatus === 'RIDER_ASSIGNED').length;
+    const accepted = r.ordersAsRider.filter((o) => o.orderStatus !== 'RIDER_ASSIGNED').length;
+    const acceptanceRate =
+      assigned + accepted > 0 ? ((accepted / (assigned + accepted)) * 100).toFixed(0) : '0';
+    return {
+      id: r.id,
+      name: r.name,
+      phone: r.phone,
+      isActive: r.isActive,
+      isOnline: r.riderProfile?.isAvailable ?? false,
+      ordersToday: todayOrders.length,
+      totalOrders: r.ordersAsRider.length,
+      avgDeliveryTimeMins: Math.round(avgDeliveryMins),
+      acceptanceRate,
+      totalEarnings: r.riderEarnings.reduce((s, e) => s + Number(e.earningAmount), 0),
+      codCollectedAmount: Number(r.riderProfile?.currentCollectedAmount ?? 0),
+      codBlocked: r.riderProfile?.isBlocked ?? false,
+    };
+  }
+
+  private readonly riderAdminInclude = {
+    riderProfile: true,
+    ordersAsRider: { include: { statusHistory: true } },
+    riderEarnings: true,
+  } satisfies Prisma.UserInclude;
+
   async getRiders() {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const riders = await this.prisma.user.findMany({
-      where: { role: 'RIDER' },
-      include: {
-        riderProfile: true,
-        ordersAsRider: { include: { statusHistory: true } },
-        riderEarnings: true,
-      },
+      where: { role: Role.RIDER },
+      include: this.riderAdminInclude,
     });
-    return riders.map((r) => {
-      const todayOrders = r.ordersAsRider.filter((o) => new Date(o.createdAt) >= todayStart);
-      const delivered = r.ordersAsRider.filter((o) => o.orderStatus === 'DELIVERED');
-      let avgDeliveryMins = 0;
-      delivered.forEach((o) => {
-        const ready = o.statusHistory.find((h) => h.status === 'READY_FOR_PICKUP' || h.status === 'RIDER_ASSIGNED')?.createdAt;
-        const deliv = o.statusHistory.find((h) => h.status === 'DELIVERED')?.createdAt;
-        if (ready && deliv) avgDeliveryMins += (new Date(deliv).getTime() - new Date(ready).getTime()) / 60000;
-      });
-      if (delivered.length > 0) avgDeliveryMins /= delivered.length;
-      const assigned = r.ordersAsRider.filter((o) => o.orderStatus === 'RIDER_ASSIGNED').length;
-      const accepted = r.ordersAsRider.filter((o) => o.orderStatus !== 'RIDER_ASSIGNED').length;
-      const acceptanceRate = assigned + accepted > 0 ? ((accepted / (assigned + accepted)) * 100).toFixed(0) : '0';
-      return {
-        id: r.id,
-        name: r.name,
-        phone: r.phone,
-        isActive: r.isActive,
-        isOnline: r.riderProfile?.isAvailable ?? false,
-        ordersToday: todayOrders.length,
-        totalOrders: r.ordersAsRider.length,
-        avgDeliveryTimeMins: Math.round(avgDeliveryMins),
-        acceptanceRate,
-        totalEarnings: r.riderEarnings.reduce((s, e) => s + Number(e.earningAmount), 0),
-        codCollectedAmount: Number(r.riderProfile?.currentCollectedAmount ?? 0),
-        codBlocked: r.riderProfile?.isBlocked ?? false,
-      };
+    return riders.map((r) => this.mapRiderUserToAdminListRow(r, todayStart));
+  }
+
+  /** Single rider — same stats as list plus profile, location, vehicle, COD limit. */
+  async getRiderById(riderId: string) {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const r = await this.prisma.user.findFirst({
+      where: { id: riderId, role: Role.RIDER },
+      include: this.riderAdminInclude,
     });
+    if (!r) throw new NotFoundException('Rider not found');
+    const row = this.mapRiderUserToAdminListRow(r, todayStart);
+    const collected = Number(r.riderProfile?.currentCollectedAmount ?? 0);
+    return {
+      ...row,
+      email: r.email,
+      memberSince: r.createdAt.toISOString(),
+      vehicleType: r.riderProfile?.vehicleType ?? null,
+      vehicleNumber: r.riderProfile?.vehicleNumber ?? null,
+      isAvailable: r.riderProfile?.isAvailable ?? false,
+      currentLatitude: r.riderProfile?.currentLatitude != null ? Number(r.riderProfile.currentLatitude) : null,
+      currentLongitude: r.riderProfile?.currentLongitude != null ? Number(r.riderProfile.currentLongitude) : null,
+      profileUpdatedAt: r.riderProfile?.updatedAt?.toISOString() ?? null,
+      codLimitPkr: RIDER_COD_COLLECTION_LIMIT_PKR,
+      remainingCodUntilLimit: Math.max(0, RIDER_COD_COLLECTION_LIMIT_PKR - collected),
+    };
   }
 
   async getUsers() {

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import { Loader } from '@/components/ui/Loader';
 import api from '@/services/api';
@@ -68,6 +69,7 @@ export default function AdminRidersPage() {
               <thead className="bg-slate-50">
                 <tr>
                   <th className="text-left p-3 font-medium">Name</th>
+                  <th className="text-right p-3 font-medium">View</th>
                   <th className="text-left p-3 font-medium">Phone</th>
                   <th className="text-left p-3 font-medium">Status</th>
                   <th className="text-right p-3 font-medium">COD held</th>
@@ -83,6 +85,14 @@ export default function AdminRidersPage() {
                 {riders.map((r) => (
                   <tr key={r.id} className="border-t border-slate-100">
                     <td className="p-3 font-medium">{r.name}</td>
+                    <td className="p-3 text-right">
+                      <Link
+                        href={`/admin/riders/${r.id}`}
+                        className="text-sm font-semibold text-primary hover:underline"
+                      >
+                        View rider
+                      </Link>
+                    </td>
                     <td className="p-3">{r.phone}</td>
                     <td className="p-3">
                       <span className={r.isOnline ? 'text-green-600' : 'text-slate-500'}>
