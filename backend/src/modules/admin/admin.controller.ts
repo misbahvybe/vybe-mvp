@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, UseGuard
 import { AdminService } from './admin.service';
 import { PharmacyIngestionService } from './pharmacy-ingestion.service';
 import { StoresService } from '../stores/stores.service';
+import { RidersService } from '../riders/riders.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -30,6 +31,7 @@ export class AdminController {
     private readonly admin: AdminService,
     private readonly stores: StoresService,
     private readonly pharmacyIngestion: PharmacyIngestionService,
+    private readonly riders: RidersService,
   ) {}
 
   @Post('partners')
@@ -93,6 +95,12 @@ export class AdminController {
   @Get('riders')
   async getRiders(@CurrentUser() _user: User) {
     return this.admin.getRiders();
+  }
+
+  /** Mark rider COD as received at office — clears balance and unblocks new pickups. */
+  @Post('riders/:riderId/settle-cod')
+  async settleRiderCod(@CurrentUser() user: User, @Param('riderId') riderId: string) {
+    return this.riders.resetCodBalanceAfterSettlement(user.id, riderId);
   }
 
   @Get('users')

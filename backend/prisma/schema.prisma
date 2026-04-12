@@ -445,6 +445,10 @@ model RiderProfile {
   isAvailable   Boolean  @default(true) @map("is_available")
   currentLatitude  Decimal? @map("current_latitude") @db.Decimal(10, 7)
   currentLongitude Decimal? @map("current_longitude") @db.Decimal(10, 7)
+  /// Cash collected from COD deliveries not yet deposited with admin (PKR).
+  currentCollectedAmount Decimal @default(0) @map("current_collected_amount") @db.Decimal(10, 2)
+  /// True when `currentCollectedAmount` >= platform limit — no new pickup assignments until admin settles.
+  isBlocked   Boolean  @default(false) @map("is_blocked")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

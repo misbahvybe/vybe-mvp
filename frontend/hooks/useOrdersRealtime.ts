@@ -180,6 +180,8 @@ export function useRiderAssignmentRealtime(
       const refresh = () => cbRef.current();
       socket.on('order:assigned', refresh);
       socket.on('order:updated', refresh);
+      socket.on('pickup_pool:updated', refresh);
+      socket.on('rider:cod_wallet', refresh);
     } catch {
       // ignore
     }

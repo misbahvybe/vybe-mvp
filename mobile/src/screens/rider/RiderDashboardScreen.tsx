@@ -27,6 +27,13 @@ interface RiderDashboard {
   isAvailable: boolean;
   todayEarnings: number;
   completedToday: number;
+  cod?: {
+    currentCollectedAmount: number;
+    limitPkr: number;
+    remainingUntilLimit: number;
+    isBlocked: boolean;
+    warningMessage: string | null;
+  };
 }
 
 interface Order {
@@ -114,9 +121,12 @@ export function RiderDashboardScreen() {
         setOrders([]);
       }
       if (dashRes.status === 'fulfilled') {
-        setDashboard(
-          dashRes.value ?? { isAvailable: true, todayEarnings: 0, completedToday: 0 }
-        );
+        const d = dashRes.value ?? {
+          isAvailable: true,
+          todayEarnings: 0,
+          completedToday: 0,
+        };
+        setDashboard(d);
       } else {
         setDashboard({ isAvailable: true, todayEarnings: 0, completedToday: 0 });
       }
@@ -241,6 +251,12 @@ export function RiderDashboardScreen() {
           {dashboard?.isAvailable ? 'Online' : 'Offline'}
         </Text>
 
+        {dashboard?.cod?.isBlocked && dashboard.cod.warningMessage ? (
+          <View style={styles.codBanner}>
+            <Text style={styles.codBannerText}>{dashboard.cod.warningMessage}</Text>
+          </View>
+        ) : null}
+
         <View style={styles.row}>
           <View style={styles.card}>
             <View>
@@ -264,10 +280,26 @@ export function RiderDashboardScreen() {
           </TouchableOpacity>
         </View>
 
+        <View style={styles.codRow}>
+          <View style={[styles.card, { flex: 1 }]}>
+            <Text style={styles.cardLabel}>COD collected</Text>
+            <Text style={styles.cardValue}>
+              {loading
+                ? '—'
+                : `${Number(dashboard?.cod?.currentCollectedAmount ?? 0).toLocaleString()} PKR`}
+            </Text>
+            <Text style={styles.cardHint}>
+              {loading
+                ? ' '
+                : `Until limit: ${Number(dashboard?.cod?.remainingUntilLimit ?? 5000).toLocaleString()} PKR left`}
+            </Text>
+          </View>
+        </View>
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Nearest pickup offers</Text>
           <Text style={styles.poolHint}>
-            Ready at store — tap Pick to claim. Admin sees self-picked orders.
+            Within 2 km of pickup only — tap Pick to claim. Admin sees self-picked orders.
           </Text>
           {availLoading && availableOrders.length === 0 ? (
             <View style={styles.center}>
@@ -291,9 +323,22 @@ export function RiderDashboardScreen() {
                     )}
                   </View>
                   <TouchableOpacity
-                    style={styles.pickBtn}
-                    disabled={!!actionLoadingId || !!activeOrder}
+                    style={[
+                      styles.pickBtn,
+                      (dashboard?.cod?.isBlocked || !!activeOrder) && styles.pickBtnDisabled,
+                    ]}
+                    disabled={
+                      !!actionLoadingId || !!activeOrder || !!dashboard?.cod?.isBlocked
+                    }
                     onPress={() => {
+                      if (dashboard?.cod?.isBlocked) {
+                        Alert.alert(
+                          'Deposit required',
+                          dashboard.cod.warningMessage ??
+                            'Deposit collected cash with admin to receive new orders.',
+                        );
+                        return;
+                      }
                       if (activeOrder) {
                         Alert.alert('Busy', 'Finish your current delivery before picking another.');
                         return;
@@ -536,6 +581,23 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 16
   },
+  codRow: {
+    marginBottom: 16
+  },
+  codBanner: {
+    backgroundColor: '#fef3c7',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#fcd34d'
+  },
+  codBannerText: {
+    fontSize: 13,
+    color: '#92400e',
+    fontWeight: '600',
+    lineHeight: 18
+  },
   card: {
     flex: 1,
     borderRadius: 16,
@@ -619,6 +681,7 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   pickBtnText: { fontSize: 13, fontWeight: '700', color: '#facc15' },
+  pickBtnDisabled: { opacity: 0.45 },
   center: {
     paddingVertical: 24,
     alignItems: 'center',

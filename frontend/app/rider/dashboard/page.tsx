@@ -49,6 +49,13 @@ interface RiderDashboard {
   isAvailable: boolean;
   todayEarnings: number;
   completedToday: number;
+  cod?: {
+    currentCollectedAmount: number;
+    limitPkr: number;
+    remainingUntilLimit: number;
+    isBlocked: boolean;
+    warningMessage: string | null;
+  };
 }
 
 interface RiderEarnings {
@@ -192,6 +199,13 @@ export default function RiderDashboardPage() {
   };
 
   const claimOpenOrder = async (orderId: string) => {
+    if (dashboard?.cod?.isBlocked) {
+      alert(
+        dashboard.cod.warningMessage ??
+          'Deposit collected cash with admin to receive new orders.',
+      );
+      return;
+    }
     if (
       !confirm(
         'Pick this order? You will be assigned and admin will see this as a self-pick.',
@@ -274,7 +288,16 @@ export default function RiderDashboardPage() {
                 {dashboard?.isAvailable ? 'Online' : 'Offline'}
               </p>
 
-              <div className="grid grid-cols-2 gap-3 mb-6">
+              {dashboard?.cod?.isBlocked && dashboard.cod.warningMessage && (
+                <div
+                  className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900"
+                  role="status"
+                >
+                  {dashboard.cod.warningMessage}
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3 mb-4">
                 <Card className="p-4 flex flex-col justify-between">
                   <div>
                     <p className="text-xs text-slate-500 uppercase">Today Earnings</p>
@@ -325,12 +348,28 @@ export default function RiderDashboardPage() {
                 </Card>
               </div>
 
+              <Card className="p-4 mb-6 border border-amber-100 bg-amber-50/50">
+                <p className="text-xs text-slate-500 uppercase tracking-wide">COD collected (unsettled)</p>
+                <p className="text-xl font-bold text-slate-900 mt-1">
+                  {loading
+                    ? '—'
+                    : `${Number(dashboard?.cod?.currentCollectedAmount ?? 0).toLocaleString()} PKR`}
+                </p>
+                <p className="text-xs text-slate-600 mt-2">
+                  {loading
+                    ? ' '
+                    : `Limit ${Number(dashboard?.cod?.limitPkr ?? 5000).toLocaleString()} PKR · ${Number(
+                        dashboard?.cod?.remainingUntilLimit ?? 5000,
+                      ).toLocaleString()} PKR remaining before pickup is blocked`}
+                </p>
+              </Card>
+
               <div className="mb-6">
                 <h2 className="text-sm font-semibold text-slate-600 uppercase tracking-wide mb-1">
                   Nearest pickup offers
                 </h2>
                 <p className="text-xs text-slate-500 mb-3">
-                  Ready at store — pick to claim. Admin sees self-picked orders.
+                  Within 2 km of pickup only — pick to claim. Admin sees self-picked orders.
                 </p>
                 {availLoading && availableOrders.length === 0 ? (
                   <div className="flex justify-center py-8">
@@ -354,9 +393,18 @@ export default function RiderDashboardPage() {
                         <Button
                           size="sm"
                           variant="primary"
-                          disabled={!!actionLoading || !!activeOrder}
+                          disabled={
+                            !!actionLoading || !!activeOrder || !!dashboard?.cod?.isBlocked
+                          }
                           loading={actionLoading === o.id}
                           onClick={() => {
+                            if (dashboard?.cod?.isBlocked) {
+                              alert(
+                                dashboard.cod.warningMessage ??
+                                  'Deposit collected cash with admin to receive new orders.',
+                              );
+                              return;
+                            }
                             if (activeOrder) {
                               alert('Finish your current delivery before picking another.');
                               return;
@@ -540,6 +588,19 @@ export default function RiderDashboardPage() {
             <>
               {earnings ? (
                 <>
+                  {dashboard?.cod && (
+                    <Card className="p-4 mb-4 border border-amber-100 bg-amber-50/40">
+                      <p className="text-xs text-slate-600 uppercase tracking-wide mb-1">COD held (to deposit)</p>
+                      <p className="text-lg font-bold text-amber-950">
+                        {Number(dashboard.cod.currentCollectedAmount).toLocaleString()} PKR
+                      </p>
+                      <p className="text-xs text-slate-600 mt-1">
+                        {dashboard.cod.isBlocked
+                          ? 'Pickup blocked until admin confirms deposit.'
+                          : `${Number(dashboard.cod.remainingUntilLimit).toLocaleString()} PKR until limit`}
+                      </p>
+                    </Card>
+                  )}
                   <Card className="p-4 mb-4 border border-emerald-100 bg-emerald-50/40">
                     <p className="text-xs text-slate-600 uppercase tracking-wide mb-1">Available to withdraw</p>
                     <p className="text-2xl font-bold text-emerald-800">

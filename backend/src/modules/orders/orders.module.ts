@@ -6,9 +6,10 @@ import { RealtimeModule } from '../realtime/realtime.module';
 import { StoresModule } from '../stores/stores.module';
 import { JazzCashModule } from '../jazzcash/jazzcash.module';
 import { EasypaisaModule } from '../easypaisa/easypaisa.module';
+import { RidersModule } from '../riders/riders.module';
 
 @Module({
-  imports: [PricingModule, RealtimeModule, StoresModule, JazzCashModule, EasypaisaModule],
+  imports: [PricingModule, RealtimeModule, StoresModule, JazzCashModule, EasypaisaModule, RidersModule],
   controllers: [OrdersController],
   providers: [OrdersService],
   exports: [OrdersService],

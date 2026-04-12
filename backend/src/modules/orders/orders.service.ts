@@ -17,6 +17,7 @@ import { Decimal } from '@prisma/client/runtime/library';
 import { PricingService } from '../pricing/pricing.service';
 import { OrdersGateway } from '../realtime/orders.gateway';
 import { StoresService } from '../stores/stores.service';
+import { RidersService } from '../riders/riders.service';
 
 /** Set `false` when Stripe / XPay keys are ready and clients show those options again. */
 const PAYMENTS_COD_ONLY = true;
@@ -33,6 +34,7 @@ export class OrdersService {
     private readonly pricing: PricingService,
     private readonly ordersGateway: OrdersGateway,
     private readonly stores: StoresService,
+    private readonly riders: RidersService,
   ) {}
 
   async prepareJazzCash(customerId: string, dto: PrepareXPayDto) {
@@ -740,6 +742,7 @@ export class OrdersService {
     }
 
     if (isRiderSelfClaim) {
+      await this.riders.assertRiderCanSelfClaimPickup(userId, orderId);
       const rider = await this.prisma.user.findFirst({
         where: { id: userId, role: Role.RIDER, isActive: true },
       });
@@ -810,6 +813,7 @@ export class OrdersService {
         },
         order.riderId,
       );
+      this.ordersGateway.emitPickupPoolUpdated();
       return updated;
     }
 
@@ -826,6 +830,7 @@ export class OrdersService {
     } = { orderStatus: toStatus };
 
     if (toStatus === 'RIDER_ASSIGNED' && dto.riderId) {
+      await this.riders.assertRiderNotBlockedForNewPickup(dto.riderId);
       const rider = await this.prisma.user.findFirst({
         where: { id: dto.riderId, role: 'RIDER', isActive: true },
       });
@@ -880,6 +885,13 @@ export class OrdersService {
             },
           });
         }
+        if (o.riderId) {
+          await this.riders.applyCodOnDelivered(tx, {
+            riderId: o.riderId,
+            paymentMethod: o.paymentMethod,
+            totalAmount: o.totalAmount,
+          });
+        }
       }
 
       return o;
@@ -899,6 +911,11 @@ export class OrdersService {
       },
       order.riderId,
     );
+
+    this.ordersGateway.emitPickupPoolUpdated();
+    if (toStatus === OrderStatus.DELIVERED && updated.riderId) {
+      await this.riders.emitCodWalletSnapshotForRider(updated.riderId);
+    }
 
     return updated;
   }
@@ -998,6 +1015,9 @@ export class OrdersService {
     }
 
     const advanceFromPickupPool = order.orderStatus === OrderStatus.READY_FOR_PICKUP;
+    if (advanceFromPickupPool) {
+      await this.riders.assertRiderNotBlockedForNewPickup(newRiderId);
+    }
 
     await this.prisma.$transaction(async (tx) => {
       await tx.order.update({
@@ -1045,6 +1065,7 @@ export class OrdersService {
       },
       order.riderId,
     );
+    this.ordersGateway.emitPickupPoolUpdated();
 
     return { success: true };
   }

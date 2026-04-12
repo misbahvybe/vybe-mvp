@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { StickyHeader } from '@/components/layout/StickyHeader';
@@ -18,6 +18,7 @@ import {
   Package,
 } from 'lucide-react';
 import api from '@/services/api';
+import { useOrderDetailRealtime } from '@/hooks/useOrdersRealtime';
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING: 'Pending',
@@ -60,21 +61,33 @@ export default function RiderOrderDetailPage() {
   const params = useParams();
   const router = useRouter();
   const token = useAuthStore((s) => s.token);
+  const user = useAuthStore((s) => s.user);
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(false);
+  const orderId = typeof params?.id === 'string' ? params.id : null;
+
+  const loadOrder = useCallback(() => {
+    if (!orderId) return;
+    api
+      .get<OrderDetail>(`/orders/${orderId}`)
+      .then((r) => setOrder(r.data))
+      .catch(() => setOrder(null));
+  }, [orderId]);
 
   useEffect(() => {
     if (!token) {
-      router.replace('/auth/login');
+      router.replace('/partner-login');
       return;
     }
-    const id = params?.id;
-    if (id) {
-      api.get<OrderDetail>(`/orders/${id}`)
-        .then((r) => setOrder(r.data))
-        .catch(() => setOrder(null));
-    }
-  }, [token, router, params?.id]);
+    if (orderId) loadOrder();
+  }, [token, router, orderId, loadOrder]);
+
+  useOrderDetailRealtime(
+    !!token && user?.role === 'RIDER',
+    orderId,
+    token,
+    loadOrder,
+  );
 
   const updateStatus = async (status: string) => {
     if (!order) return;

@@ -82,14 +82,14 @@ export function useOrdersRealtime(
   }, [enabled, token, role, storeId]);
 }
 
-/** Rider: admin assigned an order — refetch /orders without manual pull-to-refresh. */
+/** Rider: assignments, pickup pool, and COD wallet — refetch dashboards without pull-to-refresh. */
 export function useRiderAssignmentRealtime(
   enabled: boolean,
   token: string | null | undefined,
-  onAssigned: () => void,
+  onRefresh: () => void,
 ) {
-  const cbRef = useRef(onAssigned);
-  cbRef.current = onAssigned;
+  const cbRef = useRef(onRefresh);
+  cbRef.current = onRefresh;
 
   useEffect(() => {
     if (!enabled || !token?.trim()) {
@@ -105,9 +105,13 @@ export function useRiderAssignmentRealtime(
         reconnectionDelay: 2000,
       });
 
-      socket.on('order:assigned', () => {
+      const run = () => {
         cbRef.current();
-      });
+      };
+      socket.on('order:assigned', run);
+      socket.on('pickup_pool:updated', run);
+      socket.on('rider:cod_wallet', run);
+      socket.on('order:updated', run);
     } catch {
       // ignore
     }

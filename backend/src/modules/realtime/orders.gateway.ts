@@ -100,7 +100,8 @@ export class OrdersGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
       if (user.role === 'RIDER') {
         await client.join(`rider:${user.id}`);
-        this.logger.debug(`Socket ${client.id} joined rider:${user.id}`);
+        await client.join('riders:pickup_pool');
+        this.logger.debug(`Socket ${client.id} joined rider:${user.id} + riders:pickup_pool`);
         return;
       }
       if (user.role === 'CUSTOMER') {
@@ -150,5 +151,22 @@ export class OrdersGateway implements OnGatewayConnection, OnGatewayDisconnect {
   /** Rider claimed an open pickup order — admin list should refresh. */
   emitRiderSelfClaimed(orderId: string, riderId: string): void {
     this.server.to('admin:orders').emit('order:rider_self_claimed', { orderId, riderId });
+  }
+
+  /** New order entered pickup pool or pool membership changed — riders refetch nearby offers. */
+  emitPickupPoolUpdated(): void {
+    this.server.to('riders:pickup_pool').emit('pickup_pool:updated', { at: new Date().toISOString() });
+  }
+
+  /** COD wallet / block state changed — rider dashboard should refetch. */
+  emitRiderCodWalletUpdated(
+    riderId: string,
+    payload: {
+      currentCollectedAmount: number;
+      isBlocked: boolean;
+      codLimitPkr: number;
+    },
+  ): void {
+    this.server.to(`rider:${riderId}`).emit('rider:cod_wallet', payload);
   }
 }

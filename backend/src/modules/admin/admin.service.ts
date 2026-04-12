@@ -426,6 +426,8 @@ export class AdminService {
         avgDeliveryTimeMins: Math.round(avgDeliveryMins),
         acceptanceRate,
         totalEarnings: r.riderEarnings.reduce((s, e) => s + Number(e.earningAmount), 0),
+        codCollectedAmount: Number(r.riderProfile?.currentCollectedAmount ?? 0),
+        codBlocked: r.riderProfile?.isBlocked ?? false,
       };
     });
   }
