@@ -5,18 +5,25 @@ import { AuthHydrate } from '@/components/auth/AuthHydrate';
 import { BRAND_FULL } from '@/constants/brand';
 
 /**
- * Vercel Deployment Protection returns 401 for unauthenticated fetches (including `/manifest.json`).
- * - Local dev (no VERCEL): manifest on unless SKIP_PWA_MANIFEST=1.
- * - Vercel preview: manifest off unless NEXT_PUBLIC_ENABLE_PWA_MANIFEST=true.
- * - Vercel production: manifest on unless NEXT_PUBLIC_ENABLE_PWA_MANIFEST=false.
+ * PWA manifest (`/manifest.json`): browsers fetch it without auth. Vercel Deployment Protection
+ * returns 401 for that URL, so we must NOT emit `<link rel="manifest">` on Vercel unless you
+ * explicitly opt in (and ideally disable Deployment Protection or accept 401 in DevTools).
+ *
+ * Rules:
+ * - `SKIP_PWA_MANIFEST=1` → never link manifest (anywhere).
+ * - On Vercel (`VERCEL=1`): manifest is linked ONLY if `NEXT_PUBLIC_ENABLE_PWA_MANIFEST=true`
+ *   (strict; missing/false/empty all mean no manifest — avoids accidental 401).
+ * - Local dev (no Vercel): manifest on unless `NEXT_PUBLIC_ENABLE_PWA_MANIFEST=false`.
+ *
+ * `NEXT_PUBLIC_*` is inlined at **build** time — change env → **redeploy** (new build).
  */
+const isVercel = process.env.VERCEL === '1' || process.env.VERCEL === 'true';
+
 const enablePwaManifest =
   process.env.SKIP_PWA_MANIFEST !== '1' &&
-  (process.env.NEXT_PUBLIC_ENABLE_PWA_MANIFEST === 'true' ||
-    process.env.VERCEL !== '1' ||
-    (process.env.VERCEL === '1' &&
-      process.env.VERCEL_ENV === 'production' &&
-      process.env.NEXT_PUBLIC_ENABLE_PWA_MANIFEST !== 'false'));
+  (isVercel
+    ? process.env.NEXT_PUBLIC_ENABLE_PWA_MANIFEST === 'true'
+    : process.env.NEXT_PUBLIC_ENABLE_PWA_MANIFEST !== 'false');
 
 const siteDescription =
   'Food, grocery, and medicine delivery. Order easily from your phone — cash on delivery.';
