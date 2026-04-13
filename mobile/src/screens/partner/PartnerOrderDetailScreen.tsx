@@ -13,6 +13,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { printOrderTicketSunmi } from '@lib/sunmiOrderTicket';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { api } from '@api/client';
 import { PartnerScreenShell } from '@components/partner/PartnerScreenShell';
@@ -33,7 +34,13 @@ interface OrderDetail {
   cancellationReason?: string | null;
   createdAt: string;
   totalAmount: number;
-  store?: { name: string };
+  paymentMethod?: string;
+  deliveryFee?: number;
+  serviceFee?: number;
+  gstAmount?: number;
+  cardProcessingAmount?: number;
+  store?: { name: string; phone?: string; address?: string };
+  customer?: { name: string; phone: string };
   address?: { fullAddress: string };
   rider?: { name: string; phone: string } | null;
   statusHistory?: { status: string; createdAt: string; changedByUserId: string | null }[];
@@ -87,6 +94,7 @@ export function PartnerOrderDetailScreen() {
   const [riderModal, setRiderModal] = useState<'assign' | 'reassign' | null>(null);
   const [reassignReason, setReassignReason] = useState('');
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [printing, setPrinting] = useState(false);
 
   const fetchOrder = useCallback(() => {
     if (!id) return;
@@ -185,6 +193,40 @@ export function PartnerOrderDetailScreen() {
     patchItemQty(qtyModal.itemId, newQty);
   };
 
+  const printSunmiTicket = async () => {
+    if (!order || Platform.OS !== 'android') return;
+    setPrinting(true);
+    try {
+      await printOrderTicketSunmi({
+        id: order.id,
+        createdAt: order.createdAt,
+        paymentMethod: order.paymentMethod,
+        totalAmount: Number(order.totalAmount),
+        store: order.store,
+        customer: order.customer,
+        address: order.address,
+        items: order.items.map((i) => ({
+          product: i.product,
+          quantity: Number(i.quantity),
+          price: Number(i.price),
+        })),
+        deliveryFee: order.deliveryFee != null ? Number(order.deliveryFee) : undefined,
+        serviceFee: order.serviceFee != null ? Number(order.serviceFee) : undefined,
+        gstAmount: order.gstAmount != null ? Number(order.gstAmount) : undefined,
+        cardProcessingAmount:
+          order.cardProcessingAmount != null ? Number(order.cardProcessingAmount) : undefined,
+      });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      Alert.alert(
+        'Print failed',
+        `${msg}\n\nIf you are on Expo Go, build a development/production APK with EAS so the Sunmi printer native module is included.`,
+      );
+    } finally {
+      setPrinting(false);
+    }
+  };
+
   const onPickRider = async (riderId: string) => {
     if (!order) return;
     if (riderModal === 'assign') {
@@ -266,6 +308,16 @@ export function PartnerOrderDetailScreen() {
           <Text style={styles.title}>{order.store?.name ?? 'Order'}</Text>
           <Text style={styles.muted}>{formatDate(order.createdAt)}</Text>
           <Text style={styles.status}>{STATUS_LABELS[order.orderStatus] ?? order.orderStatus}</Text>
+          {role === 'STORE_OWNER' && Platform.OS === 'android' ? (
+            <VybeButton
+              title={printing ? 'Printing…' : 'Print receipt (Sunmi)'}
+              variant="outline"
+              disabled={printing}
+              loading={printing}
+              onPress={printSunmiTicket}
+              style={styles.actionBtn}
+            />
+          ) : null}
           {order.cancellationReason ? (
             <Text style={styles.cancelNote}>
               Reason: {CANCELLATION_LABELS[order.cancellationReason] ?? order.cancellationReason}

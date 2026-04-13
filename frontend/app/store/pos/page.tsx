@@ -325,9 +325,9 @@ export default function StorePosPage() {
                 </p>
               </div>
               {detail ? (
-                <Link href={`/store/pos/print/${detail.id}`} target="_blank">
+                <Link href={`/store/pos/print/${detail.id}`} target="_blank" rel="noopener noreferrer" title="58mm ticket for Sunmi / thermal">
                   <Button size="sm" variant="outline">
-                    Print
+                    Print (58mm)
                   </Button>
                 </Link>
               ) : null}
