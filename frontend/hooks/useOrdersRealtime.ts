@@ -57,6 +57,16 @@ export function useOrdersRealtime(
   role: Role | null | undefined,
   storeId: string | null | undefined,
   onOrderEvent: (payload: OrderCreatedEvent) => void,
+  options?: {
+    /** Called when a matching order is created (useful for POS alert sounds). */
+    onCreated?: (payload: OrderCreatedEvent) => void;
+    /** Called when a matching order is updated (status/assignment). */
+    onUpdated?: (payload: OrderUpdatedEvent) => void;
+    /** Called when socket connects (useful for UI indicators). */
+    onConnect?: () => void;
+    /** Called when socket disconnects (useful for UI indicators). */
+    onDisconnect?: () => void;
+  },
 ) {
   const cbRef = useRef(onOrderEvent);
   cbRef.current = onOrderEvent;
@@ -78,24 +88,30 @@ export function useOrdersRealtime(
       });
 
       const refresh = () => cbRef.current(emptyCreatedPayload());
+      socket.on('connect', () => options?.onConnect?.());
+      socket.on('disconnect', () => options?.onDisconnect?.());
 
       socket.on('order:created', (payload: OrderCreatedEvent) => {
         if (role === 'ADMIN') {
           cbRef.current(payload);
+          options?.onCreated?.(payload);
           return;
         }
         if (role === 'STORE_OWNER' && storeId && payload.storeId === storeId) {
           cbRef.current(payload);
+          options?.onCreated?.(payload);
         }
       });
 
       socket.on('order:updated', (payload: OrderUpdatedEvent) => {
         if (role === 'ADMIN') {
           refresh();
+          options?.onUpdated?.(payload);
           return;
         }
         if (role === 'STORE_OWNER' && storeId && payload.storeId === storeId) {
           refresh();
+          options?.onUpdated?.(payload);
         }
       });
 

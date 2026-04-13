@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Loader } from '@/components/ui/Loader';
 import { GalleryImageInput } from '@/components/ui/GalleryImageInput';
+import Link from 'next/link';
 import {
   Package,
   ShoppingBag,
@@ -188,6 +189,17 @@ export default function StoreDashboardPage() {
     <div className="min-h-screen flex flex-col">
       <StickyHeader title="Store Dashboard" wideShell />
       <ContentPanel>
+        <div className="app-shell-wide pt-3">
+          <Card className="p-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-800">POS / Kitchen Screen</p>
+              <p className="text-xs text-slate-500">Use on a tablet for live order alerts + big buttons.</p>
+            </div>
+            <Link href="/store/pos">
+              <Button size="sm" variant="primary">Open POS</Button>
+            </Link>
+          </Card>
+        </div>
         <div className="border-b border-slate-200 bg-surface sticky top-0 z-10">
           <div className="app-shell-wide flex overflow-x-auto">
             {tabs.map((t) => (
