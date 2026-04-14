@@ -20,6 +20,7 @@ import { HealthModule } from './modules/health/health.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { BankPaymentsModule } from './modules/bank-payments/bank-payments.module';
 import { UpstashModule } from './common/upstash/upstash.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { UpstashModule } from './common/upstash/upstash.module';
     RidersModule,
     StoresModule,
     AdminModule,
+    NotificationsModule,
     HealthModule,
     UploadsModule,
     BankPaymentsModule,

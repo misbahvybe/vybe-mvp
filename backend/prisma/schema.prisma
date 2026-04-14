@@ -118,6 +118,7 @@ model User {
   withdrawRequests WithdrawRequest[]
   earningPayouts    EarningPayout[]
   orderRiderChanges OrderRiderChange[] @relation("OrderRiderChangeAdmin")
+  notifications     Notification[]
 
   @@index([phone])
 }
@@ -244,10 +245,40 @@ model PlatformCheckoutSettings {
   serviceFeePercent Decimal @default(0) @map("service_fee_percent") @db.Decimal(5, 2)
   /// COD-only tax as a percent (e.g. 16 = 16%) on (subtotal + delivery + service fee).
   codTaxPercent Decimal @default(16) @map("cod_tax_percent") @db.Decimal(5, 2)
+  /// When false, COD tax is treated as 0 regardless of percent.
+  codTaxEnabled Boolean @default(false) @map("cod_tax_enabled")
+
+  /// Delivery pricing (base per km) and simple peak rules.
+  deliveryBasePerKm Decimal @default(45) @map("delivery_base_per_km") @db.Decimal(10, 2)
+  /// Multiplier applied on weekends (Sat/Sun) e.g. 1.4 = +40%. Set 1 to disable.
+  weekendMultiplier Decimal @default(1) @map("weekend_multiplier") @db.Decimal(6, 3)
+  /// Multiplier applied in peak hours window e.g. 1.6 = +60%. Set 1 to disable.
+  peakMultiplier Decimal @default(1) @map("peak_multiplier") @db.Decimal(6, 3)
+  /// Peak window start (HH:mm, Pakistan local time).
+  peakStartTime String @default("18:00") @map("peak_start_time")
+  /// Peak window end (HH:mm, Pakistan local time). If <= start, window wraps overnight.
+  peakEndTime String @default("22:00") @map("peak_end_time")
 
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("platform_checkout_settings")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  type      String
+  title     String
+  body      String?
+  dataJson  String?  @map("data_json")
+  isRead    Boolean  @default(false) @map("is_read")
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead, createdAt])
+  @@map("notifications")
 }
 
 model StoreToCategory {

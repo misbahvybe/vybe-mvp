@@ -33,8 +33,36 @@ type ResolvedCheckoutFees = {
   serviceFeePercent: number;
   /** 0–1 fraction applied to (subtotal + delivery + service) for COD. */
   codTaxRate: number;
+  codTaxEnabled: boolean;
   cardProcessingRate: number;
+  deliveryPerKm: number;
 };
+
+function parseHmToMinutes(hm: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec((hm ?? '').trim());
+  if (!m) return null;
+  const hh = Number(m[1]);
+  const mm = Number(m[2]);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm) || hh < 0 || hh > 23 || mm < 0 || mm > 59) return null;
+  return hh * 60 + mm;
+}
+
+function pakistanNowParts(now = new Date()): { day: number; minutes: number } {
+  // day: 0=Sun..6=Sat, minutes: 0..1439 (Asia/Karachi)
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Karachi',
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(now);
+  const wd = parts.find((p) => p.type === 'weekday')?.value ?? '';
+  const hour = Number(parts.find((p) => p.type === 'hour')?.value ?? '0');
+  const minute = Number(parts.find((p) => p.type === 'minute')?.value ?? '0');
+  const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  const day = dayMap[wd] ?? new Date(now).getDay();
+  return { day, minutes: hour * 60 + minute };
+}
 
 @Injectable()
 export class PricingService {
@@ -45,10 +73,6 @@ export class PricingService {
     private readonly config: ConfigService,
   ) {}
 
-  private deliveryPerKm(): number {
-    return Number(this.config.get<string>('DELIVERY_FEE_PER_KM') ?? '45');
-  }
-
   /**
    * DB-backed checkout fees (admin). Falls back to env when row missing (e.g. before migrate).
    * COD_GST_RATE env: decimal fraction (0.16) or percent (16) — normalized to 0–1.
@@ -58,12 +82,15 @@ export class PricingService {
     const envCodRaw = Number(this.config.get<string>('COD_GST_RATE') ?? '0.16');
     const envCodRate = envCodRaw > 1 ? envCodRaw / 100 : envCodRaw;
     const cardProcessingRate = Number(this.config.get<string>('CARD_PROCESSING_RATE') ?? '0.05');
+    const envDeliveryPerKm = Number(this.config.get<string>('DELIVERY_FEE_PER_KM') ?? '45');
     const envFallback = (): ResolvedCheckoutFees => ({
       serviceFeeMode: CheckoutServiceFeeMode.FIXED,
       serviceFeeFixed: envFee,
       serviceFeePercent: 0,
       codTaxRate: envCodRate,
+      codTaxEnabled: envCodRate > 0,
       cardProcessingRate,
+      deliveryPerKm: envDeliveryPerKm,
     });
 
     let row: Awaited<ReturnType<PrismaService['platformCheckoutSettings']['findUnique']>> = null;
@@ -87,12 +114,32 @@ export class PricingService {
       return envFallback();
     }
     const codPct = Number(row.codTaxPercent.toString());
+    const codTaxEnabled = Boolean((row as any).codTaxEnabled ?? false);
+    const deliveryBasePerKm = Number(((row as any).deliveryBasePerKm ?? envDeliveryPerKm).toString());
+    const weekendMultiplier = Number(((row as any).weekendMultiplier ?? 1).toString());
+    const peakMultiplier = Number(((row as any).peakMultiplier ?? 1).toString());
+    const peakStart = String((row as any).peakStartTime ?? '18:00');
+    const peakEnd = String((row as any).peakEndTime ?? '22:00');
+
+    // Apply simple peak logic using Pakistan local time.
+    const nowParts = pakistanNowParts();
+    const isWeekend = nowParts.day === 0 || nowParts.day === 6;
+    const startM = parseHmToMinutes(peakStart) ?? 18 * 60;
+    const endM = parseHmToMinutes(peakEnd) ?? 22 * 60;
+    const inPeak =
+      endM > startM
+        ? nowParts.minutes >= startM && nowParts.minutes < endM
+        : nowParts.minutes >= startM || nowParts.minutes < endM; // wraps overnight
+    const multiplier = Math.max(0.5, Math.min(5, (isWeekend ? weekendMultiplier : 1) * (inPeak ? peakMultiplier : 1)));
+    const deliveryPerKm = Math.max(0, deliveryBasePerKm * multiplier);
     return {
       serviceFeeMode: row.serviceFeeMode,
       serviceFeeFixed: Number(row.serviceFeeFixed.toString()),
       serviceFeePercent: Number(row.serviceFeePercent.toString()),
       codTaxRate: codPct / 100,
+      codTaxEnabled,
       cardProcessingRate,
+      deliveryPerKm,
     };
   }
 
@@ -211,15 +258,17 @@ export class PricingService {
       );
       distanceKm = new Decimal(km.toFixed(4));
     }
-    const deliveryFee = distanceKm.mul(this.deliveryPerKm()).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
     const fees = await this.resolveCheckoutFees();
+    const deliveryFee = distanceKm.mul(fees.deliveryPerKm).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
     const serviceFee = this.computeServiceFee(fees, subtotal, deliveryFee);
     const baseBeforeSurcharge = subtotal.add(deliveryFee).add(serviceFee);
 
     let gstAmount = new Decimal(0);
     let cardProcessingAmount = new Decimal(0);
     if (params.paymentMethod === 'COD') {
-      gstAmount = baseBeforeSurcharge.mul(fees.codTaxRate).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+      if (fees.codTaxEnabled && fees.codTaxRate > 0) {
+        gstAmount = baseBeforeSurcharge.mul(fees.codTaxRate).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+      }
     } else {
       cardProcessingAmount = baseBeforeSurcharge
         .mul(fees.cardProcessingRate)

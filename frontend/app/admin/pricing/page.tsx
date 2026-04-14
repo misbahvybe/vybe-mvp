@@ -26,6 +26,12 @@ interface PlatformCheckoutSettings {
   serviceFeeFixed: string | number;
   serviceFeePercent: string | number;
   codTaxPercent: string | number;
+  codTaxEnabled?: boolean;
+  deliveryBasePerKm?: string | number;
+  weekendMultiplier?: string | number;
+  peakMultiplier?: string | number;
+  peakStartTime?: string;
+  peakEndTime?: string;
 }
 
 export default function AdminPricingPage() {
@@ -44,6 +50,12 @@ export default function AdminPricingPage() {
     serviceFeeFixed: '',
     serviceFeePercent: '',
     codTaxPercent: '',
+    codTaxEnabled: false,
+    deliveryBasePerKm: '',
+    weekendMultiplier: '1',
+    peakMultiplier: '1',
+    peakStartTime: '18:00',
+    peakEndTime: '22:00',
   });
 
   const load = useCallback(async () => {
@@ -80,6 +92,12 @@ export default function AdminPricingPage() {
           serviceFeeFixed: String(cs.serviceFeeFixed),
           serviceFeePercent: String(cs.serviceFeePercent),
           codTaxPercent: String(cs.codTaxPercent),
+          codTaxEnabled: Boolean(cs.codTaxEnabled ?? false),
+          deliveryBasePerKm: String(cs.deliveryBasePerKm ?? ''),
+          weekendMultiplier: String(cs.weekendMultiplier ?? '1'),
+          peakMultiplier: String(cs.peakMultiplier ?? '1'),
+          peakStartTime: String(cs.peakStartTime ?? '18:00'),
+          peakEndTime: String(cs.peakEndTime ?? '22:00'),
         });
       }
     } catch {
@@ -153,6 +171,9 @@ export default function AdminPricingPage() {
     const fixed = Number(checkoutDraft.serviceFeeFixed);
     const pct = Number(checkoutDraft.serviceFeePercent);
     const cod = Number(checkoutDraft.codTaxPercent);
+    const deliveryBase = Number(checkoutDraft.deliveryBasePerKm);
+    const weekendMul = Number(checkoutDraft.weekendMultiplier);
+    const peakMul = Number(checkoutDraft.peakMultiplier);
     if (checkoutDraft.serviceFeeMode === 'FIXED' && (Number.isNaN(fixed) || fixed < 0)) {
       setMessage('Service fee (fixed) must be a number ≥ 0.');
       return;
@@ -165,6 +186,18 @@ export default function AdminPricingPage() {
       setMessage('COD tax must be between 0 and 100 (%).');
       return;
     }
+    if (Number.isNaN(deliveryBase) || deliveryBase < 0) {
+      setMessage('Delivery base per-km must be a number ≥ 0.');
+      return;
+    }
+    if (Number.isNaN(weekendMul) || weekendMul < 0.5 || weekendMul > 5) {
+      setMessage('Weekend multiplier must be between 0.5 and 5.');
+      return;
+    }
+    if (Number.isNaN(peakMul) || peakMul < 0.5 || peakMul > 5) {
+      setMessage('Peak multiplier must be between 0.5 and 5.');
+      return;
+    }
     setSaving('checkout');
     setMessage('');
     try {
@@ -173,6 +206,12 @@ export default function AdminPricingPage() {
         serviceFeeFixed: fixed,
         serviceFeePercent: pct,
         codTaxPercent: cod,
+        codTaxEnabled: checkoutDraft.codTaxEnabled,
+        deliveryBasePerKm: deliveryBase,
+        weekendMultiplier: weekendMul,
+        peakMultiplier: peakMul,
+        peakStartTime: checkoutDraft.peakStartTime,
+        peakEndTime: checkoutDraft.peakEndTime,
       });
       setMessage('Checkout fees saved.');
       await load();
@@ -240,10 +279,72 @@ export default function AdminPricingPage() {
       <Card className="p-4 mb-6">
         <p className="text-sm text-slate-600 mb-4">
           Service fee is added before COD tax. Tax applies to <strong>subtotal + delivery + service fee</strong>.
-          Delivery per-km still uses server environment settings.
+          Delivery per-km uses settings below (with peak multipliers).
         </p>
         {checkoutSettings ? (
           <div className="space-y-4 max-w-lg">
+            <div>
+              <span className="block text-xs font-medium text-slate-600 mb-2">Delivery base</span>
+              <label className="block text-xs text-slate-500 mb-1">Base per KM (PKR)</label>
+              <input
+                type="number"
+                min={0}
+                step={0.01}
+                className="w-full max-w-xs px-2 py-1.5 border border-slate-300 rounded-lg"
+                value={checkoutDraft.deliveryBasePerKm}
+                onChange={(e) => setCheckoutDraft((d) => ({ ...d, deliveryBasePerKm: e.target.value }))}
+              />
+              <div className="grid grid-cols-2 gap-3 mt-3 max-w-md">
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">Weekend multiplier</label>
+                  <input
+                    type="number"
+                    min={0.5}
+                    max={5}
+                    step={0.01}
+                    className="w-full px-2 py-1.5 border border-slate-300 rounded-lg"
+                    value={checkoutDraft.weekendMultiplier}
+                    onChange={(e) => setCheckoutDraft((d) => ({ ...d, weekendMultiplier: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">Peak multiplier</label>
+                  <input
+                    type="number"
+                    min={0.5}
+                    max={5}
+                    step={0.01}
+                    className="w-full px-2 py-1.5 border border-slate-300 rounded-lg"
+                    value={checkoutDraft.peakMultiplier}
+                    onChange={(e) => setCheckoutDraft((d) => ({ ...d, peakMultiplier: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 mt-3 max-w-md">
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">Peak start (HH:mm)</label>
+                  <input
+                    type="time"
+                    className="w-full px-2 py-1.5 border border-slate-300 rounded-lg"
+                    value={checkoutDraft.peakStartTime}
+                    onChange={(e) => setCheckoutDraft((d) => ({ ...d, peakStartTime: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">Peak end (HH:mm)</label>
+                  <input
+                    type="time"
+                    className="w-full px-2 py-1.5 border border-slate-300 rounded-lg"
+                    value={checkoutDraft.peakEndTime}
+                    onChange={(e) => setCheckoutDraft((d) => ({ ...d, peakEndTime: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-slate-500 mt-2">
+                Final per-KM = base × (weekend?weekendMultiplier:1) × (peak?peakMultiplier:1) using Pakistan time.
+              </p>
+            </div>
+
             <div>
               <span className="block text-xs font-medium text-slate-600 mb-2">Service fee type</span>
               <div className="flex flex-wrap gap-4">
@@ -297,6 +398,15 @@ export default function AdminPricingPage() {
             )}
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">COD tax (%)</label>
+              <label className="inline-flex items-center gap-2 text-sm cursor-pointer mb-2">
+                <input
+                  type="checkbox"
+                  checked={checkoutDraft.codTaxEnabled}
+                  onChange={(e) => setCheckoutDraft((d) => ({ ...d, codTaxEnabled: e.target.checked }))}
+                  className="rounded border-slate-300"
+                />
+                Enable COD extra charge
+              </label>
               <input
                 type="number"
                 min={0}

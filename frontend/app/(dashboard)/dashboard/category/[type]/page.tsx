@@ -9,6 +9,7 @@ import { StickyHeader } from '@/components/layout/StickyHeader';
 import { ContentPanel } from '@/components/layout/ContentPanel';
 import { Card } from '@/components/ui/Card';
 import api from '@/services/api';
+import { getCustomerLocationOnce } from '@/services/customerLocation';
 
 interface StoreSummary {
   id: string;
@@ -56,8 +57,12 @@ export default function CategoryPage() {
     setLoading(true);
     setError(null);
     const params = ['food', 'grocery', 'medicine'].includes(type) ? { category: type } : {};
-    api
-      .get<StoreSummary[]>('/stores', { params })
+    (async () => {
+      const loc = await getCustomerLocationOnce();
+      return api.get<StoreSummary[]>('/stores', {
+        params: loc ? { ...params, latitude: loc.latitude, longitude: loc.longitude } : params,
+      });
+    })()
       .then((res) => setStores(res.data))
       .catch((e: unknown) => {
         setStores([]);

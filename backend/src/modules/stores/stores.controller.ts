@@ -8,7 +8,15 @@ export class StoresController {
   constructor(private readonly stores: StoresService) {}
 
   @Get()
-  async list(@Query('category') category?: string) {
+  async list(
+    @Query('category') category?: string,
+    @Query('latitude') latitude?: string,
+    @Query('longitude') longitude?: string,
+  ) {
+    // If GPS coords are provided, apply radius filtering (customer).
+    if (latitude != null && longitude != null && String(latitude).trim() !== '' && String(longitude).trim() !== '') {
+      return this.stores.listApprovedNear(category, latitude, longitude);
+    }
     return this.stores.listApproved(category);
   }
 

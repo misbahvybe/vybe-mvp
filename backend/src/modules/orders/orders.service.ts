@@ -18,6 +18,7 @@ import { PricingService } from '../pricing/pricing.service';
 import { OrdersGateway } from '../realtime/orders.gateway';
 import { StoresService } from '../stores/stores.service';
 import { RidersService } from '../riders/riders.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 /** Set `false` when Stripe / XPay keys are ready and clients show those options again. */
 const PAYMENTS_COD_ONLY = true;
@@ -35,6 +36,7 @@ export class OrdersService {
     private readonly ordersGateway: OrdersGateway,
     private readonly stores: StoresService,
     private readonly riders: RidersService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async prepareJazzCash(customerId: string, dto: PrepareXPayDto) {
@@ -802,6 +804,16 @@ export class OrdersService {
       if (updated.riderId) {
         this.ordersGateway.emitRiderAssigned(updated.riderId, updated.id);
       }
+      // Notification: rider claimed a pickup (assignment)
+      if (updated.riderId) {
+        await this.notifications.create({
+          userId: updated.riderId,
+          type: 'ORDER_ASSIGNED',
+          title: `New pickup assigned (#${(updated as any).orderNumber ?? updated.id.slice(-8)})`,
+          body: 'You have a new pickup. Open the app to view details.',
+          data: { orderId: updated.id },
+        });
+      }
       this.ordersGateway.emitRiderSelfClaimed(updated.id, userId);
       this.ordersGateway.emitOrderUpdated(
         {
@@ -896,6 +908,26 @@ export class OrdersService {
 
       return o;
     });
+
+    // Notifications on key status transitions
+    if (toStatus === OrderStatus.RIDER_ASSIGNED && updated.riderId) {
+      await this.notifications.create({
+        userId: updated.riderId,
+        type: 'ORDER_ASSIGNED',
+        title: `New pickup assigned (#${(updated as any).orderNumber ?? updated.id.slice(-8)})`,
+        body: 'You have a new pickup. Open the app to view details.',
+        data: { orderId: updated.id },
+      });
+    }
+    if (toStatus === OrderStatus.RIDER_ACCEPTED || toStatus === OrderStatus.PICKED_UP || toStatus === OrderStatus.DELIVERED) {
+      await this.notifications.create({
+        userId: updated.customerId,
+        type: 'ORDER_UPDATED',
+        title: `Order update (#${(updated as any).orderNumber ?? updated.id.slice(-8)})`,
+        body: `Status: ${toStatus}`,
+        data: { orderId: updated.id, status: toStatus },
+      });
+    }
 
     if (toStatus === OrderStatus.RIDER_ASSIGNED && updated.riderId) {
       this.ordersGateway.emitRiderAssigned(updated.riderId, updated.id);

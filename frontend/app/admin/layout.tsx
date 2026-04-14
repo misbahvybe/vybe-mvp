@@ -18,6 +18,8 @@ import {
   X,
   Percent,
 } from 'lucide-react';
+import { NotificationsBell } from '@/components/notifications/NotificationsBell';
+import { NotificationsToasts } from '@/components/notifications/NotificationsToasts';
 
 const NAV = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
@@ -55,6 +57,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className="min-h-screen flex bg-slate-50">
+      <NotificationsToasts enableSound />
       <aside
         className={`fixed inset-y-0 left-0 z-40 w-64 bg-primary-dark text-white transform transition-transform md:translate-x-0 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
@@ -102,6 +105,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           >
             <Menu className="w-6 h-6" />
           </button>
+          <div className="ml-auto">
+            <NotificationsBell compact />
+          </div>
         </header>
         <main className="flex-1 min-w-0 w-full p-4 md:p-6 overflow-x-auto overflow-y-auto">{children}</main>
       </div>

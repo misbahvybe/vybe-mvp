@@ -571,7 +571,13 @@ export class AdminService {
         serviceFeeMode: CheckoutServiceFeeMode.FIXED,
         serviceFeeFixed: 19.99,
         serviceFeePercent: 0,
-        codTaxPercent: 16,
+        codTaxPercent: 0,
+        codTaxEnabled: false,
+        deliveryBasePerKm: 45,
+        weekendMultiplier: 1,
+        peakMultiplier: 1,
+        peakStartTime: '18:00',
+        peakEndTime: '22:00',
       },
     });
   }
@@ -583,11 +589,23 @@ export class AdminService {
       serviceFeeFixed?: number;
       serviceFeePercent?: number;
       codTaxPercent?: number;
+      codTaxEnabled?: boolean;
+      deliveryBasePerKm?: number;
+      weekendMultiplier?: number;
+      peakMultiplier?: number;
+      peakStartTime?: string;
+      peakEndTime?: string;
     } = {};
     if (dto.serviceFeeMode !== undefined) data.serviceFeeMode = dto.serviceFeeMode;
     if (dto.serviceFeeFixed !== undefined) data.serviceFeeFixed = dto.serviceFeeFixed;
     if (dto.serviceFeePercent !== undefined) data.serviceFeePercent = dto.serviceFeePercent;
     if (dto.codTaxPercent !== undefined) data.codTaxPercent = dto.codTaxPercent;
+    if (dto.codTaxEnabled !== undefined) data.codTaxEnabled = dto.codTaxEnabled;
+    if (dto.deliveryBasePerKm !== undefined) data.deliveryBasePerKm = dto.deliveryBasePerKm;
+    if (dto.weekendMultiplier !== undefined) data.weekendMultiplier = dto.weekendMultiplier;
+    if (dto.peakMultiplier !== undefined) data.peakMultiplier = dto.peakMultiplier;
+    if (dto.peakStartTime !== undefined) data.peakStartTime = dto.peakStartTime;
+    if (dto.peakEndTime !== undefined) data.peakEndTime = dto.peakEndTime;
     if (Object.keys(data).length === 0) {
       return this.prisma.platformCheckoutSettings.findUniqueOrThrow({ where: { id: 'default' } });
     }

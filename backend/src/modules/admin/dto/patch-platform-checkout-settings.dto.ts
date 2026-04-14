@@ -1,4 +1,4 @@
-import { IsEnum, IsNumber, IsOptional, Max, Min } from 'class-validator';
+import { IsBoolean, IsEnum, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CheckoutServiceFeeMode } from '@prisma/client';
 
@@ -26,4 +26,37 @@ export class PatchPlatformCheckoutSettingsDto {
   @Min(0)
   @Max(100)
   codTaxPercent?: number;
+
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  codTaxEnabled?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  deliveryBasePerKm?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.5)
+  @Max(5)
+  weekendMultiplier?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.5)
+  @Max(5)
+  peakMultiplier?: number;
+
+  @IsOptional()
+  @IsString()
+  peakStartTime?: string; // HH:mm
+
+  @IsOptional()
+  @IsString()
+  peakEndTime?: string; // HH:mm
 }

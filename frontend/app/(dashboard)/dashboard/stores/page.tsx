@@ -9,6 +9,7 @@ import { StickyHeader } from '@/components/layout/StickyHeader';
 import { ContentPanel } from '@/components/layout/ContentPanel';
 import { Card } from '@/components/ui/Card';
 import api from '@/services/api';
+import { getCustomerLocationOnce } from '@/services/customerLocation';
 
 const SHOP_PLACEHOLDER = '/storefront.png';
 
@@ -37,8 +38,12 @@ export default function StoresPage() {
     }
     setLoading(true);
     setError(null);
-    api
-      .get<StoreSummary[]>('/stores')
+    (async () => {
+      const loc = await getCustomerLocationOnce();
+      return api.get<StoreSummary[]>('/stores', {
+        params: loc ? { latitude: loc.latitude, longitude: loc.longitude } : undefined,
+      });
+    })()
       .then((res) => setStores(res.data))
       .catch((e: unknown) => {
         setStores([]);

@@ -84,6 +84,7 @@ export class OrdersGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
       if (user.role === 'ADMIN') {
         await client.join('admin:orders');
+        await client.join(`user:${user.id}`);
         this.logger.debug(`Socket ${client.id} joined admin:orders`);
         return;
       }
@@ -96,16 +97,19 @@ export class OrdersGateway implements OnGatewayConnection, OnGatewayDisconnect {
           await client.join(`store:${store.id}`);
           this.logger.debug(`Socket ${client.id} joined store:${store.id}`);
         }
+        await client.join(`user:${user.id}`);
         return;
       }
       if (user.role === 'RIDER') {
         await client.join(`rider:${user.id}`);
         await client.join('riders:pickup_pool');
+        await client.join(`user:${user.id}`);
         this.logger.debug(`Socket ${client.id} joined rider:${user.id} + riders:pickup_pool`);
         return;
       }
       if (user.role === 'CUSTOMER') {
         await client.join(`customer:${user.id}`);
+        await client.join(`user:${user.id}`);
         this.logger.debug(`Socket ${client.id} joined customer:${user.id}`);
         return;
       }
@@ -168,5 +172,22 @@ export class OrdersGateway implements OnGatewayConnection, OnGatewayDisconnect {
     },
   ): void {
     this.server.to(`rider:${riderId}`).emit('rider:cod_wallet', payload);
+  }
+
+  /** Generic in-app notification event (admin/store/rider/customer). */
+  emitNotification(
+    userId: string,
+    payload: {
+      id: string;
+      type: string;
+      title: string;
+      body: string | null;
+      data: any;
+      isRead: boolean;
+      readAt: Date | null;
+      createdAt: Date;
+    },
+  ): void {
+    this.server.to(`user:${userId}`).emit('notif:new', payload);
   }
 }

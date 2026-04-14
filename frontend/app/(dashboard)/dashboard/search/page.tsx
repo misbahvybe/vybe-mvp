@@ -9,6 +9,7 @@ import { StickyHeader } from '@/components/layout/StickyHeader';
 import { ContentPanel } from '@/components/layout/ContentPanel';
 import { Card } from '@/components/ui/Card';
 import api from '@/services/api';
+import { getCustomerLocationOnce } from '@/services/customerLocation';
 
 const SHOP_FRONT_IMAGE = '/storefront.png';
 
@@ -39,7 +40,14 @@ export default function SearchPage() {
       router.replace('/auth/login');
       return;
     }
-    api.get<StoreSummary[]>('/stores').then((res) => setStores(res.data)).catch(() => setStores([]));
+    (async () => {
+      const loc = await getCustomerLocationOnce();
+      return api.get<StoreSummary[]>('/stores', {
+        params: loc ? { latitude: loc.latitude, longitude: loc.longitude } : undefined,
+      });
+    })()
+      .then((res) => setStores(res.data))
+      .catch(() => setStores([]));
   }, [hasHydrated, token, router]);
 
   const filteredStores = useMemo(() => {

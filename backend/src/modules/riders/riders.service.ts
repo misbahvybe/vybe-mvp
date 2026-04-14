@@ -341,13 +341,28 @@ export class RidersService {
       }
     }
 
+    const radiusKm = RIDER_NEARBY_ORDER_RADIUS_KM;
+    // Performance: bounding-box filter by store coords first (DB), then haversine.
+    const hasCoords = lat != null && lng != null;
+    const deltaLat = radiusKm / 111;
+    const cos = hasCoords ? Math.cos((Number(lat) * Math.PI) / 180) : 1;
+    const deltaLng = radiusKm / (111 * Math.max(0.2, cos));
+
     const orders = await this.prisma.order.findMany({
       where: {
         orderStatus: OrderStatus.READY_FOR_PICKUP,
         riderId: null,
+        ...(hasCoords
+          ? {
+              store: {
+                latitude: { not: null, gte: new Decimal(Number(lat) - deltaLat), lte: new Decimal(Number(lat) + deltaLat) },
+                longitude: { not: null, gte: new Decimal(Number(lng) - deltaLng), lte: new Decimal(Number(lng) + deltaLng) },
+              },
+            }
+          : {}),
       },
       orderBy: { createdAt: 'asc' },
-      take: 50,
+      take: 80,
       include: {
         store: {
           select: {
@@ -388,7 +403,7 @@ export class RidersService {
 
     const inRange = rows.filter((r) => {
       if (r.distanceKm == null) return false;
-      return r.distanceKm <= RIDER_NEARBY_ORDER_RADIUS_KM;
+      return r.distanceKm <= radiusKm;
     });
 
     if (lat != null && lng != null) {

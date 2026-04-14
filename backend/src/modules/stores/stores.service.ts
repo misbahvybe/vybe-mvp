@@ -15,6 +15,7 @@ import { CreateProductVariantDto } from './dto/create-product-variant.dto';
 import { UpdateProductVariantDto } from './dto/update-product-variant.dto';
 import { normalizeProductName, inferMedicineFormHint } from '../../common/product/product-name.util';
 import { ApproveDraftProductDto } from './dto/approve-draft-product.dto';
+import { haversineDistanceKm } from '../../common/geo/haversine';
 
 @Injectable()
 export class StoresService {
@@ -414,6 +415,98 @@ export class StoresService {
                 : null,
       };
     });
+  }
+
+  /**
+   * Customer store listing filtered by distance (<= 5km).
+   * Performance: first apply bounding-box filter in DB, then haversine on results.
+   * NOTE: This is intentionally NOT cached because it depends on user location.
+   */
+  async listApprovedNear(category: string | undefined, latStr: string, lngStr: string) {
+    const lat = Number(latStr);
+    const lng = Number(lngStr);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      // Fallback to non-geo list.
+      return this.listApproved(category);
+    }
+    const radiusKm = 5;
+    const deltaLat = radiusKm / 111; // ~111km per degree latitude
+    const cos = Math.cos((lat * Math.PI) / 180);
+    const deltaLng = radiusKm / (111 * Math.max(0.2, cos)); // guard poles
+
+    // Reuse category matching behavior from listApprovedUncached
+    const where: {
+      isApproved: boolean;
+      status: { not: StoreStatus };
+      latitude: { not: null; gte: Decimal; lte: Decimal };
+      longitude: { not: null; gte: Decimal; lte: Decimal };
+      categories?: { some: { category: { name: { in: string[] } } } };
+    } = {
+      isApproved: true,
+      status: { not: StoreStatus.INACTIVE },
+      latitude: {
+        not: null,
+        gte: new Decimal(lat - deltaLat),
+        lte: new Decimal(lat + deltaLat),
+      },
+      longitude: {
+        not: null,
+        gte: new Decimal(lng - deltaLng),
+        lte: new Decimal(lng + deltaLng),
+      },
+    };
+
+    if (category?.trim()) {
+      const cat = category.trim().toLowerCase();
+      const title = cat.length > 0 ? cat.charAt(0).toUpperCase() + cat.slice(1) : cat;
+      const nameVariants = cat === title ? [cat] : [...new Set([cat, title])];
+      where.categories = { some: { category: { name: { in: nameVariants } } } };
+    }
+
+    // Keep response shape consistent with listApprovedUncached (products preview etc)
+    const stores = await this.prisma.store.findMany({
+      where,
+      include: {
+        owner: { select: { name: true } },
+        products: {
+          where: { ...this.publicProductCatalogWhere },
+          take: 4,
+          include: { variants: { where: { isAvailable: true }, orderBy: { sortOrder: 'asc' } } },
+        },
+      },
+      take: 200,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const rows = stores
+      .map((s) => {
+        const sLat = s.latitude != null ? Number(s.latitude) : NaN;
+        const sLng = s.longitude != null ? Number(s.longitude) : NaN;
+        if (!Number.isFinite(sLat) || !Number.isFinite(sLng)) return null;
+        const d = haversineDistanceKm(lat, lng, sLat, sLng);
+        if (d > radiusKm) return null;
+        const isOpenNow = this.isStoreOpen(s);
+        const products = s.status === StoreStatus.ACTIVE ? s.products : [];
+        return {
+          ...s,
+          products,
+          isOpenNow,
+          distanceKm: Math.round(d * 100) / 100,
+          menuAvailable: s.status === StoreStatus.ACTIVE && products.length > 0,
+          menuMessage:
+            s.status === StoreStatus.INVITED
+              ? 'Menu not available yet'
+              : s.status === StoreStatus.INACTIVE
+                ? 'Store is currently unavailable'
+                : products.length === 0
+                  ? 'Menu not available yet'
+                  : null,
+        };
+      })
+      .filter(Boolean) as any[];
+
+    rows.sort((a, b) => (a.distanceKm ?? 1e9) - (b.distanceKm ?? 1e9));
+    return rows;
   }
 
   async getById(id: string) {
