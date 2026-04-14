@@ -6,6 +6,7 @@ import { getSocketOrigin, SOCKET_IO_CLIENT_OPTIONS } from '@/services/socketUrl'
 
 export type OrderCreatedEvent = {
   id: string;
+  orderNumber?: number;
   storeId: string;
   customerId: string;
   orderStatus: string;

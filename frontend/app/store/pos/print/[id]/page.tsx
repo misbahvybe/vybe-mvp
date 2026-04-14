@@ -7,6 +7,7 @@ import { Loader } from '@/components/ui/Loader';
 
 type OrderDetail = {
   id: string;
+  orderNumber?: number;
   createdAt: string;
   orderStatus: string;
   paymentMethod?: string;
@@ -100,7 +101,7 @@ function StorePosPrintInner() {
     );
   }
 
-  const code = `#${order.id.slice(-8).toUpperCase()}`;
+  const code = `#${order.orderNumber ?? order.id.slice(-8).toUpperCase()}`;
   const created = new Date(order.createdAt).toLocaleString();
   const isCod = order.paymentMethod === 'COD';
 

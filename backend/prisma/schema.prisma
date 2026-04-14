@@ -336,6 +336,8 @@ model ProductVariant {
 
 model Order {
   id               String        @id @default(uuid())
+  /// Human-friendly incremental order number (1,2,3...). Used for POS/admin displays.
+  orderNumber      Int           @unique @default(autoincrement()) @map("order_number")
   customerId       String        @map("customer_id")
   storeId         String        @map("store_id")
   riderId          String?       @map("rider_id")
