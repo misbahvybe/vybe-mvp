@@ -16,6 +16,7 @@ import { UpdateProductVariantDto } from './dto/update-product-variant.dto';
 import { normalizeProductName, inferMedicineFormHint } from '../../common/product/product-name.util';
 import { ApproveDraftProductDto } from './dto/approve-draft-product.dto';
 import { haversineDistanceKm } from '../../common/geo/haversine';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class StoresService {
@@ -547,6 +548,73 @@ export class StoresService {
               ? 'Menu not available yet'
               : null,
     };
+  }
+
+  /**
+   * Search items within a specific store (restaurant/pharmacy).
+   * Uses nameNormalized for case-insensitive partial match.
+   */
+  async searchItemsInStore(storeId: string, q?: string, take?: string) {
+    const raw = (q ?? '').trim();
+    const term = raw ? normalizeProductName(raw) : '';
+    const limit = Math.max(1, Math.min(100, Number(take ?? 30) || 30));
+    if (!term) return [];
+
+    try {
+      // Use trigram similarity for typo tolerance if pg_trgm is enabled.
+      const rows = await this.prisma.$queryRaw<
+        {
+          id: string;
+          name: string;
+          description: string | null;
+          price: any;
+          stock: any;
+          image_url: string | null;
+          is_available: boolean;
+          is_out_of_stock: boolean;
+          product_category_id: string | null;
+          store_id: string;
+        }[]
+      >(Prisma.sql`
+        SELECT p.*
+        FROM "Product" p
+        WHERE p.store_id = ${storeId}
+          AND p.is_draft = false
+          AND p.is_available = true
+          AND p.is_out_of_stock = false
+          AND ((p.name_normalized % ${term}) OR (p.name_normalized ILIKE ${`%${term}%`}))
+        ORDER BY similarity(p.name_normalized, ${term}) DESC, p.name ASC
+        LIMIT ${limit}
+      `);
+
+      // Hydrate variants/categories via Prisma, preserving ranking order.
+      const ids = rows.map((r) => r.id);
+      if (ids.length === 0) return [];
+      const full = await this.prisma.product.findMany({
+        where: { id: { in: ids } },
+        include: {
+          category: { select: { id: true, name: true } },
+          variants: { where: { isAvailable: true }, orderBy: { sortOrder: 'asc' } },
+        },
+      });
+      const byId = new Map(full.map((p) => [p.id, p]));
+      return ids.map((id) => byId.get(id)).filter(Boolean);
+    } catch {
+      // Fallback: simple contains
+      return this.prisma.product.findMany({
+        where: {
+          storeId,
+          ...this.publicProductCatalogWhere,
+          nameNormalized: { contains: term },
+        },
+        orderBy: [{ name: 'asc' }],
+        take: limit,
+        include: {
+          category: { select: { id: true, name: true } },
+          variants: { where: { isAvailable: true }, orderBy: { sortOrder: 'asc' } },
+        },
+      });
+    }
   }
 
   private async requireStore(storeId: string) {

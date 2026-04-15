@@ -24,4 +24,14 @@ export class StoresController {
   async getOne(@Param('id') id: string) {
     return this.stores.getById(id);
   }
+
+  /** Search within a store's catalog (restaurant or pharmacy). */
+  @Get(':id/search-items')
+  async searchItems(
+    @Param('id') id: string,
+    @Query('q') q?: string,
+    @Query('take') take?: string,
+  ) {
+    return this.stores.searchItemsInStore(id, q, take);
+  }
 }

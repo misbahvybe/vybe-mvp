@@ -21,6 +21,7 @@ import { UploadsModule } from './modules/uploads/uploads.module';
 import { BankPaymentsModule } from './modules/bank-payments/bank-payments.module';
 import { UpstashModule } from './common/upstash/upstash.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { SearchModule } from './modules/search/search.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     StoresModule,
     AdminModule,
     NotificationsModule,
+    SearchModule,
     HealthModule,
     UploadsModule,
     BankPaymentsModule,

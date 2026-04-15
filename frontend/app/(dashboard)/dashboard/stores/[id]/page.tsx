@@ -12,6 +12,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Loader } from '@/components/ui/Loader';
 import api from '@/services/api';
+import { fuzzyScore } from '@/services/fuzzy';
 
 interface Product {
   id: string;
@@ -44,10 +45,17 @@ export default function StoreDetailPage() {
   const [store, setStore] = useState<Store | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedVariantByProduct, setSelectedVariantByProduct] = useState<Record<string, string>>({});
   const addItem = useCartStore((s) => s.addItem);
   const updateQty = useCartStore((s) => s.updateQty);
   const { items, storeId, total } = useCartStore();
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   useEffect(() => {
     if (!hasHydrated) return;
@@ -125,6 +133,28 @@ export default function StoreDetailPage() {
     [store?.productCategories, uncategorized, naturalByName],
   );
 
+  const filteredSections = useMemo(() => {
+    const q = debouncedSearch.trim().toLowerCase();
+    if (!q) return sections;
+    return sections
+      .map((s) => {
+        // If query matches category name, keep all items in that category.
+        const categoryHit = fuzzyScore(s.title, q) != null;
+        const items = categoryHit
+          ? s.items
+          : s.items
+              .map((p) => ({
+                p,
+                score: fuzzyScore(p.name ?? '', q),
+              }))
+              .filter((x) => x.score != null)
+              .sort((a, b) => (a.score as number) - (b.score as number))
+              .map((x) => x.p);
+        return { ...s, items };
+      })
+      .filter((s) => s.items.length > 0);
+  }, [sections, debouncedSearch]);
+
   if (!token) {
     return (
       <div className="min-h-screen flex flex-col">
@@ -197,11 +227,26 @@ export default function StoreDetailPage() {
         {store.description && (
           <p className="text-slate-600 text-sm mb-4">{store.description}</p>
         )}
+        <div className="sticky top-0 z-10 bg-surface pb-3 -mt-1 pt-1">
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={`Search in ${store.name}…`}
+            className="w-full px-4 py-3 rounded-button border border-slate-300 focus:ring-2 focus:ring-primary focus:border-primary outline-none"
+          />
+        </div>
+        {filteredSections.length === 0 && (
+          <Card className="py-10 text-center mt-4">
+            <p className="text-slate-700 font-medium">No results found</p>
+            <p className="text-slate-500 text-sm mt-1">Try a different item name.</p>
+          </Card>
+        )}
         {sections.length === 0 && (
           <p className="text-slate-600 text-sm py-8 text-center">No items on the menu right now.</p>
         )}
         <div className="pb-24 space-y-6">
-          {sections.map((section) => (
+          {filteredSections.map((section) => (
             <section key={section.title}>
               <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">{section.title}</h2>
               <div className="space-y-4">
