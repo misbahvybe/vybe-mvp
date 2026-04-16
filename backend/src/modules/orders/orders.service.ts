@@ -5,7 +5,7 @@ import { StripeService } from '../stripe/stripe.service';
 import { XPayService } from '../xpay/xpay.service';
 import { JazzCashService } from '../jazzcash/jazzcash.service';
 import { EasypaisaService } from '../easypaisa/easypaisa.service';
-import { OrderStatus, Product, ProductVariant, Role } from '@prisma/client';
+import { OrderStatus, PaymentStatus, Prisma, Product, ProductVariant, Role } from '@prisma/client';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 import { PrepareXPayDto } from './dto/prepare-xpay.dto';
@@ -547,28 +547,6 @@ export class OrdersService {
 
     const useCard = PAYMENTS_COD_ONLY ? false : dto.paymentMethod === 'CARD';
 
-    // IMPORTANT: do not do slow external calls (Stripe/XPay) inside a DB transaction.
-    if (useCard) {
-      if (dto.xpayIntentId && this.xpay.isConfigured()) {
-        const verification = await this.xpay.verifyPayment(dto.xpayIntentId);
-        const isPaid =
-          verification && ['succeeded', 'paid', 'completed', 'captured'].includes(String(verification.status).toLowerCase());
-        if (!isPaid) throw new BadRequestException('XPay payment not confirmed. Please try again.');
-      } else if (dto.paymentIntentId && this.stripe.isConfigured()) {
-        const pi = await this.stripe.retrievePaymentIntent(dto.paymentIntentId);
-        if (!pi || pi.status !== 'succeeded') {
-          throw new BadRequestException('Payment not confirmed. Please try again.');
-        }
-      } else if (dto.paymentMethodId) {
-        const pm = await this.prisma.savedPaymentMethod.findFirst({
-          where: { id: dto.paymentMethodId, userId: customerId },
-        });
-        if (!pm) throw new ForbiddenException('Payment method not found or does not belong to you');
-      } else {
-        throw new BadRequestException('paymentMethodId, paymentIntentId, or xpayIntentId is required when paymentMethod is CARD');
-      }
-    }
-
     const slaDeadlineAt = this.pricing.slaDeadlineFromNow();
 
     const order = await this.prisma.$transaction(
@@ -593,14 +571,25 @@ export class OrdersService {
           paymentMethod: useCard ? 'CARD' : 'COD',
         });
 
-        await Promise.all(
-          dto.items.map((item) =>
-            tx.product.update({
-              where: { id: item.productId },
-              data: { stock: { decrement: item.quantity } },
-            }),
-          ),
-        );
+        // NOTE: Prisma interactive transactions should not run queries in parallel.
+        // Also, decrementing N items one-by-one is slower than a single SQL update.
+        const qtyByProductId = new Map<string, number>();
+        for (const item of dto.items) {
+          qtyByProductId.set(item.productId, (qtyByProductId.get(item.productId) ?? 0) + Number(item.quantity));
+        }
+        const productIds = Array.from(qtyByProductId.keys());
+        if (productIds.length > 0) {
+          const cases = productIds.map((id) =>
+            Prisma.sql`WHEN ${id} THEN ${new Decimal(qtyByProductId.get(id) ?? 0)}`,
+          );
+          await tx.$executeRaw(
+            Prisma.sql`
+              UPDATE "Product"
+              SET "stock" = "stock" - (CASE "id" ${Prisma.join(cases, ' ')} ELSE 0 END)
+              WHERE "store_id" = ${dto.storeId} AND "id" IN (${Prisma.join(productIds)})
+            `,
+          );
+        }
         await tx.product.updateMany({
           where: { storeId: dto.storeId, stock: { lte: 0 } },
           data: { isOutOfStock: true },
@@ -622,7 +611,8 @@ export class OrdersService {
           deliveryDistanceKm: q.deliveryDistanceKm,
           slaDeadlineAt,
           paymentMethod: useCard ? 'CARD' : 'COD',
-          paymentStatus: useCard ? 'PAID' : 'PENDING',
+            // For card, mark as pending until verified/captured outside the transaction.
+            paymentStatus: useCard ? PaymentStatus.PENDING : PaymentStatus.PENDING,
           orderStatus: OrderStatus.PENDING,
           notes: dto.notes,
           items: {
@@ -653,41 +643,114 @@ export class OrdersService {
         data: { orderId: o.id, status: OrderStatus.PENDING, changedByUserId: customerId },
       });
 
-      await tx.storeEarning.create({
-        data: {
-          storeId: dto.storeId,
-          orderId: o.id,
-          storeAmount: q.storeAmount,
-          commissionAmount: q.commissionAmount,
-        },
-      });
+        // For CARD orders we only create earnings after payment is verified.
+        if (!useCard) {
+          await tx.storeEarning.create({
+            data: {
+              storeId: dto.storeId,
+              orderId: o.id,
+              storeAmount: q.storeAmount,
+              commissionAmount: q.commissionAmount,
+            },
+          });
+        }
 
-      return o;
+        return { o, q };
       },
       // Default interactive tx timeout can be 5s on some deployments; give enough headroom for busy DBs.
-      { timeout: 15000 },
+      { timeout: 20000 },
     );
 
+    // IMPORTANT: do not do slow external calls (Stripe/XPay) inside a DB transaction.
+    // We verify AFTER the order exists, to avoid "paid but no order" as much as possible.
+    if (useCard) {
+      try {
+        if (dto.xpayIntentId && this.xpay.isConfigured()) {
+          const verification = await this.xpay.verifyPayment(dto.xpayIntentId);
+          const isPaid =
+            verification && ['succeeded', 'paid', 'completed', 'captured'].includes(String(verification.status).toLowerCase());
+          if (!isPaid) throw new BadRequestException('XPay payment not confirmed. Please try again.');
+        } else if (dto.paymentIntentId && this.stripe.isConfigured()) {
+          const pi = await this.stripe.retrievePaymentIntent(dto.paymentIntentId);
+          if (!pi || pi.status !== 'succeeded') {
+            throw new BadRequestException('Payment not confirmed. Please try again.');
+          }
+        } else if (dto.paymentMethodId) {
+          const pm = await this.prisma.savedPaymentMethod.findFirst({
+            where: { id: dto.paymentMethodId, userId: customerId },
+          });
+          if (!pm) throw new ForbiddenException('Payment method not found or does not belong to you');
+        } else {
+          throw new BadRequestException('paymentMethodId, paymentIntentId, or xpayIntentId is required when paymentMethod is CARD');
+        }
+
+        await this.prisma.order.update({
+          where: { id: order.o.id },
+          data: { paymentStatus: PaymentStatus.PAID },
+        });
+
+        await this.prisma.storeEarning.create({
+          data: {
+            storeId: dto.storeId,
+            orderId: order.o.id,
+            storeAmount: order.q.storeAmount,
+            commissionAmount: order.q.commissionAmount,
+          },
+        });
+      } catch (e) {
+        // Compensating action: cancel order and restore stock if payment verification fails.
+        const qtyByProductId = new Map<string, number>();
+        for (const item of dto.items) {
+          qtyByProductId.set(item.productId, (qtyByProductId.get(item.productId) ?? 0) + Number(item.quantity));
+        }
+        const productIds = Array.from(qtyByProductId.keys());
+
+        await this.prisma.$transaction(async (tx) => {
+          if (productIds.length > 0) {
+            const cases = productIds.map((id) =>
+              Prisma.sql`WHEN ${id} THEN ${new Decimal(qtyByProductId.get(id) ?? 0)}`,
+            );
+            await tx.$executeRaw(
+              Prisma.sql`
+                UPDATE "Product"
+                SET "stock" = "stock" + (CASE "id" ${Prisma.join(cases, ' ')} ELSE 0 END)
+                WHERE "store_id" = ${dto.storeId} AND "id" IN (${Prisma.join(productIds)})
+              `,
+            );
+            await tx.product.updateMany({
+              where: { storeId: dto.storeId, stock: { gt: 0 } },
+              data: { isOutOfStock: false },
+            });
+          }
+          await tx.order.update({
+            where: { id: order.o.id },
+            data: { orderStatus: OrderStatus.CANCELLED },
+          });
+        });
+        throw e;
+      }
+    }
+
     this.ordersGateway.emitOrderCreated({
-      id: order.id,
-      storeId: order.storeId,
-      customerId: order.customerId,
-      orderStatus: order.orderStatus,
-      createdAt: order.createdAt.toISOString(),
-      totalAmount: order.totalAmount.toString(),
-      subtotalAmount: order.subtotalAmount.toString(),
-      deliveryFee: order.deliveryFee.toString(),
-      serviceFee: order.serviceFee.toString(),
-      gstAmount: order.gstAmount.toString(),
-      cardProcessingAmount: order.cardProcessingAmount.toString(),
-      slaDeadlineAt: order.slaDeadlineAt?.toISOString() ?? null,
+      id: order.o.id,
+      storeId: order.o.storeId,
+      customerId: order.o.customerId,
+      orderStatus: order.o.orderStatus,
+      createdAt: order.o.createdAt.toISOString(),
+      totalAmount: order.o.totalAmount.toString(),
+      subtotalAmount: order.o.subtotalAmount.toString(),
+      deliveryFee: order.o.deliveryFee.toString(),
+      serviceFee: order.o.serviceFee.toString(),
+      gstAmount: order.o.gstAmount.toString(),
+      cardProcessingAmount: order.o.cardProcessingAmount.toString(),
+      slaDeadlineAt: order.o.slaDeadlineAt?.toISOString() ?? null,
       customer: {
-        name: order.customer?.name ?? '',
-        phone: order.customer?.phone ?? '',
+        name: order.o.customer?.name ?? '',
+        phone: order.o.customer?.phone ?? '',
       },
     });
 
-    return order;
+    return order.o;
   }
 
   private isStoreOpen(store: { isOpen: boolean; openingTime: string | null; closingTime: string | null }): boolean {
