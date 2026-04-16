@@ -547,55 +547,66 @@ export class OrdersService {
 
     const useCard = PAYMENTS_COD_ONLY ? false : dto.paymentMethod === 'CARD';
 
-    const order = await this.prisma.$transaction(async (tx) => {
-      const { subtotal: subtotalAmount, productById, variantById } = await this.assertItemsAndSubtotal(tx, dto.storeId, dto.items, {
-        checkStock: true,
-      });
-      const subtotalDecimal = new Decimal(subtotalAmount);
-
-      const q = await this.pricing.buildQuote({
-        storeId: dto.storeId,
-        addressLat: Number(address.latitude),
-        addressLng: Number(address.longitude),
-        storeLat: store.latitude != null ? Number(store.latitude) : null,
-        storeLng: store.longitude != null ? Number(store.longitude) : null,
-        subtotal: subtotalAmount,
-        paymentMethod: useCard ? 'CARD' : 'COD',
-      });
-
-      for (const item of dto.items) {
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { stock: { decrement: item.quantity } },
-        });
-      }
-      await tx.product.updateMany({
-        where: { stock: { lte: 0 } },
-        data: { isOutOfStock: true },
-      });
-
-      if (useCard) {
-        if (dto.xpayIntentId && this.xpay.isConfigured()) {
-          const verification = await this.xpay.verifyPayment(dto.xpayIntentId);
-          const isPaid = verification && ['succeeded', 'paid', 'completed', 'captured'].includes(String(verification.status).toLowerCase());
-          if (!isPaid) throw new BadRequestException('XPay payment not confirmed. Please try again.');
-        } else if (dto.paymentIntentId && this.stripe.isConfigured()) {
-          const pi = await this.stripe.retrievePaymentIntent(dto.paymentIntentId);
-          if (!pi || pi.status !== 'succeeded') {
-            throw new BadRequestException('Payment not confirmed. Please try again.');
-          }
-        } else if (dto.paymentMethodId) {
-          const pm = await tx.savedPaymentMethod.findFirst({
-            where: { id: dto.paymentMethodId, userId: customerId },
-          });
-          if (!pm) throw new ForbiddenException('Payment method not found or does not belong to you');
-        } else {
-          throw new BadRequestException('paymentMethodId, paymentIntentId, or xpayIntentId is required when paymentMethod is CARD');
+    // IMPORTANT: do not do slow external calls (Stripe/XPay) inside a DB transaction.
+    if (useCard) {
+      if (dto.xpayIntentId && this.xpay.isConfigured()) {
+        const verification = await this.xpay.verifyPayment(dto.xpayIntentId);
+        const isPaid =
+          verification && ['succeeded', 'paid', 'completed', 'captured'].includes(String(verification.status).toLowerCase());
+        if (!isPaid) throw new BadRequestException('XPay payment not confirmed. Please try again.');
+      } else if (dto.paymentIntentId && this.stripe.isConfigured()) {
+        const pi = await this.stripe.retrievePaymentIntent(dto.paymentIntentId);
+        if (!pi || pi.status !== 'succeeded') {
+          throw new BadRequestException('Payment not confirmed. Please try again.');
         }
+      } else if (dto.paymentMethodId) {
+        const pm = await this.prisma.savedPaymentMethod.findFirst({
+          where: { id: dto.paymentMethodId, userId: customerId },
+        });
+        if (!pm) throw new ForbiddenException('Payment method not found or does not belong to you');
+      } else {
+        throw new BadRequestException('paymentMethodId, paymentIntentId, or xpayIntentId is required when paymentMethod is CARD');
       }
+    }
 
-      const slaDeadlineAt = this.pricing.slaDeadlineFromNow();
-      const o = await tx.order.create({
+    const slaDeadlineAt = this.pricing.slaDeadlineFromNow();
+
+    const order = await this.prisma.$transaction(
+      async (tx) => {
+        const { subtotal: subtotalAmount, productById, variantById } = await this.assertItemsAndSubtotal(
+          tx,
+          dto.storeId,
+          dto.items,
+          {
+            checkStock: true,
+          },
+        );
+        const subtotalDecimal = new Decimal(subtotalAmount);
+
+        const q = await this.pricing.buildQuote({
+          storeId: dto.storeId,
+          addressLat: Number(address.latitude),
+          addressLng: Number(address.longitude),
+          storeLat: store.latitude != null ? Number(store.latitude) : null,
+          storeLng: store.longitude != null ? Number(store.longitude) : null,
+          subtotal: subtotalAmount,
+          paymentMethod: useCard ? 'CARD' : 'COD',
+        });
+
+        await Promise.all(
+          dto.items.map((item) =>
+            tx.product.update({
+              where: { id: item.productId },
+              data: { stock: { decrement: item.quantity } },
+            }),
+          ),
+        );
+        await tx.product.updateMany({
+          where: { storeId: dto.storeId, stock: { lte: 0 } },
+          data: { isOutOfStock: true },
+        });
+
+        const o = await tx.order.create({
         data: {
           customerId,
           storeId: dto.storeId,
@@ -652,7 +663,10 @@ export class OrdersService {
       });
 
       return o;
-    });
+      },
+      // Default interactive tx timeout can be 5s on some deployments; give enough headroom for busy DBs.
+      { timeout: 15000 },
+    );
 
     this.ordersGateway.emitOrderCreated({
       id: order.id,
