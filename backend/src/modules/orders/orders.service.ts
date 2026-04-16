@@ -40,6 +40,9 @@ export class OrdersService {
   ) {}
 
   async prepareJazzCash(customerId: string, dto: PrepareXPayDto) {
+    if (PAYMENTS_COD_ONLY) {
+      throw new BadRequestException('Only cash on delivery is available at the moment.');
+    }
     // NOTE: We reuse PrepareXPayDto shape: storeId, addressId, items.
     // This keeps frontend changes small.
     const address = await this.prisma.address.findFirst({
@@ -140,7 +143,7 @@ export class OrdersService {
       // we don't rely on client-supplied refs; order is created server-side here
     } as any;
 
-    const order = await this.create(pending.customerId, dto);
+    const order = await this.create(pending.customerId, dto, { allowCardWhenCodOnly: true });
 
     await this.prisma.pendingPayment.update({
       where: { id: pending.id },
@@ -155,6 +158,9 @@ export class OrdersService {
   }
 
   async prepareEasypaisa(customerId: string, dto: PrepareXPayDto) {
+    if (PAYMENTS_COD_ONLY) {
+      throw new BadRequestException('Only cash on delivery is available at the moment.');
+    }
     const address = await this.prisma.address.findFirst({
       where: { id: dto.addressId, userId: customerId },
     });
@@ -248,7 +254,7 @@ export class OrdersService {
       paymentMethod: 'CARD',
     } as any;
 
-    const order = await this.create(pending.customerId, dto);
+    const order = await this.create(pending.customerId, dto, { allowCardWhenCodOnly: true });
 
     await this.prisma.pendingPayment.update({
       where: { id: pending.id },
@@ -501,7 +507,7 @@ export class OrdersService {
       xpayIntentId,
     };
 
-    const order = await this.create(pending.customerId, dto);
+    const order = await this.create(pending.customerId, dto, { allowCardWhenCodOnly: true });
 
     await this.prisma.pendingPayment.update({
       where: { id: pendingId },
@@ -521,7 +527,7 @@ export class OrdersService {
     };
   }
 
-  async create(customerId: string, dto: CreateOrderDto) {
+  async create(customerId: string, dto: CreateOrderDto, options?: { allowCardWhenCodOnly?: boolean }) {
     const address = await this.prisma.address.findFirst({
       where: { id: dto.addressId, userId: customerId },
     });
@@ -534,7 +540,7 @@ export class OrdersService {
       throw new BadRequestException('Store is closed. Please try again during business hours.');
     }
 
-    if (PAYMENTS_COD_ONLY) {
+    if (PAYMENTS_COD_ONLY && !options?.allowCardWhenCodOnly) {
       if (
         dto.paymentMethod === 'CARD' ||
         dto.paymentIntentId ||
@@ -545,7 +551,7 @@ export class OrdersService {
       }
     }
 
-    const useCard = PAYMENTS_COD_ONLY ? false : dto.paymentMethod === 'CARD';
+    const useCard = dto.paymentMethod === 'CARD' && (!PAYMENTS_COD_ONLY || options?.allowCardWhenCodOnly);
 
     const slaDeadlineAt = this.pricing.slaDeadlineFromNow();
 
@@ -611,8 +617,8 @@ export class OrdersService {
           deliveryDistanceKm: q.deliveryDistanceKm,
           slaDeadlineAt,
           paymentMethod: useCard ? 'CARD' : 'COD',
-            // For card, mark as pending until verified/captured outside the transaction.
-            paymentStatus: useCard ? PaymentStatus.PENDING : PaymentStatus.PENDING,
+            // Starts pending for both COD and CARD; CARD becomes PAID after verification.
+            paymentStatus: PaymentStatus.PENDING,
           orderStatus: OrderStatus.PENDING,
           notes: dto.notes,
           items: {
@@ -684,18 +690,20 @@ export class OrdersService {
           throw new BadRequestException('paymentMethodId, paymentIntentId, or xpayIntentId is required when paymentMethod is CARD');
         }
 
-        await this.prisma.order.update({
-          where: { id: order.o.id },
-          data: { paymentStatus: PaymentStatus.PAID },
-        });
-
-        await this.prisma.storeEarning.create({
-          data: {
-            storeId: dto.storeId,
-            orderId: order.o.id,
-            storeAmount: order.q.storeAmount,
-            commissionAmount: order.q.commissionAmount,
-          },
+        // Mark paid + create earnings atomically.
+        await this.prisma.$transaction(async (tx) => {
+          await tx.order.update({
+            where: { id: order.o.id },
+            data: { paymentStatus: PaymentStatus.PAID },
+          });
+          await tx.storeEarning.create({
+            data: {
+              storeId: dto.storeId,
+              orderId: order.o.id,
+              storeAmount: order.q.storeAmount,
+              commissionAmount: order.q.commissionAmount,
+            },
+          });
         });
       } catch (e) {
         // Compensating action: cancel order and restore stock if payment verification fails.
@@ -722,6 +730,8 @@ export class OrdersService {
               data: { isOutOfStock: false },
             });
           }
+          // If an earning row exists for any reason, remove it on rollback.
+          await tx.storeEarning.deleteMany({ where: { orderId: order.o.id } });
           await tx.order.update({
             where: { id: order.o.id },
             data: { orderStatus: OrderStatus.CANCELLED },
@@ -731,24 +741,53 @@ export class OrdersService {
       }
     }
 
-    this.ordersGateway.emitOrderCreated({
-      id: order.o.id,
-      storeId: order.o.storeId,
-      customerId: order.o.customerId,
-      orderStatus: order.o.orderStatus,
-      createdAt: order.o.createdAt.toISOString(),
-      totalAmount: order.o.totalAmount.toString(),
-      subtotalAmount: order.o.subtotalAmount.toString(),
-      deliveryFee: order.o.deliveryFee.toString(),
-      serviceFee: order.o.serviceFee.toString(),
-      gstAmount: order.o.gstAmount.toString(),
-      cardProcessingAmount: order.o.cardProcessingAmount.toString(),
-      slaDeadlineAt: order.o.slaDeadlineAt?.toISOString() ?? null,
-      customer: {
-        name: order.o.customer?.name ?? '',
-        phone: order.o.customer?.phone ?? '',
-      },
-    });
+    // Emit to store in realtime only after CARD verification succeeds.
+    // For COD orders, emit immediately.
+    if (!useCard) {
+      this.ordersGateway.emitOrderCreated({
+        id: order.o.id,
+        storeId: order.o.storeId,
+        customerId: order.o.customerId,
+        orderStatus: order.o.orderStatus,
+        createdAt: order.o.createdAt.toISOString(),
+        totalAmount: order.o.totalAmount.toString(),
+        subtotalAmount: order.o.subtotalAmount.toString(),
+        deliveryFee: order.o.deliveryFee.toString(),
+        serviceFee: order.o.serviceFee.toString(),
+        gstAmount: order.o.gstAmount.toString(),
+        cardProcessingAmount: order.o.cardProcessingAmount.toString(),
+        slaDeadlineAt: order.o.slaDeadlineAt?.toISOString() ?? null,
+        customer: {
+          name: order.o.customer?.name ?? '',
+          phone: order.o.customer?.phone ?? '',
+        },
+      });
+    } else {
+      const paidOrder = await this.prisma.order.findUnique({
+        where: { id: order.o.id },
+        include: { customer: { select: { name: true, phone: true } } },
+      });
+      if (paidOrder?.paymentStatus === PaymentStatus.PAID && paidOrder.orderStatus !== OrderStatus.CANCELLED) {
+        this.ordersGateway.emitOrderCreated({
+          id: paidOrder.id,
+          storeId: paidOrder.storeId,
+          customerId: paidOrder.customerId,
+          orderStatus: paidOrder.orderStatus,
+          createdAt: paidOrder.createdAt.toISOString(),
+          totalAmount: paidOrder.totalAmount.toString(),
+          subtotalAmount: paidOrder.subtotalAmount.toString(),
+          deliveryFee: paidOrder.deliveryFee.toString(),
+          serviceFee: paidOrder.serviceFee.toString(),
+          gstAmount: paidOrder.gstAmount.toString(),
+          cardProcessingAmount: paidOrder.cardProcessingAmount.toString(),
+          slaDeadlineAt: paidOrder.slaDeadlineAt?.toISOString() ?? null,
+          customer: {
+            name: paidOrder.customer?.name ?? '',
+            phone: paidOrder.customer?.phone ?? '',
+          },
+        });
+      }
+    }
 
     return order.o;
   }
