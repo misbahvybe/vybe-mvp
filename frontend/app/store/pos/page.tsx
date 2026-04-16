@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import api from '@/services/api';
 import { useAuthStore } from '@/store/authStore';
@@ -8,6 +8,7 @@ import { useOrdersRealtime, type OrderCreatedEvent } from '@/hooks/useOrdersReal
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Loader } from '@/components/ui/Loader';
+import { StoreOwnerNavTabs } from '@/components/store/StoreOwnerNavTabs';
 
 type OrderListItem = {
   id: string;
@@ -232,6 +233,9 @@ export default function StorePosPage() {
             </Card>
           </div>
         )}
+        <Suspense fallback={null}>
+          <StoreOwnerNavTabs />
+        </Suspense>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 p-3">

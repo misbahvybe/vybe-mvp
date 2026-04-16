@@ -1,7 +1,8 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useEffect, useState, useCallback } from 'react';
+import { Suspense, useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { StickyHeader } from '@/components/layout/StickyHeader';
 import { ContentPanel } from '@/components/layout/ContentPanel';
@@ -12,9 +13,6 @@ import { GalleryImageInput } from '@/components/ui/GalleryImageInput';
 import Link from 'next/link';
 import {
   Package,
-  ShoppingBag,
-  Wallet,
-  Settings,
   Check,
   X,
   MapPin,
@@ -23,6 +21,7 @@ import {
 } from 'lucide-react';
 import api from '@/services/api';
 import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
+import { StoreOwnerNavTabs } from '@/components/store/StoreOwnerNavTabs';
 
 const StoreLocationMapPicker = dynamic(
   () => import('@/components/map/StoreLocationMapPicker').then((m) => m.StoreLocationMapPicker),
@@ -62,8 +61,26 @@ interface Order {
 type Tab = 'orders' | 'products' | 'earnings' | 'settings';
 
 export default function StoreDashboardPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          <Loader size={44} />
+        </div>
+      }
+    >
+      <StoreDashboardInner />
+    </Suspense>
+  );
+}
+
+function StoreDashboardInner() {
   const token = useAuthStore((s) => s.token);
-  const [tab, setTab] = useState<Tab>('orders');
+  const sp = useSearchParams();
+  const tab = ((): Tab => {
+    const v = sp?.get('tab');
+    return v === 'products' || v === 'earnings' || v === 'settings' ? v : 'orders';
+  })();
   const [orders, setOrders] = useState<Order[]>([]);
   const [store, setStore] = useState<{
     id: string;
@@ -179,13 +196,6 @@ export default function StoreDashboardPage() {
   const readyForPickup = orders.filter((o) => o.orderStatus === 'READY_FOR_PICKUP');
   const delivered = orders.filter((o) => o.orderStatus === 'DELIVERED');
 
-  const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
-    { id: 'orders', label: 'Orders', icon: <Package className="w-4 h-4" /> },
-    { id: 'products', label: 'Products', icon: <ShoppingBag className="w-4 h-4" /> },
-    { id: 'earnings', label: 'Earnings', icon: <Wallet className="w-4 h-4" /> },
-    { id: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4" /> },
-  ];
-
   return (
     <div className="min-h-screen flex flex-col">
       <StickyHeader title="Store Dashboard" wideShell />
@@ -201,22 +211,8 @@ export default function StoreDashboardPage() {
             </Link>
           </Card>
         </div>
-        <div className="border-b border-slate-200 bg-surface sticky top-0 z-10">
-          <div className="app-shell-wide flex overflow-x-auto">
-            {tabs.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setTab(t.id)}
-                className={`flex-1 min-w-[4rem] flex items-center justify-center gap-1.5 py-3 px-2 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
-                  tab === t.id ? 'text-primary border-b-2 border-primary' : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                {t.icon}
-                {t.label}
-              </button>
-            ))}
-          </div>
+        <div className="sticky top-0 z-10">
+          <StoreOwnerNavTabs wide />
         </div>
         <main className="app-shell-wide py-4">
           {tab === 'orders' && (

@@ -28,6 +28,15 @@ export function cacheCustomerLocation(loc: CustomerLocation) {
   }
 }
 
+export function clearCachedCustomerLocation() {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(KEY);
+  } catch {
+    // ignore
+  }
+}
+
 export async function getCustomerLocationOnce(options?: { timeoutMs?: number }): Promise<CustomerLocation | null> {
   const cached = loadCachedCustomerLocation();
   if (cached) return cached;

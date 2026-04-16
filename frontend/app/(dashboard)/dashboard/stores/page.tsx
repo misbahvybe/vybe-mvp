@@ -9,7 +9,8 @@ import { StickyHeader } from '@/components/layout/StickyHeader';
 import { ContentPanel } from '@/components/layout/ContentPanel';
 import { Card } from '@/components/ui/Card';
 import api from '@/services/api';
-import { getCustomerLocationOnce } from '@/services/customerLocation';
+import { clearCachedCustomerLocation, getCustomerLocationOnce } from '@/services/customerLocation';
+import { Button } from '@/components/ui/Button';
 
 const SHOP_PLACEHOLDER = '/storefront.png';
 
@@ -29,6 +30,7 @@ export default function StoresPage() {
   const [stores, setStores] = useState<StoreSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [usedLoc, setUsedLoc] = useState<{ latitude: number; longitude: number } | null>(null);
 
   useEffect(() => {
     if (!hasHydrated) return;
@@ -40,6 +42,7 @@ export default function StoresPage() {
     setError(null);
     (async () => {
       const loc = await getCustomerLocationOnce();
+      setUsedLoc(loc ?? null);
       return api.get<StoreSummary[]>('/stores', {
         params: loc ? { latitude: loc.latitude, longitude: loc.longitude } : undefined,
       });
@@ -65,11 +68,48 @@ export default function StoresPage() {
       .finally(() => setLoading(false));
   }, [hasHydrated, token, router]);
 
+  const refreshLocation = async () => {
+    clearCachedCustomerLocation();
+    setUsedLoc(null);
+    setLoading(true);
+    try {
+      const loc = await getCustomerLocationOnce();
+      setUsedLoc(loc ?? null);
+      const res = await api.get<StoreSummary[]>('/stores', {
+        params: loc ? { latitude: loc.latitude, longitude: loc.longitude } : undefined,
+      });
+      setStores(res.data ?? []);
+      setError(null);
+    } catch {
+      setStores([]);
+      setError('Failed to refresh location. Please check GPS permission and try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
       <StickyHeader title="Stores" backHref="/dashboard" />
       <ContentPanel>
       <main className="app-shell-narrow py-4">
+        {token && (
+          <Card className="p-3 mb-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-slate-800">Nearby stores (5 km)</p>
+                <p className="text-xs text-slate-500">
+                  {usedLoc
+                    ? `Using location: ${usedLoc.latitude.toFixed(5)}, ${usedLoc.longitude.toFixed(5)}`
+                    : 'Location not available — showing default listing.'}
+                </p>
+              </div>
+              <Button size="sm" variant="outline" onClick={refreshLocation} disabled={loading}>
+                Update location
+              </Button>
+            </div>
+          </Card>
+        )}
         {loading && (
           <Card className="py-10 text-center">
             <p className="text-slate-500">Loading stores…</p>
@@ -110,7 +150,15 @@ export default function StoresPage() {
         </div>
         {!loading && !error && stores.length === 0 && (
           <Card className="py-12 text-center">
-            <p className="text-slate-500">No stores available</p>
+            <p className="text-slate-700 font-medium">No stores available</p>
+            <p className="text-slate-500 text-sm mt-1">
+              {usedLoc ? 'No stores found within 5 km. Try updating location.' : 'Enable location to see nearby stores.'}
+            </p>
+            <div className="mt-4 flex justify-center">
+              <Button size="sm" variant="outline" onClick={refreshLocation}>
+                Update location
+              </Button>
+            </div>
           </Card>
         )}
       </main>

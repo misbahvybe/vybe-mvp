@@ -8,8 +8,9 @@ import { useAuthStore } from '@/store/authStore';
 import { StickyHeader } from '@/components/layout/StickyHeader';
 import { ContentPanel } from '@/components/layout/ContentPanel';
 import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
 import api from '@/services/api';
-import { getCustomerLocationOnce } from '@/services/customerLocation';
+import { clearCachedCustomerLocation, getCustomerLocationOnce } from '@/services/customerLocation';
 
 interface StoreSummary {
   id: string;
@@ -42,6 +43,7 @@ export default function CategoryPage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [usedLoc, setUsedLoc] = useState<{ latitude: number; longitude: number } | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 300);
@@ -59,6 +61,7 @@ export default function CategoryPage() {
     const params = ['food', 'grocery', 'medicine'].includes(type) ? { category: type } : {};
     (async () => {
       const loc = await getCustomerLocationOnce();
+      setUsedLoc(loc ?? null);
       return api.get<StoreSummary[]>('/stores', {
         params: loc ? { ...params, latitude: loc.latitude, longitude: loc.longitude } : params,
       });
@@ -83,6 +86,27 @@ export default function CategoryPage() {
       .finally(() => setLoading(false));
   }, [hasHydrated, token, router, type]);
 
+  const refreshLocation = async () => {
+    clearCachedCustomerLocation();
+    setUsedLoc(null);
+    setLoading(true);
+    setError(null);
+    try {
+      const loc = await getCustomerLocationOnce();
+      setUsedLoc(loc ?? null);
+      const params = ['food', 'grocery', 'medicine'].includes(type) ? { category: type } : {};
+      const res = await api.get<StoreSummary[]>('/stores', {
+        params: loc ? { ...params, latitude: loc.latitude, longitude: loc.longitude } : params,
+      });
+      setStores(res.data ?? []);
+    } catch {
+      setStores([]);
+      setError('Failed to refresh location. Please check GPS permission and try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const filteredStores = useMemo(() => {
     if (!debouncedSearch.trim()) return stores;
     const q = debouncedSearch.toLowerCase();
@@ -104,6 +128,23 @@ export default function CategoryPage() {
             placeholder="Search stores..."
             className="w-full px-4 py-3 rounded-button border border-slate-300 focus:ring-2 focus:ring-primary focus:border-primary outline-none"
           />
+          <div className="mt-3">
+            <Card className="p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-800">Nearby stores (5 km)</p>
+                  <p className="text-xs text-slate-500">
+                    {usedLoc
+                      ? `Using location: ${usedLoc.latitude.toFixed(5)}, ${usedLoc.longitude.toFixed(5)}`
+                      : 'Location not available — results may be incomplete.'}
+                  </p>
+                </div>
+                <Button size="sm" variant="outline" onClick={refreshLocation} disabled={loading}>
+                  Update location
+                </Button>
+              </div>
+            </Card>
+          </div>
         </div>
         {!loading && error && (
           <Card className="py-6 px-4 mt-4">
@@ -121,8 +162,17 @@ export default function CategoryPage() {
           <Card className="py-16 text-center mt-4">
             <p className="text-slate-500 text-lg mb-2">No stores found</p>
             <p className="text-slate-400 text-sm">
-              {search ? 'Try a different search term' : 'Check back later for new stores'}
+              {search
+                ? 'Try a different search term'
+                : usedLoc
+                  ? 'No stores found within 5 km. Try updating location.'
+                  : 'Enable location to see nearby stores.'}
             </p>
+            <div className="mt-4 flex justify-center">
+              <Button size="sm" variant="outline" onClick={refreshLocation}>
+                Update location
+              </Button>
+            </div>
           </Card>
         ) : (
           <div className="grid grid-cols-2 gap-4 mt-4">
