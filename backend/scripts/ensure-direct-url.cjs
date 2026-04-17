@@ -5,6 +5,27 @@
  */
 const { spawnSync } = require('child_process');
 
+function looksLikePrismaShadowDb(url) {
+  return typeof url === 'string' && url.includes('prisma_migrate_shadow_db');
+}
+
+for (const [key, url] of [
+  ['DATABASE_URL', process.env.DATABASE_URL],
+  ['DIRECT_URL', process.env.DIRECT_URL],
+]) {
+  if (looksLikePrismaShadowDb(url)) {
+    console.error(
+      [
+        `ERROR: ${key} points at a Prisma *shadow* database (name contains prisma_migrate_shadow_db).`,
+        'That URL is only for prisma migrate dev; do not use it on Railway.',
+        'In Neon → your branch → Connection details, use database name neondb (or your real DB),',
+        'and set DIRECT_URL to the direct (non-pooler) host — not a shadow DB connection string.',
+      ].join('\n'),
+    );
+    process.exit(1);
+  }
+}
+
 if (!String(process.env.DIRECT_URL ?? '').trim() && String(process.env.DATABASE_URL ?? '').trim()) {
   process.env.DIRECT_URL = process.env.DATABASE_URL;
 }
