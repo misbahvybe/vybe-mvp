@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import webpush from 'web-push';
+// CJS module: default import becomes `require(...).default` → undefined without esModuleInterop
+import * as webpush from 'web-push';
 
 type PushPayload = {
   title: string;
