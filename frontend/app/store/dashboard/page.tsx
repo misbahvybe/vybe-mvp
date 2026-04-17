@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { Suspense, useEffect, useState, useCallback } from 'react';
+import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { StickyHeader } from '@/components/layout/StickyHeader';
@@ -135,6 +135,7 @@ function StoreDashboardInner() {
   >([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const alarmCtxRef = useRef<AudioContext | null>(null);
 
   const fetchOrders = useCallback(() => {
     api.get<Order[]>('/orders').then((r) => setOrders(r.data ?? [])).catch(() => setOrders([]));
@@ -202,6 +203,40 @@ function StoreDashboardInner() {
   const preparing = orders.filter((o) => o.orderStatus === 'STORE_ACCEPTED');
   const readyForPickup = orders.filter((o) => o.orderStatus === 'READY_FOR_PICKUP');
   const delivered = orders.filter((o) => o.orderStatus === 'DELIVERED');
+
+  // Reminder alarm every 30s while there are pending orders (orders tab only).
+  useEffect(() => {
+    if (tab !== 'orders') return;
+    if (!token) return;
+    if (pending.length === 0) return;
+    if (actionLoading) return;
+
+    const ring = () => {
+      try {
+        const Ctx = (window.AudioContext || (window as any).webkitAudioContext) as typeof AudioContext | undefined;
+        if (!Ctx) return;
+        if (!alarmCtxRef.current) alarmCtxRef.current = new Ctx();
+        const ctx = alarmCtxRef.current;
+        if (ctx.state === 'suspended') void ctx.resume();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.value = 1200;
+        gain.gain.value = 0.85;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        const startAt = ctx.currentTime + 0.01;
+        osc.start(startAt);
+        osc.stop(startAt + 1.8);
+      } catch {
+        // ignore
+      }
+    };
+
+    ring(); // initial reminder immediately when pending appears
+    const id = window.setInterval(ring, 30_000);
+    return () => window.clearInterval(id);
+  }, [tab, token, pending.length, actionLoading]);
 
   return (
     <div className="min-h-screen flex flex-col">

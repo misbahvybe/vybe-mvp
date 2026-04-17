@@ -37,12 +37,13 @@ function timeHHMM(d: string) {
   }
 }
 
-function useBeep() {
+function useAlarm() {
   const ctxRef = useRef<AudioContext | null>(null);
+  const stopRef = useRef<null | (() => void)>(null);
 
-  return useCallback((opts?: { times?: number; volume?: number }) => {
-    const times = Math.max(1, Math.min(5, opts?.times ?? 2));
-    const volume = Math.max(0.05, Math.min(0.5, opts?.volume ?? 0.18));
+  return useCallback((opts?: { durationMs?: number; volume?: number }) => {
+    const durationMs = Math.max(1000, Math.min(15000, opts?.durationMs ?? 10000));
+    const volume = Math.max(0.1, Math.min(0.9, opts?.volume ?? 0.75));
     try {
       const Ctx = (window.AudioContext || (window as any).webkitAudioContext) as typeof AudioContext | undefined;
       if (!Ctx) return;
@@ -50,19 +51,56 @@ function useBeep() {
       const ctx = ctxRef.current;
       if (ctx.state === 'suspended') void ctx.resume();
 
-      const now = ctx.currentTime;
-      for (let i = 0; i < times; i++) {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'square';
-        osc.frequency.value = 880;
-        gain.gain.value = volume;
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        const t0 = now + i * 0.22;
-        osc.start(t0);
-        osc.stop(t0 + 0.12);
-      }
+      // Stop any previous alarm.
+      stopRef.current?.();
+
+      const startAt = ctx.currentTime + 0.01;
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.value = 1200;
+      gain.gain.value = volume;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(startAt);
+
+      // Pulse the gain to make it more attention-grabbing.
+      const interval = window.setInterval(() => {
+        try {
+          const t = ctx.currentTime;
+          gain.gain.cancelScheduledValues(t);
+          gain.gain.setValueAtTime(volume, t);
+          gain.gain.setValueAtTime(0.0, t + 0.12);
+        } catch {
+          // ignore
+        }
+      }, 180);
+
+      const timeout = window.setTimeout(() => {
+        try {
+          window.clearInterval(interval);
+          osc.stop();
+          osc.disconnect();
+          gain.disconnect();
+        } catch {
+          // ignore
+        }
+      }, durationMs);
+
+      stopRef.current = () => {
+        try {
+          window.clearInterval(interval);
+          window.clearTimeout(timeout);
+          osc.stop();
+          osc.disconnect();
+          gain.disconnect();
+        } catch {
+          // ignore
+        } finally {
+          stopRef.current = null;
+        }
+      };
     } catch {
       // ignore
     }
@@ -81,7 +119,7 @@ export default function StorePosPage() {
   const [connected, setConnected] = useState<boolean>(false);
   const [lastAlertAt, setLastAlertAt] = useState<string | null>(null);
 
-  const beep = useBeep();
+  const alarm = useAlarm();
 
   const fetchStore = useCallback(async () => {
     const r = await api.get('/store-owner/store');
@@ -122,7 +160,7 @@ export default function StorePosPage() {
   const onCreated = useCallback(
     (payload: OrderCreatedEvent) => {
       // Sound + highlight: keep it lightweight; list refresh happens via the normal callback.
-      beep({ times: 3 });
+      alarm({ durationMs: 10_000, volume: 0.8 });
       setLastAlertAt(new Date().toISOString());
       if (payload?.id) setSelectedId((prev) => prev ?? payload.id);
       // Attempt browser notifications if already allowed (POS tablets often run Chrome).
@@ -135,7 +173,7 @@ export default function StorePosPage() {
         }
       }
     },
-    [beep],
+    [alarm],
   );
 
   useOrdersRealtime(Boolean(token), token, 'STORE_OWNER', storeId, () => fetchOrders(), {
@@ -182,6 +220,21 @@ export default function StorePosPage() {
   const preparing = useMemo(() => orders.filter((o) => o.orderStatus === 'STORE_ACCEPTED'), [orders]);
   const ready = useMemo(() => orders.filter((o) => o.orderStatus === 'READY_FOR_PICKUP'), [orders]);
 
+  // Reminder: if there are pending orders, ring every 30s until handled.
+  useEffect(() => {
+    if (!token) return;
+    if (pending.length === 0) return;
+    // If the store is actively pressing buttons, don't spam alarms.
+    if (actionLoading) return;
+
+    const id = window.setInterval(() => {
+      // Keep it shorter than the initial 10s alarm.
+      alarm({ durationMs: 2000, volume: 0.85 });
+    }, 30_000);
+
+    return () => window.clearInterval(id);
+  }, [token, pending.length, actionLoading, alarm]);
+
   const selectedFromList = useMemo(
     () => (selectedId ? orders.find((o) => o.id === selectedId) ?? null : null),
     [orders, selectedId],
@@ -226,8 +279,8 @@ export default function StorePosPage() {
             <Button size="sm" variant="outline" onClick={requestNotificationPermission}>
               Enable alerts
             </Button>
-            <Button size="sm" variant="outline" onClick={() => beep({ times: 2 })}>
-              Test sound
+            <Button size="sm" variant="outline" onClick={() => alarm({ durationMs: 3000, volume: 0.8 })}>
+              Test alarm
             </Button>
             <Button size="sm" variant="outline" onClick={refreshAll}>
               Refresh

@@ -763,6 +763,16 @@ export class OrdersService {
           phone: order.o.customer?.phone ?? '',
         },
       });
+      // Store owner in-app notification (bell/toasts)
+      if (store?.ownerId) {
+        await this.notifications.create({
+          userId: store.ownerId,
+          type: 'ORDER_NEW',
+          title: `New order received (#${(order.o as any).orderNumber ?? order.o.id.slice(-8)})`,
+          body: `Total: Rs ${Number(order.o.totalAmount).toFixed(0)}`,
+          data: { orderId: order.o.id, storeId: order.o.storeId },
+        });
+      }
     } else {
       const paidOrder = await this.prisma.order.findUnique({
         where: { id: order.o.id },
@@ -787,6 +797,16 @@ export class OrdersService {
             phone: paidOrder.customer?.phone ?? '',
           },
         });
+        // Store owner in-app notification (bell/toasts)
+        if (store?.ownerId) {
+          await this.notifications.create({
+            userId: store.ownerId,
+            type: 'ORDER_NEW',
+            title: `New paid order received (#${(paidOrder as any).orderNumber ?? paidOrder.id.slice(-8)})`,
+            body: `Total: Rs ${Number(paidOrder.totalAmount).toFixed(0)}`,
+            data: { orderId: paidOrder.id, storeId: paidOrder.storeId },
+          });
+        }
       }
     }
 
