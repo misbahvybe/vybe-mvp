@@ -22,6 +22,7 @@ import {
 import api from '@/services/api';
 import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
 import { StoreOwnerNavTabs } from '@/components/store/StoreOwnerNavTabs';
+import { enableWebPushForCurrentUser, getWebPushUiStatus, type WebPushUiStatus } from '@/services/push';
 
 const StoreLocationMapPicker = dynamic(
   () => import('@/components/map/StoreLocationMapPicker').then((m) => m.StoreLocationMapPicker),
@@ -135,7 +136,8 @@ function StoreDashboardInner() {
   >([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const alarmCtxRef = useRef<AudioContext | null>(null);
+  const alarmAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [pushUi, setPushUi] = useState<WebPushUiStatus | null>(null);
 
   const fetchOrders = useCallback(() => {
     api.get<Order[]>('/orders').then((r) => setOrders(r.data ?? [])).catch(() => setOrders([]));
@@ -164,6 +166,10 @@ function StoreDashboardInner() {
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+
+  useEffect(() => {
+    void getWebPushUiStatus(Boolean(token)).then(setPushUi);
+  }, [token]);
 
   useEffect(() => {
     if (tab !== 'orders') return;
@@ -213,21 +219,15 @@ function StoreDashboardInner() {
 
     const ring = () => {
       try {
-        const Ctx = (window.AudioContext || (window as any).webkitAudioContext) as typeof AudioContext | undefined;
-        if (!Ctx) return;
-        if (!alarmCtxRef.current) alarmCtxRef.current = new Ctx();
-        const ctx = alarmCtxRef.current;
-        if (ctx.state === 'suspended') void ctx.resume();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'square';
-        osc.frequency.value = 1200;
-        gain.gain.value = 0.85;
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        const startAt = ctx.currentTime + 0.01;
-        osc.start(startAt);
-        osc.stop(startAt + 1.8);
+        if (!alarmAudioRef.current) {
+          alarmAudioRef.current = new Audio('/beep.wav');
+          alarmAudioRef.current.preload = 'auto';
+        }
+        const a = alarmAudioRef.current;
+        a.loop = false;
+        a.volume = 1;
+        a.currentTime = 0;
+        void a.play().catch(() => {});
       } catch {
         // ignore
       }
@@ -248,9 +248,43 @@ function StoreDashboardInner() {
               <p className="text-sm font-semibold text-slate-800">POS / Kitchen Screen</p>
               <p className="text-xs text-slate-500">Use on a tablet for live order alerts + big buttons.</p>
             </div>
-            <Link href="/store/pos">
-              <Button size="sm" variant="primary">Open POS</Button>
-            </Link>
+            <div className="flex items-center gap-2">
+              {pushUi && (
+                <span
+                  className={`text-xs px-2 py-1 rounded-full border ${
+                    pushUi.backendConfigured === false
+                      ? 'border-red-200 bg-red-50 text-red-700'
+                      : pushUi.deviceSubscribed && pushUi.permission === 'granted'
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                        : 'border-slate-200 bg-slate-50 text-slate-600'
+                  }`}
+                  title={`Supported: ${pushUi.supported} | Permission: ${pushUi.permission} | Subscribed: ${pushUi.deviceSubscribed} | Backend: ${String(pushUi.backendConfigured)}`}
+                >
+                  Push:{' '}
+                  {pushUi.backendConfigured === false
+                    ? 'Server off'
+                    : pushUi.deviceSubscribed && pushUi.permission === 'granted'
+                      ? 'On'
+                      : 'Off'}
+                </span>
+              )}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  void enableWebPushForCurrentUser().then((r) => {
+                    if (!r.ok) alert(`Push not enabled (${r.reason ?? 'unknown'})`);
+                    else alert('Push enabled. You will receive locked-screen notifications.');
+                    void getWebPushUiStatus(Boolean(token)).then(setPushUi);
+                  });
+                }}
+              >
+                Enable push
+              </Button>
+              <Link href="/store/pos">
+                <Button size="sm" variant="primary">Open POS</Button>
+              </Link>
+            </div>
           </Card>
         </div>
         <div className="sticky top-0 z-10">

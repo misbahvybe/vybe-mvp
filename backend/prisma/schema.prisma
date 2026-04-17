@@ -119,6 +119,7 @@ model User {
   earningPayouts    EarningPayout[]
   orderRiderChanges OrderRiderChange[] @relation("OrderRiderChangeAdmin")
   notifications     Notification[]
+  webPushSubscriptions WebPushSubscription[]
 
   @@index([phone])
 }
@@ -279,6 +280,26 @@ model Notification {
 
   @@index([userId, isRead, createdAt])
   @@map("notifications")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🔔 WEB PUSH SUBSCRIPTIONS (PWA push notifications)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model WebPushSubscription {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  endpoint  String   @unique
+  p256dh    String   @map("p256dh")
+  auth      String   @map("auth")
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("web_push_subscriptions")
 }
 
 model StoreToCategory {

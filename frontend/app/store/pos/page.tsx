@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Loader } from '@/components/ui/Loader';
 import { StoreOwnerNavTabs } from '@/components/store/StoreOwnerNavTabs';
+import { enableWebPushForCurrentUser, getWebPushUiStatus, type WebPushUiStatus } from '@/services/push';
 
 type OrderListItem = {
   id: string;
@@ -38,51 +39,35 @@ function timeHHMM(d: string) {
 }
 
 function useAlarm() {
-  const ctxRef = useRef<AudioContext | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const stopRef = useRef<null | (() => void)>(null);
 
   return useCallback((opts?: { durationMs?: number; volume?: number }) => {
-    const durationMs = Math.max(1000, Math.min(15000, opts?.durationMs ?? 10000));
-    const volume = Math.max(0.1, Math.min(0.9, opts?.volume ?? 0.75));
+    const durationMs = Math.max(500, Math.min(15000, opts?.durationMs ?? 10000));
+    const volume = Math.max(0.05, Math.min(1, opts?.volume ?? 1));
     try {
-      const Ctx = (window.AudioContext || (window as any).webkitAudioContext) as typeof AudioContext | undefined;
-      if (!Ctx) return;
-      if (!ctxRef.current) ctxRef.current = new Ctx();
-      const ctx = ctxRef.current;
-      if (ctx.state === 'suspended') void ctx.resume();
+      if (!audioRef.current) {
+        // `public/beep.wav` → `/beep.wav`
+        audioRef.current = new Audio('/beep.wav');
+        audioRef.current.preload = 'auto';
+      }
+      const a = audioRef.current;
 
       // Stop any previous alarm.
       stopRef.current?.();
 
-      const startAt = ctx.currentTime + 0.01;
+      a.volume = volume;
+      a.currentTime = 0;
+      a.loop = true;
 
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'square';
-      osc.frequency.value = 1200;
-      gain.gain.value = volume;
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(startAt);
-
-      // Pulse the gain to make it more attention-grabbing.
-      const interval = window.setInterval(() => {
-        try {
-          const t = ctx.currentTime;
-          gain.gain.cancelScheduledValues(t);
-          gain.gain.setValueAtTime(volume, t);
-          gain.gain.setValueAtTime(0.0, t + 0.12);
-        } catch {
-          // ignore
-        }
-      }, 180);
+      // Some browsers require a user gesture before audio can play.
+      void a.play().catch(() => {});
 
       const timeout = window.setTimeout(() => {
         try {
-          window.clearInterval(interval);
-          osc.stop();
-          osc.disconnect();
-          gain.disconnect();
+          a.pause();
+          a.currentTime = 0;
+          a.loop = false;
         } catch {
           // ignore
         }
@@ -90,11 +75,10 @@ function useAlarm() {
 
       stopRef.current = () => {
         try {
-          window.clearInterval(interval);
           window.clearTimeout(timeout);
-          osc.stop();
-          osc.disconnect();
-          gain.disconnect();
+          a.pause();
+          a.currentTime = 0;
+          a.loop = false;
         } catch {
           // ignore
         } finally {
@@ -118,6 +102,7 @@ export default function StorePosPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [connected, setConnected] = useState<boolean>(false);
   const [lastAlertAt, setLastAlertAt] = useState<string | null>(null);
+  const [pushUi, setPushUi] = useState<WebPushUiStatus | null>(null);
 
   const alarm = useAlarm();
 
@@ -148,6 +133,10 @@ export default function StorePosPage() {
   useEffect(() => {
     refreshAll().catch(() => setLoading(false));
   }, [refreshAll]);
+
+  useEffect(() => {
+    void getWebPushUiStatus(Boolean(token)).then(setPushUi);
+  }, [token]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -276,8 +265,40 @@ export default function StorePosPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {pushUi && (
+              <span
+                className={`text-xs px-2 py-1 rounded-full border ${
+                  pushUi.backendConfigured === false
+                    ? 'border-red-200 bg-red-50 text-red-700'
+                    : pushUi.deviceSubscribed && pushUi.permission === 'granted'
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                      : 'border-slate-200 bg-slate-50 text-slate-600'
+                }`}
+                title={`Supported: ${pushUi.supported} | Permission: ${pushUi.permission} | Subscribed: ${pushUi.deviceSubscribed} | Backend: ${String(pushUi.backendConfigured)}`}
+              >
+                Push:{' '}
+                {pushUi.backendConfigured === false
+                  ? 'Server off'
+                  : pushUi.deviceSubscribed && pushUi.permission === 'granted'
+                    ? 'On'
+                    : 'Off'}
+              </span>
+            )}
             <Button size="sm" variant="outline" onClick={requestNotificationPermission}>
               Enable alerts
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                void enableWebPushForCurrentUser().then((r) => {
+                  if (!r.ok) alert(`Push not enabled (${r.reason ?? 'unknown'})`);
+                  else alert('Push enabled. You will receive locked-screen notifications.');
+                  void getWebPushUiStatus(Boolean(token)).then(setPushUi);
+                });
+              }}
+            >
+              Enable push
             </Button>
             <Button size="sm" variant="outline" onClick={() => alarm({ durationMs: 3000, volume: 0.8 })}>
               Test alarm

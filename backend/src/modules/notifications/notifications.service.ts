@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { OrdersGateway } from '../realtime/orders.gateway';
+import { PushService } from '../push/push.service';
 
 export type CreateNotificationInput = {
   userId: string;
@@ -15,6 +16,7 @@ export class NotificationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly gateway: OrdersGateway,
+    private readonly push: PushService,
   ) {}
 
   async create(input: CreateNotificationInput) {
@@ -50,6 +52,19 @@ export class NotificationsService {
       readAt: row.readAt,
       createdAt: row.createdAt,
     });
+
+    // Push notification (PWA). Only for high-signal events.
+    if (row.type === 'ORDER_NEW') {
+      const data = row.dataJson ? safeJson(row.dataJson) : null;
+      const orderId = data?.orderId;
+      await this.push.sendToUser(row.userId, {
+        title: row.title,
+        body: row.body,
+        url: orderId ? `/store/pos?orderId=${encodeURIComponent(orderId)}` : '/store/pos',
+        tag: 'vybe-order-new',
+        data,
+      });
+    }
 
     return row;
   }
