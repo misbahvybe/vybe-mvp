@@ -18,8 +18,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS "web_push_subscriptions_endpoint_key"
 CREATE INDEX IF NOT EXISTS "web_push_subscriptions_user_id_idx"
   ON "web_push_subscriptions"("user_id");
 
-ALTER TABLE "web_push_subscriptions"
-  ADD CONSTRAINT IF NOT EXISTS "web_push_subscriptions_user_id_fkey"
-  FOREIGN KEY ("user_id") REFERENCES "users"("id")
-  ON DELETE CASCADE ON UPDATE CASCADE;
-
+-- PG <15 does not support `ADD CONSTRAINT IF NOT EXISTS`; use an idempotent DO block.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'web_push_subscriptions_user_id_fkey'
+  ) THEN
+    ALTER TABLE "web_push_subscriptions"
+      ADD CONSTRAINT "web_push_subscriptions_user_id_fkey"
+      FOREIGN KEY ("user_id") REFERENCES "User"("id")
+      ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
