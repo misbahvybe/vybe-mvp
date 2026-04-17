@@ -162,6 +162,11 @@ export class OrdersGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.to('riders:pickup_pool').emit('pickup_pool:updated', { at: new Date().toISOString() });
   }
 
+  /** Specific nearby pickup offer — lets rider refresh immediately. */
+  emitPickupNew(riderId: string, payload: { orderId: string; storeId: string; at: string; distanceKm?: number | null }): void {
+    this.server.to(`rider:${riderId}`).emit('pickup:new', payload);
+  }
+
   /** COD wallet / block state changed — rider dashboard should refetch. */
   emitRiderCodWalletUpdated(
     riderId: string,

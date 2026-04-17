@@ -22,6 +22,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 
 /** Set `false` when Stripe / XPay keys are ready and clients show those options again. */
 const PAYMENTS_COD_ONLY = true;
+const AUTO_ASSIGN_NEAREST_RIDER = true;
 
 @Injectable()
 export class OrdersService {
@@ -957,6 +958,33 @@ export class OrdersService {
       cancelledByRole?: Role;
     } = { orderStatus: toStatus };
 
+    // Auto-assign nearest rider when order enters pickup pool (optional feature).
+    // This runs only when store/admin moves to READY_FOR_PICKUP and no rider is already assigned.
+    if (
+      AUTO_ASSIGN_NEAREST_RIDER &&
+      toStatus === OrderStatus.READY_FOR_PICKUP &&
+      !order.riderId
+    ) {
+      const nearby = await this.riders.findNearbyRidersForPickup(orderId);
+      const activeStatuses: OrderStatus[] = [
+        OrderStatus.READY_FOR_PICKUP,
+        OrderStatus.RIDER_ASSIGNED,
+        OrderStatus.RIDER_ACCEPTED,
+        OrderStatus.PICKED_UP,
+      ];
+      for (const cand of nearby.slice(0, 10)) {
+        // Skip riders who are already busy with an active delivery.
+        const busy = await this.prisma.order.count({
+          where: { riderId: cand.riderId, orderStatus: { in: activeStatuses } },
+        });
+        if (busy > 0) continue;
+        updateData.orderStatus = OrderStatus.RIDER_ASSIGNED;
+        updateData.riderId = cand.riderId;
+        updateData.riderSelfAssigned = false;
+        break;
+      }
+    }
+
     if (toStatus === 'RIDER_ASSIGNED' && dto.riderId) {
       await this.riders.assertRiderNotBlockedForNewPickup(dto.riderId);
       const rider = await this.prisma.user.findFirst({
@@ -1026,7 +1054,7 @@ export class OrdersService {
     });
 
     // Notifications on key status transitions
-    if (toStatus === OrderStatus.RIDER_ASSIGNED && updated.riderId) {
+    if (updated.orderStatus === OrderStatus.RIDER_ASSIGNED && updated.riderId) {
       await this.notifications.create({
         userId: updated.riderId,
         type: 'ORDER_ASSIGNED',
@@ -1045,7 +1073,7 @@ export class OrdersService {
       });
     }
 
-    if (toStatus === OrderStatus.RIDER_ASSIGNED && updated.riderId) {
+    if (updated.orderStatus === OrderStatus.RIDER_ASSIGNED && updated.riderId) {
       this.ordersGateway.emitRiderAssigned(updated.riderId, updated.id);
     }
 
@@ -1061,6 +1089,10 @@ export class OrdersService {
     );
 
     this.ordersGateway.emitPickupPoolUpdated();
+    if (updated.orderStatus === OrderStatus.READY_FOR_PICKUP && !updated.riderId) {
+      // Offer mode (manual pickup): ping nearby online riders so it appears instantly.
+      void this.riders.notifyNearbyRidersForPickup(updated.id);
+    }
     if (toStatus === OrderStatus.DELIVERED && updated.riderId) {
       await this.riders.emitCodWalletSnapshotForRider(updated.riderId);
     }

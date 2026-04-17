@@ -428,4 +428,71 @@ export class RidersService {
     });
     return { ok: true as const };
   }
+
+  /**
+   * Find online nearby riders (within 2km) for a pickup and ping them via realtime.
+   * This does not assign the order; it just makes the offer appear instantly.
+   */
+  async notifyNearbyRidersForPickup(orderId: string): Promise<{ notified: number }> {
+    const nearby = await this.findNearbyRidersForPickup(orderId);
+    for (const r of nearby) {
+      this.ordersGateway.emitPickupNew(r.riderId, {
+        orderId,
+        storeId: r.storeId,
+        at: new Date().toISOString(),
+        distanceKm: r.distanceKm,
+      });
+    }
+    return { notified: nearby.length };
+  }
+
+  /**
+   * Returns nearby available riders for a pickup order, sorted by distance.
+   * Used both for "offer broadcast" and for "auto-assign nearest rider".
+   */
+  async findNearbyRidersForPickup(orderId: string): Promise<{ riderId: string; distanceKm: number; storeId: string }[]> {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        store: { select: { id: true, latitude: true, longitude: true } },
+        address: { select: { latitude: true, longitude: true } },
+      },
+    });
+    if (!order) return [];
+    if (order.orderStatus !== OrderStatus.READY_FOR_PICKUP || order.riderId) return [];
+
+    const ref = pickRefLatLng(order.store, order.address);
+    if (!ref) return [];
+
+    const radiusKm = RIDER_NEARBY_ORDER_RADIUS_KM;
+    const deltaLat = radiusKm / 111;
+    const cos = Math.cos((ref.lat * Math.PI) / 180);
+    const deltaLng = radiusKm / (111 * Math.max(0.2, cos));
+
+    const candidates = await this.prisma.riderProfile.findMany({
+      where: {
+        isAvailable: true,
+        isBlocked: false,
+        currentLatitude: { not: null, gte: new Decimal(ref.lat - deltaLat), lte: new Decimal(ref.lat + deltaLat) },
+        currentLongitude: { not: null, gte: new Decimal(ref.lng - deltaLng), lte: new Decimal(ref.lng + deltaLng) },
+      },
+      select: { userId: true, currentLatitude: true, currentLongitude: true, currentCollectedAmount: true },
+      take: 150,
+    });
+
+    const rows: { riderId: string; distanceKm: number; storeId: string }[] = [];
+    for (const c of candidates) {
+      const collected = Number(c.currentCollectedAmount ?? 0);
+      if (collected >= RIDER_COD_COLLECTION_LIMIT_PKR) continue;
+      const lat = c.currentLatitude != null ? Number(c.currentLatitude) : null;
+      const lng = c.currentLongitude != null ? Number(c.currentLongitude) : null;
+      if (lat == null || lng == null) continue;
+      const d = haversineDistanceKm(lat, lng, ref.lat, ref.lng);
+      if (d > radiusKm) continue;
+      rows.push({ riderId: c.userId, distanceKm: Math.round(d * 100) / 100, storeId: order.store.id });
+    }
+
+    rows.sort((a, b) => a.distanceKm - b.distanceKm);
+    return rows;
+  }
 }
