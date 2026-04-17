@@ -98,9 +98,13 @@ export function useOrdersRealtime(
           options?.onCreated?.(payload);
           return;
         }
-        if (role === 'STORE_OWNER' && storeId && payload.storeId === storeId) {
-          cbRef.current(payload);
-          options?.onCreated?.(payload);
+        // STORE_OWNER sockets are already scoped to the store room by the backend.
+        // Do not require storeId to be loaded on the client; otherwise we can miss events during initial boot.
+        if (role === 'STORE_OWNER') {
+          if (!storeId || payload.storeId === storeId) {
+            cbRef.current(payload);
+            options?.onCreated?.(payload);
+          }
         }
       });
 
@@ -110,9 +114,11 @@ export function useOrdersRealtime(
           options?.onUpdated?.(payload);
           return;
         }
-        if (role === 'STORE_OWNER' && storeId && payload.storeId === storeId) {
-          refresh();
-          options?.onUpdated?.(payload);
+        if (role === 'STORE_OWNER') {
+          if (!storeId || payload.storeId === storeId) {
+            refresh();
+            options?.onUpdated?.(payload);
+          }
         }
       });
 

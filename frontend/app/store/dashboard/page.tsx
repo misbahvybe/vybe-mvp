@@ -171,12 +171,19 @@ function StoreDashboardInner() {
   }, [tab, fetchOrders]);
 
   useOrdersRealtime(
-    tab === 'orders' && !!store?.id && !!token,
+    tab === 'orders' && !!token,
     token,
     'STORE_OWNER',
     store?.id ?? null,
     fetchOrders,
   );
+
+  // Fallback polling: if socket delivery is missed, keep orders fresh.
+  useEffect(() => {
+    if (tab !== 'orders') return;
+    const id = setInterval(fetchOrders, 10000);
+    return () => clearInterval(id);
+  }, [tab, fetchOrders]);
 
   const updateOrderStatus = async (orderId: string, status: string) => {
     setActionLoading(orderId);

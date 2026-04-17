@@ -138,11 +138,21 @@ export default function StorePosPage() {
     [beep],
   );
 
-  useOrdersRealtime(Boolean(token && storeId), token, 'STORE_OWNER', storeId, () => fetchOrders(), {
+  useOrdersRealtime(Boolean(token), token, 'STORE_OWNER', storeId, () => fetchOrders(), {
     onCreated,
     onConnect: () => setConnected(true),
     onDisconnect: () => setConnected(false),
   });
+
+  // Fallback polling: if the socket is offline, refetch frequently.
+  useEffect(() => {
+    if (!token) return;
+    if (connected) return;
+    const id = setInterval(() => {
+      void fetchOrders();
+    }, 8000);
+    return () => clearInterval(id);
+  }, [token, connected, fetchOrders]);
 
   const requestNotificationPermission = async () => {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
