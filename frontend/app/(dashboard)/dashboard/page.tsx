@@ -25,14 +25,22 @@ export default function DashboardPage() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const token = useAuthStore((s) => s.token);
+  const hasHydrated = useAuthStore((s) => s._hasHydrated);
 
   useEffect(() => {
-    if (token === undefined) return;
+    if (!hasHydrated) return;
     if (!token) {
       router.replace('/auth/login');
-      return;
     }
-  }, [token, router]);
+  }, [hasHydrated, token, router]);
+
+  if (!hasHydrated || !token) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader size={44} />
+      </div>
+    );
+  }
 
   if (!user) {
     return (

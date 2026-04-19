@@ -27,14 +27,14 @@ export function AuthHydrate() {
   const setHasHydrated = useAuthStore((s) => s.setHasHydrated);
 
   useEffect(() => {
-    setHasHydrated(true);
-
-    // Best-effort sync for cases where persist hydration doesn't run (or runs late).
+    // Read persistence before flipping `_hasHydrated`, so guards that require both
+    // `hasHydrated && token` do not run with a stale null token (fixes refresh / deep link).
     const persisted = readPersistedAuth();
     const token = persisted?.token ?? (typeof window !== 'undefined' ? localStorage.getItem('vybe_token') : null);
     if (token) {
       setAuth(persisted?.user ?? null, token);
     }
+    setHasHydrated(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
