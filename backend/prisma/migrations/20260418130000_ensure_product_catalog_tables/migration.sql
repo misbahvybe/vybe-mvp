@@ -102,6 +102,14 @@ BEGIN
   END IF;
 END $$;
 
+-- Clear dangling product_category_id values before adding FK (data may reference rows lost when ProductCategory was recreated)
+UPDATE "Product" p
+SET "product_category_id" = NULL
+WHERE p."product_category_id" IS NOT NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM "ProductCategory" pc WHERE pc."id" = p."product_category_id"
+  );
+
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Product_store_id_fkey') THEN
