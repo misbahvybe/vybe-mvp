@@ -17,6 +17,7 @@ import { normalizeProductName, inferMedicineFormHint } from '../../common/produc
 import { ApproveDraftProductDto } from './dto/approve-draft-product.dto';
 import { haversineDistanceKm } from '../../common/geo/haversine';
 import { Prisma } from '@prisma/client';
+import { computeStoreOpenNow } from '../../common/store/store-hours.util';
 
 @Injectable()
 export class StoresService {
@@ -110,6 +111,7 @@ export class StoresService {
     if (dto.openingTime !== undefined) data.openingTime = dto.openingTime;
     if (dto.closingTime !== undefined) data.closingTime = dto.closingTime;
     if (dto.isOpen !== undefined) data.isOpen = dto.isOpen;
+    if (dto.acceptingOrders !== undefined) data.acceptingOrders = dto.acceptingOrders;
     const updated = await this.prisma.store.update({ where: { id: store.id }, data });
     await this.invalidatePublicStoreListCache().catch(() => undefined);
     return updated;
@@ -351,17 +353,14 @@ export class StoresService {
     return row;
   }
 
-  private isStoreOpen(store: { isOpen: boolean; openingTime: string | null; closingTime: string | null }): boolean {
-    if (!store.isOpen) return false;
-    if (!store.openingTime || !store.closingTime) return true;
-    const now = new Date();
-    const [oh, om] = store.openingTime.split(':').map(Number);
-    const [ch, cm] = store.closingTime.split(':').map(Number);
-    const nowMins = now.getHours() * 60 + now.getMinutes();
-    const openMins = oh * 60 + om;
-    let closeMins = ch * 60 + cm;
-    if (closeMins <= openMins) closeMins += 24 * 60;
-    return nowMins >= openMins && nowMins < closeMins;
+  private isStoreOpen(store: {
+    isOpen: boolean;
+    openingTime: string | null;
+    closingTime: string | null;
+    acceptingOrders?: boolean | null;
+  }): boolean {
+    const tz = this.config.get<string>('BUSINESS_TIMEZONE', 'Asia/Karachi');
+    return computeStoreOpenNow(store, { timeZone: tz });
   }
 
   async listApproved(category?: string) {
@@ -401,19 +400,17 @@ export class StoresService {
     return stores.map((s) => {
       const isOpenNow = this.isStoreOpen(s);
       const products = s.status === StoreStatus.ACTIVE ? s.products : [];
+      let menuMessage: string | null = null;
+      if (s.status === StoreStatus.INVITED) menuMessage = 'Menu not available yet';
+      else if (s.status === StoreStatus.INACTIVE) menuMessage = 'Store is currently unavailable';
+      else if (products.length === 0) menuMessage = 'Menu not available yet';
+      else if (s.acceptingOrders === false) menuMessage = 'Not accepting new orders right now';
       return {
         ...s,
         products,
         isOpenNow,
         menuAvailable: s.status === StoreStatus.ACTIVE && products.length > 0,
-        menuMessage:
-          s.status === StoreStatus.INVITED
-            ? 'Menu not available yet'
-            : s.status === StoreStatus.INACTIVE
-              ? 'Store is currently unavailable'
-              : products.length === 0
-                ? 'Menu not available yet'
-                : null,
+        menuMessage,
       };
     });
   }
@@ -488,20 +485,18 @@ export class StoresService {
         if (d > radiusKm) return null;
         const isOpenNow = this.isStoreOpen(s);
         const products = s.status === StoreStatus.ACTIVE ? s.products : [];
+        let menuMessage: string | null = null;
+        if (s.status === StoreStatus.INVITED) menuMessage = 'Menu not available yet';
+        else if (s.status === StoreStatus.INACTIVE) menuMessage = 'Store is currently unavailable';
+        else if (products.length === 0) menuMessage = 'Menu not available yet';
+        else if (s.acceptingOrders === false) menuMessage = 'Not accepting new orders right now';
         return {
           ...s,
           products,
           isOpenNow,
           distanceKm: Math.round(d * 100) / 100,
           menuAvailable: s.status === StoreStatus.ACTIVE && products.length > 0,
-          menuMessage:
-            s.status === StoreStatus.INVITED
-              ? 'Menu not available yet'
-              : s.status === StoreStatus.INACTIVE
-                ? 'Store is currently unavailable'
-                : products.length === 0
-                  ? 'Menu not available yet'
-                  : null,
+          menuMessage,
         };
       })
       .filter(Boolean) as any[];
@@ -534,19 +529,17 @@ export class StoresService {
     });
     if (!store) return null;
     const products = store.status === StoreStatus.ACTIVE ? store.products : [];
+    let menuMessage: string | null = null;
+    if (store.status === StoreStatus.INVITED) menuMessage = 'Menu not available yet';
+    else if (store.status === StoreStatus.INACTIVE) menuMessage = 'Store is currently unavailable';
+    else if (products.length === 0) menuMessage = 'Menu not available yet';
+    else if (store.acceptingOrders === false) menuMessage = 'Not accepting new orders right now';
     return {
       ...store,
       products,
       isOpenNow: this.isStoreOpen(store),
       menuAvailable: store.status === StoreStatus.ACTIVE && products.length > 0,
-      menuMessage:
-        store.status === StoreStatus.INVITED
-          ? 'Menu not available yet'
-          : store.status === StoreStatus.INACTIVE
-            ? 'Store is currently unavailable'
-            : products.length === 0
-              ? 'Menu not available yet'
-              : null,
+      menuMessage,
     };
   }
 

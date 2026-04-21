@@ -49,4 +49,8 @@ export class UpdateStoreDto {
   @IsOptional()
   @IsBoolean()
   isOpen?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  acceptingOrders?: boolean;
 }

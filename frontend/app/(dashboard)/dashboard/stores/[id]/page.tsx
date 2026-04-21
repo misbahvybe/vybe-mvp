@@ -33,6 +33,7 @@ interface Store {
   imageUrl?: string | null;
   address?: string | null;
   isOpenNow?: boolean;
+  menuMessage?: string | null;
   products: Product[];
   productCategories?: { id: string; name: string; sortOrder: number; products: Product[] }[];
 }
@@ -220,8 +221,13 @@ export default function StoreDetailPage() {
         )}
         {store.isOpenNow === false && (
           <div className="mb-4 p-4 rounded-card bg-amber-50 border border-amber-200">
-            <p className="font-medium text-amber-800">Store is closed</p>
-            <p className="text-sm text-amber-700">Orders are not accepted at this time. Please check back during business hours.</p>
+            <p className="font-medium text-amber-800">
+              {store.menuMessage?.includes('Not accepting') ? 'Not taking new orders' : 'Store is closed'}
+            </p>
+            <p className="text-sm text-amber-700">
+              {store.menuMessage ??
+                'Orders are not accepted at this time. Please check back during business hours.'}
+            </p>
           </div>
         )}
         {store.description && (

@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import api from '@/services/api';
 import { useAuthStore } from '@/store/authStore';
@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/Button';
 import { Loader } from '@/components/ui/Loader';
 import { StoreOwnerNavTabs } from '@/components/store/StoreOwnerNavTabs';
 import { enableWebPushForCurrentUser, getWebPushUiStatus, type WebPushUiStatus } from '@/services/push';
+import { useLoopingOrderAlarm } from '@/hooks/useLoopingOrderAlarm';
+import { printOrderSlip, type OrderSlipInput } from '@/lib/printOrderSlip';
 
 type OrderListItem = {
   id: string;
@@ -38,57 +40,31 @@ function timeHHMM(d: string) {
   }
 }
 
-function useAlarm() {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const stopRef = useRef<null | (() => void)>(null);
-
-  return useCallback((opts?: { durationMs?: number; volume?: number }) => {
-    const durationMs = Math.max(500, Math.min(15000, opts?.durationMs ?? 10000));
-    const volume = Math.max(0.05, Math.min(1, opts?.volume ?? 1));
-    try {
-      if (!audioRef.current) {
-        // `public/beep.wav` → `/beep.wav`
-        audioRef.current = new Audio('/beep.wav');
-        audioRef.current.preload = 'auto';
-      }
-      const a = audioRef.current;
-
-      // Stop any previous alarm.
-      stopRef.current?.();
-
-      a.volume = volume;
-      a.currentTime = 0;
-      a.loop = true;
-
-      // Some browsers require a user gesture before audio can play.
-      void a.play().catch(() => {});
-
-      const timeout = window.setTimeout(() => {
-        try {
-          a.pause();
-          a.currentTime = 0;
-          a.loop = false;
-        } catch {
-          // ignore
-        }
-      }, durationMs);
-
-      stopRef.current = () => {
-        try {
-          window.clearTimeout(timeout);
-          a.pause();
-          a.currentTime = 0;
-          a.loop = false;
-        } catch {
-          // ignore
-        } finally {
-          stopRef.current = null;
-        }
-      };
-    } catch {
-      // ignore
-    }
-  }, []);
+function orderToSlip(
+  storeName: string,
+  o: OrderListItem,
+): OrderSlipInput {
+  return {
+    storeName,
+    orderId: o.id,
+    orderNumber: o.orderNumber,
+    createdAt: o.createdAt,
+    customerName: o.customer?.name,
+    customerPhone: o.customer?.phone,
+    deliveryAddress: o.address?.fullAddress,
+    lines: o.items.map((i) => ({
+      name: i.product.name,
+      quantity: i.quantity,
+      lineTotal: Number(i.price) * Number(i.quantity),
+    })),
+    totalAmount: Number(o.totalAmount),
+    paymentMethodLabel:
+      o.paymentMethod === 'COD'
+        ? 'Cash on delivery (COD)'
+        : o.paymentMethod === 'CARD'
+          ? 'Card / online'
+          : (o.paymentMethod ?? '—'),
+  };
 }
 
 export default function StorePosPage() {
@@ -96,6 +72,7 @@ export default function StorePosPage() {
 
   const [loading, setLoading] = useState(true);
   const [storeId, setStoreId] = useState<string | null>(null);
+  const [storeName, setStoreName] = useState('Store');
   const [orders, setOrders] = useState<OrderListItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selected, setSelected] = useState<OrderListItem | null>(null);
@@ -104,11 +81,10 @@ export default function StorePosPage() {
   const [lastAlertAt, setLastAlertAt] = useState<string | null>(null);
   const [pushUi, setPushUi] = useState<WebPushUiStatus | null>(null);
 
-  const alarm = useAlarm();
-
   const fetchStore = useCallback(async () => {
     const r = await api.get('/store-owner/store');
     setStoreId(r.data?.id ?? null);
+    setStoreName(typeof r.data?.name === 'string' ? r.data.name : 'Store');
   }, []);
 
   const fetchOrders = useCallback(async () => {
@@ -148,8 +124,6 @@ export default function StorePosPage() {
 
   const onCreated = useCallback(
     (payload: OrderCreatedEvent) => {
-      // Sound + highlight: keep it lightweight; list refresh happens via the normal callback.
-      alarm({ durationMs: 10_000, volume: 0.8 });
       setLastAlertAt(new Date().toISOString());
       if (payload?.id) setSelectedId((prev) => prev ?? payload.id);
       // Attempt browser notifications if already allowed (POS tablets often run Chrome).
@@ -162,7 +136,7 @@ export default function StorePosPage() {
         }
       }
     },
-    [alarm],
+    [],
   );
 
   useOrdersRealtime(Boolean(token), token, 'STORE_OWNER', storeId, () => fetchOrders(), {
@@ -192,37 +166,29 @@ export default function StorePosPage() {
     }
   };
 
-  const updateOrderStatus = async (orderId: string, status: string) => {
+  const pending = useMemo(() => orders.filter((o) => o.orderStatus === 'PENDING'), [orders]);
+  const preparing = useMemo(() => orders.filter((o) => o.orderStatus === 'STORE_ACCEPTED'), [orders]);
+  const ready = useMemo(() => orders.filter((o) => o.orderStatus === 'READY_FOR_PICKUP'), [orders]);
+
+  const shouldRingPos = Boolean(token && pending.length > 0 && !actionLoading);
+  const { stopAlarm: stopPosAlarm } = useLoopingOrderAlarm(shouldRingPos);
+
+  const updateOrderStatus = async (orderId: string, status: string, slipForPrint?: OrderListItem) => {
+    stopPosAlarm();
     setActionLoading(orderId);
     try {
       await api.patch(`/orders/${orderId}/status`, { status });
       await fetchOrders();
       if (selectedId === orderId) await fetchSelected(orderId);
+      if (status === 'STORE_ACCEPTED' && slipForPrint) {
+        printOrderSlip(orderToSlip(storeName, slipForPrint));
+      }
     } catch {
       alert('Failed to update order');
     } finally {
       setActionLoading(null);
     }
   };
-
-  const pending = useMemo(() => orders.filter((o) => o.orderStatus === 'PENDING'), [orders]);
-  const preparing = useMemo(() => orders.filter((o) => o.orderStatus === 'STORE_ACCEPTED'), [orders]);
-  const ready = useMemo(() => orders.filter((o) => o.orderStatus === 'READY_FOR_PICKUP'), [orders]);
-
-  // Reminder: if there are pending orders, ring every 30s until handled.
-  useEffect(() => {
-    if (!token) return;
-    if (pending.length === 0) return;
-    // If the store is actively pressing buttons, don't spam alarms.
-    if (actionLoading) return;
-
-    const id = window.setInterval(() => {
-      // Keep it shorter than the initial 10s alarm.
-      alarm({ durationMs: 2000, volume: 0.85 });
-    }, 30_000);
-
-    return () => window.clearInterval(id);
-  }, [token, pending.length, actionLoading, alarm]);
 
   const selectedFromList = useMemo(
     () => (selectedId ? orders.find((o) => o.id === selectedId) ?? null : null),
@@ -300,7 +266,15 @@ export default function StorePosPage() {
             >
               Enable push
             </Button>
-            <Button size="sm" variant="outline" onClick={() => alarm({ durationMs: 3000, volume: 0.8 })}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const a = new Audio('/beep.wav');
+                a.volume = 0.85;
+                void a.play().catch(() => {});
+              }}
+            >
               Test alarm
             </Button>
             <Button size="sm" variant="outline" onClick={refreshAll}>
@@ -336,21 +310,40 @@ export default function StorePosPage() {
                     selected={selectedId === o.id}
                     onSelect={() => setSelectedId(o.id)}
                     actions={
-                      <div className="flex gap-2 mt-3">
+                      <div className="flex flex-wrap gap-2 mt-3">
                         <Button
                           size="lg"
-                          className="flex-1 min-h-[52px]"
+                          variant="outline"
+                          className="flex-1 min-h-[52px] min-w-[120px]"
+                          type="button"
+                          disabled={!!actionLoading}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            printOrderSlip(orderToSlip(storeName, o));
+                          }}
+                        >
+                          Print slip
+                        </Button>
+                        <Button
+                          size="lg"
+                          className="flex-1 min-h-[52px] min-w-[120px]"
                           loading={actionLoading === o.id}
-                          onClick={() => updateOrderStatus(o.id, 'STORE_ACCEPTED')}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void updateOrderStatus(o.id, 'STORE_ACCEPTED', o);
+                          }}
                         >
                           Accept
                         </Button>
                         <Button
                           size="lg"
                           variant="outline"
-                          className="flex-1 min-h-[52px]"
+                          className="flex-1 min-h-[52px] min-w-[120px]"
                           disabled={!!actionLoading}
-                          onClick={() => updateOrderStatus(o.id, 'STORE_REJECTED')}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void updateOrderStatus(o.id, 'STORE_REJECTED');
+                          }}
                         >
                           Reject
                         </Button>
@@ -414,9 +407,9 @@ export default function StorePosPage() {
                 </p>
               </div>
               {detail ? (
-                <Link href={`/store/pos/print/${detail.id}`} target="_blank" rel="noopener noreferrer" title="58mm ticket for Sunmi / thermal">
+                <Link href={`/store/pos/print/${detail.id}`} target="_blank" rel="noopener noreferrer" title="80mm thermal / browser print">
                   <Button size="sm" variant="outline">
-                    Print (58mm)
+                    Print (80mm)
                   </Button>
                 </Link>
               ) : null}

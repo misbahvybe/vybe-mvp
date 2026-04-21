@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { StickyHeader } from '@/components/layout/StickyHeader';
 import { ContentPanel } from '@/components/layout/ContentPanel';
@@ -20,6 +20,7 @@ import {
 import api from '@/services/api';
 import { useAuthStore } from '@/store/authStore';
 import { useRiderAssignmentRealtime } from '@/hooks/useOrdersRealtime';
+import { useLoopingOrderAlarm } from '@/hooks/useLoopingOrderAlarm';
 
 const DELIVERY_FEE = 150; // Rider earns delivery fee per order
 
@@ -76,6 +77,18 @@ interface RiderEarnings {
     createdAt: string;
     amount: number;
   }[];
+}
+
+const RIDER_ACTIVE_STATUSES = ['READY_FOR_PICKUP', 'RIDER_ASSIGNED', 'RIDER_ACCEPTED', 'PICKED_UP'];
+
+function sortRiderActive(a: Order, b: Order) {
+  const prio: Record<string, number> = {
+    RIDER_ACCEPTED: 0,
+    PICKED_UP: 1,
+    RIDER_ASSIGNED: 2,
+    READY_FOR_PICKUP: 2,
+  };
+  return (prio[a.orderStatus] ?? 99) - (prio[b.orderStatus] ?? 99);
 }
 
 function googleMapsUrl(lat?: number | string, lng?: number | string, address?: string): string {
@@ -177,6 +190,16 @@ export default function RiderDashboardPage() {
 
   useRiderAssignmentRealtime(user?.role === 'RIDER', token, refreshRiderHome);
 
+  const riderNeedsAcceptOrDecline = useMemo(() => {
+    if (tab !== 'dashboard') return false;
+    const act = orders.filter((o) => RIDER_ACTIVE_STATUSES.includes(o.orderStatus));
+    const sorted = [...act].sort(sortRiderActive);
+    const ao = sorted[0];
+    if (!ao) return false;
+    return ao.orderStatus === 'RIDER_ASSIGNED' || ao.orderStatus === 'READY_FOR_PICKUP';
+  }, [tab, orders]);
+  const { stopAlarm: stopRiderAlarm } = useLoopingOrderAlarm(Boolean(token && riderNeedsAcceptOrDecline));
+
   const setAvailable = async (isAvailable: boolean) => {
     try {
       await api.patch('/riders/me', { isAvailable });
@@ -187,6 +210,7 @@ export default function RiderDashboardPage() {
   };
 
   const updateStatus = async (orderId: string, status: string) => {
+    stopRiderAlarm();
     setActionLoading(orderId);
     try {
       await api.patch(`/orders/${orderId}/status`, { status });
@@ -213,6 +237,7 @@ export default function RiderDashboardPage() {
     ) {
       return;
     }
+    stopRiderAlarm();
     setActionLoading(orderId);
     try {
       await api.patch(`/orders/${orderId}/status`, { status: 'RIDER_ASSIGNED' });
@@ -225,19 +250,8 @@ export default function RiderDashboardPage() {
   };
 
   /** Include READY_FOR_PICKUP: admin may assign captain before status was advanced (legacy) or edge cases. */
-  const active = orders.filter((o) =>
-    ['READY_FOR_PICKUP', 'RIDER_ASSIGNED', 'RIDER_ACCEPTED', 'PICKED_UP'].includes(o.orderStatus),
-  );
-  const sortOrder = (a: Order, b: Order) => {
-    const prio: Record<string, number> = {
-      RIDER_ACCEPTED: 0,
-      PICKED_UP: 1,
-      RIDER_ASSIGNED: 2,
-      READY_FOR_PICKUP: 2,
-    };
-    return (prio[a.orderStatus] ?? 99) - (prio[b.orderStatus] ?? 99);
-  };
-  const sortedActive = [...active].sort(sortOrder);
+  const active = orders.filter((o) => RIDER_ACTIVE_STATUSES.includes(o.orderStatus));
+  const sortedActive = [...active].sort(sortRiderActive);
   const activeOrder = sortedActive[0];
   const assignedOrders = sortedActive.slice(1);
 

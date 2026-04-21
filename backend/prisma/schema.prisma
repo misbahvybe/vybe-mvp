@@ -198,6 +198,8 @@ model Store {
   status       StoreStatus @default(ACTIVE) @map("store_status")
   isApproved   Boolean  @default(false) @map("is_approved")
   isOpen       Boolean  @default(true) @map("is_open")
+  /// When false, store stays visible but new orders are blocked (kitchen busy / manual pause).
+  acceptingOrders Boolean @default(true) @map("accepting_orders")
   openingTime  String?  @map("opening_time")   // HH:mm e.g. "09:00"
   closingTime  String?  @map("closing_time")   // HH:mm e.g. "22:00"
   /// Optional custom commission % for this store only (0–100). If null, category default applies.

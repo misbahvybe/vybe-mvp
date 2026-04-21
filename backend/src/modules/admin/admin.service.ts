@@ -13,6 +13,7 @@ import { RIDER_COD_COLLECTION_LIMIT_PKR } from '../../common/constants/rider-cod
 import { CreatePartnerDto } from './dto/create-partner.dto';
 import { PatchPlatformCheckoutSettingsDto } from './dto/patch-platform-checkout-settings.dto';
 import * as crypto from 'crypto';
+import { getWallClockMinutesInTimeZone, isWithinBusinessWindow } from '../../common/store/store-hours.util';
 
 @Injectable()
 export class AdminService {
@@ -281,22 +282,59 @@ export class AdminService {
     };
   }
 
+  /** In-flight pipeline orders (not delivered / cancelled) for ops visibility. */
+  async getLiveOrders() {
+    const liveStatuses = [
+      'PENDING',
+      'STORE_ACCEPTED',
+      'READY_FOR_PICKUP',
+      'RIDER_ASSIGNED',
+      'RIDER_ACCEPTED',
+      'PICKED_UP',
+    ] as const;
+    const rows = await this.prisma.order.findMany({
+      where: { orderStatus: { in: [...liveStatuses] } },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      select: {
+        id: true,
+        orderNumber: true,
+        orderStatus: true,
+        createdAt: true,
+        totalAmount: true,
+        paymentMethod: true,
+        store: { select: { id: true, name: true } },
+        customer: { select: { name: true, phone: true } },
+        address: { select: { fullAddress: true, city: true } },
+      },
+    });
+    return rows.map((o) => ({
+      id: o.id,
+      orderNumber: o.orderNumber,
+      orderStatus: o.orderStatus,
+      createdAt: o.createdAt,
+      totalAmount: Number(o.totalAmount),
+      paymentMethod: o.paymentMethod,
+      store: o.store,
+      customer: o.customer,
+      address: o.address,
+    }));
+  }
+
   private async getStoresClosedDuringHours(): Promise<{ id: string; name: string }[]> {
     const stores = await this.prisma.store.findMany({
       where: { isApproved: true, isOpen: false, openingTime: { not: null }, closingTime: { not: null } },
       select: { id: true, name: true, openingTime: true, closingTime: true },
     });
+    const tz = this.config.get<string>('BUSINESS_TIMEZONE', 'Asia/Karachi');
     const now = new Date();
-    const nowMins = now.getHours() * 60 + now.getMinutes();
-    return stores.filter((s) => {
-      if (!s.openingTime || !s.closingTime) return false;
-      const [oh, om] = s.openingTime.split(':').map(Number);
-      const [ch, cm] = s.closingTime.split(':').map(Number);
-      const openMins = oh * 60 + om;
-      let closeMins = ch * 60 + cm;
-      if (closeMins <= openMins) closeMins += 24 * 60;
-      return nowMins >= openMins && nowMins < closeMins;
-    }).map((s) => ({ id: s.id, name: s.name }));
+    const nowMins = getWallClockMinutesInTimeZone(now, tz);
+    return stores
+      .filter((s) => {
+        if (!s.openingTime || !s.closingTime) return false;
+        return isWithinBusinessWindow(s.openingTime, s.closingTime, nowMins);
+      })
+      .map((s) => ({ id: s.id, name: s.name }));
   }
 
   /**

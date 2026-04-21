@@ -4,6 +4,7 @@ import { PendingPaymentProvider } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { PricingService } from '../pricing/pricing.service';
 import { PrepareXPayDto } from '../orders/dto/prepare-xpay.dto';
+import { isStoreWithinPostedHours } from '../../common/store/store-hours.util';
 
 export type BankSlug = 'hbl' | 'meezan' | 'allied';
 
@@ -58,17 +59,19 @@ export class BankPaymentsService {
     return this.config.get<string>(`${p}_CONFIGURED`) === 'true';
   }
 
-  private isStoreOpen(store: { isOpen: boolean; openingTime: string | null; closingTime: string | null }): boolean {
-    if (!store.isOpen) return false;
-    if (!store.openingTime || !store.closingTime) return true;
-    const now = new Date();
-    const [oh, om] = store.openingTime.split(':').map(Number);
-    const [ch, cm] = store.closingTime.split(':').map(Number);
-    const nowMins = now.getHours() * 60 + now.getMinutes();
-    const openMins = oh * 60 + om;
-    let closeMins = ch * 60 + cm;
-    if (closeMins <= openMins) closeMins += 24 * 60;
-    return nowMins >= openMins && nowMins < closeMins;
+  private assertCustomerCanOrderFromStore(store: {
+    isOpen: boolean;
+    openingTime: string | null;
+    closingTime: string | null;
+    acceptingOrders?: boolean | null;
+  }): void {
+    if (store.acceptingOrders === false) {
+      throw new BadRequestException('This store is not taking new orders right now.');
+    }
+    const tz = this.config.get<string>('BUSINESS_TIMEZONE', 'Asia/Karachi');
+    if (!isStoreWithinPostedHours(store, { timeZone: tz })) {
+      throw new BadRequestException('Store is closed. Please try again during business hours.');
+    }
   }
 
   private async assertItemsAndSubtotal(
@@ -149,9 +152,7 @@ export class BankPaymentsService {
       where: { id: dto.storeId, isApproved: true },
     });
     if (!store) throw new ForbiddenException('Store not found');
-    if (!this.isStoreOpen(store)) {
-      throw new BadRequestException('Store is closed. Please try again during business hours.');
-    }
+    this.assertCustomerCanOrderFromStore(store);
 
     const items = dto.items as { productId: string; variantId?: string; quantity: number; price?: number }[];
     const { subtotal: subtotalAmount } = await this.assertItemsAndSubtotal(dto.storeId, items, { checkStock: true });

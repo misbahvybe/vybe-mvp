@@ -65,6 +65,11 @@ export class AdminController {
     return this.admin.getAlerts();
   }
 
+  @Get('orders/live')
+  async getLiveOrders(@CurrentUser() _user: User) {
+    return this.admin.getLiveOrders();
+  }
+
   /** @query platform Optional filter: `food`, `grocery`, or `medicine` (platform tabs). */
   @Get('stores')
   async getStores(

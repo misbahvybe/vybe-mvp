@@ -34,19 +34,43 @@ interface Alerts {
   ridersInactiveOver2Hours: { id: string; name?: string }[];
 }
 
+interface LiveOrderRow {
+  id: string;
+  orderNumber: number;
+  orderStatus: string;
+  createdAt: string;
+  totalAmount: number;
+  paymentMethod: string;
+  store: { id: string; name: string };
+  customer: { name: string; phone: string };
+  address: { fullAddress: string; city: string | null };
+}
+
+const LIVE_STATUS_LABEL: Record<string, string> = {
+  PENDING: 'Pending',
+  STORE_ACCEPTED: 'Preparing',
+  READY_FOR_PICKUP: 'Ready',
+  RIDER_ASSIGNED: 'Captain assigned',
+  RIDER_ACCEPTED: 'Accepted',
+  PICKED_UP: 'Out for delivery',
+};
+
 export default function AdminDashboardPage() {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [alerts, setAlerts] = useState<Alerts | null>(null);
+  const [liveOrders, setLiveOrders] = useState<LiveOrderRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(() => {
     Promise.all([
       api.get<Metrics>('/admin/metrics').then((r) => r.data),
       api.get<Alerts>('/admin/alerts').then((r) => r.data),
+      api.get<LiveOrderRow[]>('/admin/orders/live').then((r) => r.data ?? []),
     ])
-      .then(([m, a]) => {
+      .then(([m, a, live]) => {
         setMetrics(m ?? null);
         setAlerts(a ?? null);
+        setLiveOrders(Array.isArray(live) ? live : []);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -109,6 +133,63 @@ export default function AdminDashboardPage() {
           <p className="text-2xl font-bold text-slate-800">{metrics?.cancellationRate ?? 0}%</p>
         </Card>
       </div>
+
+      <h2 className="text-lg font-semibold text-slate-800 mb-3">Live orders</h2>
+      <Card className="p-4 mb-6 border-l-4 border-emerald-500">
+        {liveOrders.length === 0 ? (
+          <p className="text-sm text-slate-600">
+            No active pipeline orders right now (nothing pending, preparing, out for delivery, or picked up). Counts above
+            will also stay at zero when the platform is idle.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs uppercase text-slate-500 border-b border-slate-200">
+                  <th className="py-2 pr-3">Order</th>
+                  <th className="py-2 pr-3">Status</th>
+                  <th className="py-2 pr-3">Store</th>
+                  <th className="py-2 pr-3">Customer</th>
+                  <th className="py-2 pr-3">Address</th>
+                  <th className="py-2 pr-3 text-right">Total</th>
+                  <th className="py-2 pl-3" />
+                </tr>
+              </thead>
+              <tbody>
+                {liveOrders.map((o) => (
+                  <tr key={o.id} className="border-b border-slate-100 last:border-0">
+                    <td className="py-2 pr-3 font-mono font-medium text-slate-800">
+                      #{o.orderNumber}
+                      <span className="block text-xs font-normal text-slate-500">
+                        {new Date(o.createdAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}
+                      </span>
+                    </td>
+                    <td className="py-2 pr-3 whitespace-nowrap">
+                      {LIVE_STATUS_LABEL[o.orderStatus] ?? o.orderStatus}
+                    </td>
+                    <td className="py-2 pr-3 max-w-[140px]">
+                      <span className="line-clamp-2">{o.store?.name ?? '—'}</span>
+                    </td>
+                    <td className="py-2 pr-3 max-w-[160px]">
+                      <span className="line-clamp-2">{o.customer?.name ?? '—'}</span>
+                      <span className="block text-xs text-slate-500 line-clamp-1">{o.customer?.phone ?? ''}</span>
+                    </td>
+                    <td className="py-2 pr-3 max-w-[220px] text-slate-600">
+                      <span className="line-clamp-2">{o.address?.fullAddress ?? '—'}</span>
+                    </td>
+                    <td className="py-2 pr-3 text-right whitespace-nowrap">Rs {Number(o.totalAmount).toLocaleString()}</td>
+                    <td className="py-2 pl-3 whitespace-nowrap">
+                      <Link href={`/order/${o.id}`} className="text-primary font-medium hover:underline">
+                        Open
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
 
       {/* Contribution Margin */}
       {metrics?.contributionMargin && (

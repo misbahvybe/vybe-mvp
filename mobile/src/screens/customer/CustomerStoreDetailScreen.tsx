@@ -128,9 +128,12 @@ export function CustomerStoreDetailScreen() {
         ) : null}
         {store.isOpenNow === false && (
           <View style={styles.bannerClosed}>
-            <Text style={styles.bannerTitle}>Store is closed</Text>
+            <Text style={styles.bannerTitle}>
+              {store.menuMessage?.includes('Not accepting') ? 'Not taking new orders' : 'Store is closed'}
+            </Text>
             <Text style={styles.bannerText}>
-              Orders are not accepted at this time. Please check back during business hours.
+              {store.menuMessage ??
+                'Orders are not accepted at this time. Please check back during business hours.'}
             </Text>
           </View>
         )}

@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
+import { Suspense, useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { StickyHeader } from '@/components/layout/StickyHeader';
@@ -21,6 +21,8 @@ import {
 } from 'lucide-react';
 import api from '@/services/api';
 import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
+import { useLoopingOrderAlarm } from '@/hooks/useLoopingOrderAlarm';
+import { printOrderSlip, type OrderSlipInput } from '@/lib/printOrderSlip';
 import { StoreOwnerNavTabs } from '@/components/store/StoreOwnerNavTabs';
 import { enableWebPushForCurrentUser, getWebPushUiStatus, type WebPushUiStatus } from '@/services/push';
 
@@ -59,6 +61,30 @@ interface Order {
   items: { product: { name: string }; quantity: number; price: number }[];
 }
 
+function orderToSlip(storeName: string, o: Order): OrderSlipInput {
+  return {
+    storeName,
+    orderId: o.id,
+    orderNumber: o.orderNumber,
+    createdAt: o.createdAt,
+    customerName: o.customer?.name,
+    customerPhone: o.customer?.phone,
+    deliveryAddress: o.address?.fullAddress,
+    lines: o.items.map((i) => ({
+      name: i.product.name,
+      quantity: i.quantity,
+      lineTotal: Number(i.price) * Number(i.quantity),
+    })),
+    totalAmount: Number(o.totalAmount),
+    paymentMethodLabel:
+      o.paymentMethod === 'COD'
+        ? 'Cash on delivery (COD)'
+        : o.paymentMethod === 'CARD'
+          ? 'Card / online'
+          : (o.paymentMethod ?? '—'),
+  };
+}
+
 type Tab = 'orders' | 'products' | 'earnings' | 'settings';
 
 export default function StoreDashboardPage() {
@@ -94,6 +120,7 @@ function StoreDashboardInner() {
     latitude?: number | null;
     longitude?: number | null;
     isOpen: boolean;
+    acceptingOrders?: boolean;
     openingTime?: string;
     closingTime?: string;
   } | null>(null);
@@ -136,7 +163,6 @@ function StoreDashboardInner() {
   >([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const alarmAudioRef = useRef<HTMLAudioElement | null>(null);
   const [pushUi, setPushUi] = useState<WebPushUiStatus | null>(null);
 
   const fetchOrders = useCallback(() => {
@@ -192,10 +218,24 @@ function StoreDashboardInner() {
     return () => clearInterval(id);
   }, [tab, fetchOrders]);
 
+  const pending = orders.filter((o) => o.orderStatus === 'PENDING');
+  const preparing = orders.filter((o) => o.orderStatus === 'STORE_ACCEPTED');
+  const readyForPickup = orders.filter((o) => o.orderStatus === 'READY_FOR_PICKUP');
+  const delivered = orders.filter((o) => o.orderStatus === 'DELIVERED');
+
+  const shouldRingNewOrders =
+    tab === 'orders' && Boolean(token) && pending.length > 0 && !actionLoading;
+  const { stopAlarm } = useLoopingOrderAlarm(shouldRingNewOrders);
+
   const updateOrderStatus = async (orderId: string, status: string) => {
+    stopAlarm();
     setActionLoading(orderId);
     try {
       await api.patch(`/orders/${orderId}/status`, { status });
+      if (status === 'STORE_ACCEPTED' && store) {
+        const slipOrder = orders.find((x) => x.id === orderId);
+        if (slipOrder) printOrderSlip(orderToSlip(store.name, slipOrder));
+      }
       fetchOrders();
       fetchAll();
     } catch {
@@ -204,39 +244,6 @@ function StoreDashboardInner() {
       setActionLoading(null);
     }
   };
-
-  const pending = orders.filter((o) => o.orderStatus === 'PENDING');
-  const preparing = orders.filter((o) => o.orderStatus === 'STORE_ACCEPTED');
-  const readyForPickup = orders.filter((o) => o.orderStatus === 'READY_FOR_PICKUP');
-  const delivered = orders.filter((o) => o.orderStatus === 'DELIVERED');
-
-  // Reminder alarm every 30s while there are pending orders (orders tab only).
-  useEffect(() => {
-    if (tab !== 'orders') return;
-    if (!token) return;
-    if (pending.length === 0) return;
-    if (actionLoading) return;
-
-    const ring = () => {
-      try {
-        if (!alarmAudioRef.current) {
-          alarmAudioRef.current = new Audio('/beep.wav');
-          alarmAudioRef.current.preload = 'auto';
-        }
-        const a = alarmAudioRef.current;
-        a.loop = false;
-        a.volume = 1;
-        a.currentTime = 0;
-        void a.play().catch(() => {});
-      } catch {
-        // ignore
-      }
-    };
-
-    ring(); // initial reminder immediately when pending appears
-    const id = window.setInterval(ring, 30_000);
-    return () => window.clearInterval(id);
-  }, [tab, token, pending.length, actionLoading]);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -322,13 +329,23 @@ function StoreDashboardInner() {
                           <span className="line-clamp-2">{o.address.fullAddress}</span>
                         </p>
                       )}
-                      <div className="flex gap-2 mt-4">
+                      <div className="flex flex-wrap gap-2 mt-4">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          type="button"
+                          disabled={!!actionLoading}
+                          onClick={() => store && printOrderSlip(orderToSlip(store.name, o))}
+                          className="flex-1 min-w-[120px]"
+                        >
+                          Print slip
+                        </Button>
                         <Button
                           size="sm"
                           variant="primary"
                           loading={actionLoading === o.id}
                           onClick={() => updateOrderStatus(o.id, 'STORE_ACCEPTED')}
-                          className="flex-1"
+                          className="flex-1 min-w-[120px]"
                         >
                           <Check className="w-4 h-4 mr-1 inline" />
                           Accept
@@ -338,7 +355,7 @@ function StoreDashboardInner() {
                           variant="outline"
                           disabled={!!actionLoading}
                           onClick={() => updateOrderStatus(o.id, 'STORE_REJECTED')}
-                          className="flex-1"
+                          className="flex-1 min-w-[120px]"
                         >
                           <X className="w-4 h-4 mr-1 inline" />
                           Reject
@@ -929,7 +946,21 @@ function StoreSettingsTab({
   loading,
   onRefresh,
 }: {
-  store: { id: string; name: string; description?: string | null; imageUrl?: string | null; phone?: string; address?: string; city?: string; latitude?: number | null; longitude?: number | null; isOpen: boolean; openingTime?: string; closingTime?: string } | null;
+  store: {
+    id: string;
+    name: string;
+    description?: string | null;
+    imageUrl?: string | null;
+    phone?: string;
+    address?: string;
+    city?: string;
+    latitude?: number | null;
+    longitude?: number | null;
+    isOpen: boolean;
+    acceptingOrders?: boolean;
+    openingTime?: string;
+    closingTime?: string;
+  } | null;
   loading: boolean;
   onRefresh: () => void;
 }) {
@@ -945,6 +976,7 @@ function StoreSettingsTab({
     openingTime: '09:00',
     closingTime: '22:00',
     isOpen: true,
+    acceptingOrders: true,
   });
   const [saving, setSaving] = useState(false);
 
@@ -962,6 +994,7 @@ function StoreSettingsTab({
         openingTime: store.openingTime ?? '09:00',
         closingTime: store.closingTime ?? '22:00',
         isOpen: store.isOpen,
+        acceptingOrders: store.acceptingOrders !== false,
       });
     }
   }, [store]);
@@ -1014,6 +1047,25 @@ function StoreSettingsTab({
       </div>
       <p className={`text-sm ${form.isOpen ? 'text-green-600' : 'text-red-600'}`}>
         {form.isOpen ? 'Open – customers can order' : 'Closed – store hidden from listing'}
+      </p>
+      <div className="flex items-center justify-between">
+        <span className="font-medium">Accept new orders</span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={form.acceptingOrders}
+          onClick={() => setForm((f) => ({ ...f, acceptingOrders: !f.acceptingOrders }))}
+          className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${form.acceptingOrders ? 'bg-green-500' : 'bg-slate-300'}`}
+        >
+          <span
+            className={`inline-block h-6 w-6 rounded-full bg-white shadow transition-transform ${form.acceptingOrders ? 'translate-x-7' : 'translate-x-1'}`}
+          />
+        </button>
+      </div>
+      <p className={`text-sm ${form.acceptingOrders ? 'text-slate-600' : 'text-amber-700'}`}>
+        {form.acceptingOrders
+          ? 'New orders can arrive (you can turn this off when the kitchen is overloaded).'
+          : 'Paused – customers will not be able to place new orders until you turn this back on.'}
       </p>
       <Card className="p-4 space-y-3">
         <div>
