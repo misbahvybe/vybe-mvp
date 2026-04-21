@@ -10,6 +10,7 @@ import { Card } from '@/components/ui/Card';
 import { Loader } from '@/components/ui/Loader';
 import api from '@/services/api';
 import { useCustomerOrdersRealtime } from '@/hooks/useOrdersRealtime';
+import { formatOrderNo } from '@/lib/orderDisplay';
 
 const filters = ['All Order', 'Pending', 'Processing'];
 
@@ -20,6 +21,7 @@ interface OrderItem {
 }
 interface Order {
   id: string;
+  orderNumber?: number;
   orderStatus: string;
   createdAt: string;
   totalAmount: number;
@@ -91,6 +93,7 @@ export default function OrdersPage() {
                       <Package className="w-10 h-10 text-primary" strokeWidth={2} />
                     </div>
                     <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-slate-500">{formatOrderNo(o.orderNumber, o.id)}</p>
                       <p className="font-semibold text-slate-800">{o.store?.name ?? 'Order'}</p>
                       <p className="text-sm text-slate-500">{formatDate(o.createdAt)}</p>
                       <p className="text-accent font-semibold text-sm">Rs {Number(o.totalAmount).toFixed(0)}</p>

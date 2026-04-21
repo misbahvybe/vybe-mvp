@@ -6,6 +6,7 @@ import { useAuthStore } from '@store/auth';
 import { useOrdersRealtime } from '@hooks/useOrdersRealtime';
 import { PartnerScreenShell } from '@components/partner/PartnerScreenShell';
 import { tokens } from '@theme/tokens';
+import { formatOrderNo } from '@lib/orderDisplay';
 
 const POLL_INTERVAL_MS = 120000;
 
@@ -17,6 +18,7 @@ interface OrderItem {
 
 interface Order {
   id: string;
+  orderNumber?: number;
   orderStatus: string;
   createdAt: string;
   totalAmount: number;
@@ -184,7 +186,7 @@ function Section({
                 disabled={!onOpenDetail}
               >
                 <View style={styles.orderHeaderRow}>
-                  <Text style={styles.orderId}>#{o.id.slice(-8).toUpperCase()}</Text>
+                  <Text style={styles.orderId}>{formatOrderNo(o.orderNumber, o.id)}</Text>
                   <Text style={styles.orderTime}>{timeAgo(o.createdAt)}</Text>
                 </View>
                 <Text style={styles.orderSummary}>

@@ -8,9 +8,11 @@ import { useAuthStore } from '@store/auth';
 import { useRiderAssignmentRealtime } from '@hooks/useOrdersRealtime';
 import { PartnerScreenShell } from '@components/partner/PartnerScreenShell';
 import { tokens } from '@theme/tokens';
+import { formatOrderNo } from '@lib/orderDisplay';
 
 interface Order {
   id: string;
+  orderNumber?: number;
   orderStatus: string;
   createdAt: string;
   totalAmount: number;
@@ -112,7 +114,7 @@ function Section({ title, emptyText, orders, onSelectOrder }: SectionProps) {
               onPress={() => onSelectOrder(o)}
             >
               <View>
-                <Text style={styles.orderId}>#{o.id.slice(-8).toUpperCase()}</Text>
+                <Text style={styles.orderId}>{formatOrderNo(o.orderNumber, o.id)}</Text>
                 <Text style={styles.orderStore}>{o.store?.name ?? 'Store'}</Text>
               </View>
               <View style={{ alignItems: 'flex-end' }}>

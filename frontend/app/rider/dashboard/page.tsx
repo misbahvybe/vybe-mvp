@@ -13,6 +13,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useRiderAssignmentRealtime } from '@/hooks/useOrdersRealtime';
 import { useLoopingOrderAlarm } from '@/hooks/useLoopingOrderAlarm';
 import { RiderDeliveryPanel } from '@/components/rider/RiderDeliveryPanel';
+import { formatOrderNo } from '@/lib/orderDisplay';
 
 const DELIVERY_FEE = 150; // Rider earns delivery fee per order
 
@@ -32,6 +33,7 @@ interface Order {
 
 interface AvailableOrder {
   id: string;
+  orderNumber?: number;
   orderStatus: string;
   totalAmount: number;
   distanceKm: number | null;
@@ -78,7 +80,7 @@ interface RiderEarnings {
     reserved: number;
     available: number;
   };
-  history: { kind?: 'order'; orderId: string; createdAt: string; amount: number }[];
+  history: { kind?: 'order'; orderId: string; orderNumber?: number; createdAt: string; amount: number }[];
   payoutHistory: {
     kind?: 'payout';
     id: string;
@@ -604,7 +606,7 @@ export default function RiderDashboardPage() {
                   </div>
                   <div className="p-4 space-y-4">
                     <p className="font-bold text-lg text-slate-800">
-                      Order #{activeOrder.orderNumber ?? activeOrder.id.slice(-8).toUpperCase()}
+                      Order {formatOrderNo(activeOrder.orderNumber, activeOrder.id)}
                     </p>
                     {(activeOrder.orderStatus === 'PENDING' || activeOrder.orderStatus === 'STORE_ACCEPTED') && (
                       <p className="text-sm rounded-lg bg-sky-50 border border-sky-200 text-sky-900 px-3 py-2">
@@ -684,7 +686,7 @@ export default function RiderDashboardPage() {
                       <Link key={o.id} href={`/rider/orders/${o.id}`}>
                         <Card className="flex items-center justify-between px-4 py-4">
                           <div>
-                            <p className="font-semibold text-slate-800">#{o.id.slice(-8).toUpperCase()}</p>
+                            <p className="font-semibold text-slate-800">{formatOrderNo(o.orderNumber, o.id)}</p>
                             <p className="text-sm text-slate-600">{o.store?.name ?? 'Store'}</p>
                           </div>
                           <div className="text-right">
@@ -756,7 +758,7 @@ export default function RiderDashboardPage() {
                     {earnings.history.map((e) => (
                       <Card key={e.orderId} className="p-4 flex justify-between items-center">
                         <div>
-                          <p className="font-medium">#{e.orderId.slice(-8).toUpperCase()}</p>
+                          <p className="font-medium">{formatOrderNo(e.orderNumber, e.orderId)}</p>
                           <p className="text-xs text-slate-500">{new Date(e.createdAt).toLocaleString()}</p>
                         </div>
                         <p className="font-bold text-accent">{e.amount.toLocaleString()} PKR</p>

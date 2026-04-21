@@ -21,6 +21,7 @@ import { RidersService } from '../riders/riders.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { isStoreWithinPostedHours } from '../../common/store/store-hours.util';
 import { assertMinOrderSubtotalPkr } from '../../common/constants/order-minimum';
+import { formatOrderNoForDisplay } from '../../common/format/order-number';
 
 /** Set `false` when Stripe / XPay keys are ready and clients show those options again. */
 const PAYMENTS_COD_ONLY = true;
@@ -740,6 +741,7 @@ export class OrdersService {
     if (!useCard) {
       this.ordersGateway.emitOrderCreated({
         id: order.o.id,
+        orderNumber: order.o.orderNumber,
         storeId: order.o.storeId,
         customerId: order.o.customerId,
         orderStatus: order.o.orderStatus,
@@ -761,7 +763,7 @@ export class OrdersService {
         await this.notifications.create({
           userId: store.ownerId,
           type: 'ORDER_NEW',
-          title: `New order received (#${(order.o as any).orderNumber ?? order.o.id.slice(-8)})`,
+          title: `New order received (${formatOrderNoForDisplay((order.o as { orderNumber?: number }).orderNumber, order.o.id)})`,
           body: `Total: Rs ${Number(order.o.totalAmount).toFixed(0)}`,
           data: { orderId: order.o.id, storeId: order.o.storeId },
         });
@@ -776,6 +778,7 @@ export class OrdersService {
       if (paidOrder?.paymentStatus === PaymentStatus.PAID && paidOrder.orderStatus !== OrderStatus.CANCELLED) {
         this.ordersGateway.emitOrderCreated({
           id: paidOrder.id,
+          orderNumber: paidOrder.orderNumber,
           storeId: paidOrder.storeId,
           customerId: paidOrder.customerId,
           orderStatus: paidOrder.orderStatus,
@@ -797,7 +800,7 @@ export class OrdersService {
           await this.notifications.create({
             userId: store.ownerId,
             type: 'ORDER_NEW',
-            title: `New paid order received (#${(paidOrder as any).orderNumber ?? paidOrder.id.slice(-8)})`,
+            title: `New paid order received (${formatOrderNoForDisplay(paidOrder.orderNumber, paidOrder.id)})`,
             body: `Total: Rs ${Number(paidOrder.totalAmount).toFixed(0)}`,
             data: { orderId: paidOrder.id, storeId: paidOrder.storeId },
           });
@@ -951,7 +954,7 @@ export class OrdersService {
         await this.notifications.create({
           userId: updated.riderId,
           type: 'ORDER_ASSIGNED',
-          title: `New pickup assigned (#${(updated as any).orderNumber ?? updated.id.slice(-8)})`,
+          title: `New pickup assigned (${formatOrderNoForDisplay(updated.orderNumber, updated.id)})`,
           body: 'You have a new pickup. Open the app to view details.',
           data: { orderId: updated.id },
         });
@@ -1089,7 +1092,7 @@ export class OrdersService {
       await this.notifications.create({
         userId: updated.riderId,
         type: 'ORDER_ASSIGNED',
-        title: `New pickup assigned (#${(updated as any).orderNumber ?? updated.id.slice(-8)})`,
+        title: `New pickup assigned (${formatOrderNoForDisplay(updated.orderNumber, updated.id)})`,
         body: 'You have a new pickup. Open the app to view details.',
         data: { orderId: updated.id },
       });
@@ -1098,7 +1101,7 @@ export class OrdersService {
       await this.notifications.create({
         userId: updated.customerId,
         type: 'ORDER_UPDATED',
-        title: `Order update (#${(updated as any).orderNumber ?? updated.id.slice(-8)})`,
+        title: `Order update (${formatOrderNoForDisplay(updated.orderNumber, updated.id)})`,
         body: `Status: ${toStatus}`,
         data: { orderId: updated.id, status: toStatus },
       });

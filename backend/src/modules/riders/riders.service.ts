@@ -10,6 +10,7 @@ import {
   RIDER_COD_COLLECTION_LIMIT_PKR,
   RIDER_NEARBY_ORDER_RADIUS_KM,
 } from '../../common/constants/rider-cod';
+import { formatOrderNoForDisplay } from '../../common/format/order-number';
 
 function parseCoord(v: string | undefined): number | null {
   if (v == null || String(v).trim() === '') return null;
@@ -287,7 +288,7 @@ export class RidersService {
         where: { riderId },
         orderBy: { createdAt: 'desc' },
         take: 50,
-        include: { order: { select: { id: true, createdAt: true } } },
+        include: { order: { select: { id: true, orderNumber: true, createdAt: true } } },
       }),
       this.withdraw.getRiderFinancialSnapshot(riderId),
       this.prisma.earningPayout.findMany({
@@ -310,6 +311,7 @@ export class RidersService {
       history: history.map((e) => ({
         kind: 'order' as const,
         orderId: e.orderId,
+        orderNumber: e.order.orderNumber,
         createdAt: e.order.createdAt,
         amount: Number(e.earningAmount),
       })),
@@ -399,6 +401,7 @@ export class RidersService {
       }
       return {
         id: o.id,
+        orderNumber: o.orderNumber,
         orderStatus: o.orderStatus,
         createdAt: o.createdAt,
         totalAmount: Number(o.totalAmount),
@@ -507,6 +510,7 @@ export class RidersService {
       }
       return {
         id: o.id,
+        orderNumber: o.orderNumber,
         orderStatus: o.orderStatus,
         createdAt: o.createdAt,
         totalAmount: Number(o.totalAmount),
@@ -798,7 +802,7 @@ export class RidersService {
       await this.notifications.create({
         userId: ownerId,
         type: 'RIDER_RESERVED',
-        title: `Captain reserved for order (#${(updated as { orderNumber?: number }).orderNumber ?? updated.id.slice(-8)})`,
+        title: `Captain reserved for order (${formatOrderNoForDisplay(updated.orderNumber, updated.id)})`,
         body: 'A rider accepted early — they will head to you when the order is ready.',
         data: { orderId: updated.id, storeId: updated.storeId, riderId },
       });

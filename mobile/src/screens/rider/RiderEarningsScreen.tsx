@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { api } from '@api/client';
 import { PartnerScreenShell } from '@components/partner/PartnerScreenShell';
 import { tokens } from '@theme/tokens';
+import { formatOrderNo } from '@lib/orderDisplay';
 
 interface RiderEarningsToday {
   orders: number;
@@ -16,6 +17,7 @@ interface RiderEarningsPeriod {
 
 interface RiderEarningHistoryItem {
   orderId: string;
+  orderNumber?: number;
   createdAt: string;
   amount: number;
 }
@@ -90,7 +92,7 @@ export function RiderEarningsScreen() {
                   <View key={h.orderId} style={styles.historyCard}>
                     <View>
                       <Text style={styles.historyOrderId}>
-                        #{h.orderId.slice(-8).toUpperCase()}
+                        {formatOrderNo(h.orderNumber, h.orderId)}
                       </Text>
                       <Text style={styles.historyDate}>
                         {new Date(h.createdAt).toLocaleString('en-GB', {

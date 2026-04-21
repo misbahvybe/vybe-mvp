@@ -139,7 +139,7 @@ export class StoresService {
         where: { storeId: store.id, order: { orderStatus: 'DELIVERED' } },
         orderBy: { createdAt: 'desc' },
         take: 50,
-        include: { order: { select: { id: true, createdAt: true } } },
+        include: { order: { select: { id: true, orderNumber: true, createdAt: true } } },
       }),
       this.withdraw.getStoreOwnerFinancialSnapshot(ownerId),
       this.prisma.earningPayout.findMany({
@@ -163,6 +163,7 @@ export class StoresService {
       history: allEarnings.map((e) => ({
         kind: 'order' as const,
         orderId: e.orderId,
+        orderNumber: e.order.orderNumber,
         createdAt: e.order.createdAt,
         storeAmount: Number(e.storeAmount),
         commissionAmount: Number(e.commissionAmount),

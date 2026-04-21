@@ -12,6 +12,7 @@ import { StoreOwnerNavTabs } from '@/components/store/StoreOwnerNavTabs';
 import { enableWebPushForCurrentUser, getWebPushUiStatus, type WebPushUiStatus } from '@/services/push';
 import { useLoopingOrderAlarm } from '@/hooks/useLoopingOrderAlarm';
 import { printOrderSlip, type OrderSlipInput } from '@/lib/printOrderSlip';
+import { formatOrderNo } from '@/lib/orderDisplay';
 
 type OrderListItem = {
   id: string;
@@ -131,7 +132,7 @@ export default function StorePosPage() {
         if (Notification.permission === 'granted') {
           // eslint-disable-next-line no-new
           new Notification('New Vybe order received', {
-            body: `Order #${(payload as any).orderNumber ?? payload.id.slice(-8).toUpperCase()} · Rs ${fmtMoney(payload.totalAmount)}`,
+            body: `Order ${formatOrderNo(payload.orderNumber, payload.id)} · Rs ${fmtMoney(payload.totalAmount)}`,
           });
         }
       }
@@ -403,7 +404,7 @@ export default function StorePosPage() {
               <div>
                 <p className="text-xs uppercase tracking-wide text-slate-500">Billing / Ticket</p>
                 <p className="text-lg font-bold text-slate-800">
-                  {detail ? `#${detail.orderNumber ?? detail.id.slice(-8).toUpperCase()}` : 'Select an order'}
+                  {detail ? formatOrderNo(detail.orderNumber, detail.id) : 'Select an order'}
                 </p>
               </div>
               {detail ? (
@@ -506,7 +507,7 @@ function OrderCard({
       <Card className="p-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-base font-bold text-slate-800">#{o.orderNumber ?? o.id.slice(-8).toUpperCase()}</p>
+            <p className="text-base font-bold text-slate-800">{formatOrderNo(o.orderNumber, o.id)}</p>
             <p className="text-sm text-slate-600 mt-0.5">
               {o.items.length} items · Rs {fmtMoney(o.totalAmount)}
             </p>

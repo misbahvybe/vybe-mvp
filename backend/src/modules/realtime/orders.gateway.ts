@@ -12,6 +12,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 
 export type OrderCreatedPayload = {
   id: string;
+  orderNumber?: number;
   storeId: string;
   customerId: string;
   orderStatus: string;

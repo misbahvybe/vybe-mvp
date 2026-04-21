@@ -1,7 +1,9 @@
 import { Platform } from 'react-native';
+import { formatOrderNo } from './orderDisplay';
 
 export type OrderForSunmiPrint = {
   id: string;
+  orderNumber?: number;
   createdAt: string;
   paymentMethod?: string;
   totalAmount: number;
@@ -91,8 +93,7 @@ export async function printOrderTicketSunmi(order: OrderForSunmiPrint): Promise<
   await Sunmi.setAlignment(0);
   await Sunmi.printText('--------------------------------\n');
 
-  const shortId = order.id.slice(-8).toUpperCase();
-  await Sunmi.printText(`Order  #${shortId}\n`);
+  await Sunmi.printText(`Order  ${formatOrderNo(order.orderNumber, order.id)}\n`);
   await Sunmi.printText(`${new Date(order.createdAt).toLocaleString()}\n`);
   const pay = order.paymentMethod === 'COD' ? 'COD' : 'PAID';
   await Sunmi.printText(`Payment: ${pay}\n`);

@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import api from '@/services/api';
 import { Loader } from '@/components/ui/Loader';
+import { formatOrderNo } from '@/lib/orderDisplay';
 
 type OrderDetail = {
   id: string;
@@ -101,7 +102,7 @@ function StorePosPrintInner() {
     );
   }
 
-  const code = `#${order.orderNumber ?? order.id.slice(-8).toUpperCase()}`;
+  const code = formatOrderNo(order.orderNumber, order.id);
   const created = new Date(order.createdAt).toLocaleString();
   const isCod = order.paymentMethod === 'COD';
 

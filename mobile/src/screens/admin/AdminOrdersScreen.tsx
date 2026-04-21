@@ -20,9 +20,11 @@ import { useOrdersRealtime } from '@hooks/useOrdersRealtime';
 import { PartnerScreenShell } from '@components/partner/PartnerScreenShell';
 import { VybeButton } from '@components/ui/VybeButton';
 import { tokens } from '@theme/tokens';
+import { formatOrderNo } from '@lib/orderDisplay';
 
 interface Order {
   id: string;
+  orderNumber?: number;
   orderStatus: string;
   createdAt: string;
   totalAmount: number;
@@ -163,7 +165,7 @@ export function AdminOrdersScreen() {
                   activeOpacity={0.85}
                   onPress={() => navigation.navigate('AdminOrderDetail', { id: item.id })}
                 >
-                  <Text style={styles.mono}>#{item.id.slice(-8)}</Text>
+                  <Text style={styles.mono}>{formatOrderNo(item.orderNumber, item.id)}</Text>
                   <Text style={styles.store}>{item.store?.name ?? '—'}</Text>
                   <Text style={styles.customer}>{item.customer?.name ?? ''}</Text>
                   <View style={styles.row}>
@@ -207,7 +209,7 @@ export function AdminOrdersScreen() {
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>
               Reassign rider
-              {reassignOrder ? ` (#${reassignOrder.id.slice(-8)})` : ''}
+              {reassignOrder ? ` (${formatOrderNo(reassignOrder.orderNumber, reassignOrder.id)})` : ''}
             </Text>
             {riders.length === 0 ? (
               <Text style={styles.muted}>No active riders available.</Text>

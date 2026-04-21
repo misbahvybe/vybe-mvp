@@ -9,6 +9,7 @@ import { Loader } from '@/components/ui/Loader';
 import api from '@/services/api';
 import { useAuthStore } from '@/store/authStore';
 import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
+import { formatOrderNo } from '@/lib/orderDisplay';
 
 interface Order {
   id: string;
@@ -85,7 +86,7 @@ function AdminOrdersContent() {
       .map((r, idx) => `${idx + 1}) ${r.name} (${r.phone})`)
       .join('\n');
     const input = prompt(
-      `Select new captain for order #${order.orderNumber ?? order.id.slice(-8)}:\n${options}\n\nEnter number (1-${riders.length}):`,
+      `Select new captain for order ${formatOrderNo(order.orderNumber, order.id)}:\n${options}\n\nEnter number (1-${riders.length}):`,
     );
     if (!input) return;
     const index = Number(input) - 1;
@@ -143,7 +144,7 @@ function AdminOrdersContent() {
               <tbody>
                 {filtered.map((o) => (
                   <tr key={o.id} className="border-t border-slate-100 hover:bg-slate-50">
-                    <td className="p-3 font-mono text-xs">#{o.orderNumber ?? o.id.slice(-8)}</td>
+                    <td className="p-3 font-mono text-xs">{formatOrderNo(o.orderNumber, o.id)}</td>
                     <td className="p-3">{o.customer?.name ?? '—'}</td>
                     <td className="p-3">{o.store?.name ?? '—'}</td>
                     <td className="p-3">

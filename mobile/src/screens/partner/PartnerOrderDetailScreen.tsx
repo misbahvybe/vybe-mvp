@@ -20,6 +20,7 @@ import { PartnerScreenShell } from '@components/partner/PartnerScreenShell';
 import { VybeButton } from '@components/ui/VybeButton';
 import { tokens } from '@theme/tokens';
 import { useAuthStore } from '@store/auth';
+import { formatOrderNo } from '@lib/orderDisplay';
 
 interface OrderItemRow {
   id: string;
@@ -30,6 +31,7 @@ interface OrderItemRow {
 
 interface OrderDetail {
   id: string;
+  orderNumber?: number;
   orderStatus: string;
   cancellationReason?: string | null;
   createdAt: string;
@@ -304,7 +306,7 @@ export function PartnerOrderDetailScreen() {
     <PartnerScreenShell title="Order details" showBack onBack={() => navigation.goBack()} bottomPadding="nav">
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.card}>
-          <Text style={styles.muted}>Order #{order.id.slice(-8).toUpperCase()}</Text>
+          <Text style={styles.muted}>Order {formatOrderNo(order.orderNumber, order.id)}</Text>
           <Text style={styles.title}>{order.store?.name ?? 'Order'}</Text>
           <Text style={styles.muted}>{formatDate(order.createdAt)}</Text>
           <Text style={styles.status}>{STATUS_LABELS[order.orderStatus] ?? order.orderStatus}</Text>

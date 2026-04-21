@@ -14,9 +14,11 @@ import { api } from '@api/client';
 import { PartnerScreenShell } from '@components/partner/PartnerScreenShell';
 import { VybeButton } from '@components/ui/VybeButton';
 import { tokens } from '@theme/tokens';
+import { formatOrderNo } from '@lib/orderDisplay';
 
 interface OrderDetail {
   id: string;
+  orderNumber?: number;
   orderStatus: string;
   totalAmount: number;
   paymentMethod?: string;
@@ -118,7 +120,7 @@ export function RiderOrderDetailScreen() {
 
   return (
     <PartnerScreenShell
-      title={`Order #${order.id.slice(-8)}`}
+      title={`Order ${formatOrderNo(order.orderNumber, order.id)}`}
       showBack
       onBack={() => navigation.goBack()}
       bottomPadding="nav"

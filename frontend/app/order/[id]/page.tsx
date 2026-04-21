@@ -10,9 +10,11 @@ import { Button } from '@/components/ui/Button';
 import { Loader } from '@/components/ui/Loader';
 import api from '@/services/api';
 import { useOrderDetailRealtime } from '@/hooks/useOrdersRealtime';
+import { formatOrderNo } from '@/lib/orderDisplay';
 
 interface OrderDetail {
   id: string;
+  orderNumber?: number;
   orderStatus: string;
   cancellationReason?: string | null;
   createdAt: string;
@@ -179,7 +181,7 @@ export default function OrderDetailPage() {
       <ContentPanel bottomPadding="sm">
       <main className={`${wideOrderShell ? 'app-shell-wide' : 'app-shell-narrow'} py-4`}>
         <Card className="mb-4">
-          <p className="text-slate-600 text-sm">Order #{order.id.slice(-8)}</p>
+          <p className="text-slate-600 text-sm">Order {formatOrderNo(order.orderNumber, order.id)}</p>
           <p className="font-semibold text-slate-800">{order.store?.name}</p>
           <p className="text-sm text-slate-500">{formatDate(order.createdAt)}</p>
           <span className={`inline-block mt-2 px-3 py-1 rounded-pill text-xs font-medium ${

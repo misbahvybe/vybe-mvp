@@ -18,6 +18,7 @@ import { api } from '@api/client';
 import { PartnerScreenShell } from '@components/partner/PartnerScreenShell';
 import { VybeButton } from '@components/ui/VybeButton';
 import { tokens } from '@theme/tokens';
+import { formatOrderNo } from '@lib/orderDisplay';
 
 interface StoreEarningsToday {
   orders: number;
@@ -28,6 +29,7 @@ interface StoreEarningsToday {
 
 interface EarningHistoryRow {
   orderId: string;
+  orderNumber?: number;
   createdAt: string;
   storeAmount: number;
   commissionAmount: number;
@@ -160,7 +162,7 @@ export function StoreEarningsScreen() {
           history.map((h) => (
             <View key={h.orderId} style={styles.historyRow}>
               <View>
-                <Text style={styles.historyOrder}>#{h.orderId.slice(-8).toUpperCase()}</Text>
+                <Text style={styles.historyOrder}>{formatOrderNo(h.orderNumber, h.orderId)}</Text>
                 <Text style={styles.historyDate}>
                   {new Date(h.createdAt).toLocaleString('en-GB', {
                     dateStyle: 'short',

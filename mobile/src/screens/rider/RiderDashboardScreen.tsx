@@ -22,6 +22,7 @@ import { api } from '@api/client';
 import { useRiderAssignmentRealtime } from '@hooks/useOrdersRealtime';
 import { PartnerScreenShell } from '@components/partner/PartnerScreenShell';
 import { tokens } from '@theme/tokens';
+import { formatOrderNo } from '@lib/orderDisplay';
 
 interface RiderDashboard {
   isAvailable: boolean;
@@ -38,6 +39,7 @@ interface RiderDashboard {
 
 interface Order {
   id: string;
+  orderNumber?: number;
   orderStatus: string;
   createdAt: string;
   totalAmount: number;
@@ -49,6 +51,7 @@ interface Order {
 
 interface AvailableOrder {
   id: string;
+  orderNumber?: number;
   orderStatus: string;
   totalAmount: number;
   distanceKm: number | null;
@@ -381,7 +384,7 @@ export function RiderDashboardScreen() {
                 activeOpacity={0.8}
               >
                 <Text style={styles.activeTitle}>
-                  Order #{activeOrder.id.slice(-8).toUpperCase()}
+                  Order {formatOrderNo(activeOrder.orderNumber, activeOrder.id)}
                 </Text>
               </TouchableOpacity>
               <Text style={styles.activeSubTitle}>

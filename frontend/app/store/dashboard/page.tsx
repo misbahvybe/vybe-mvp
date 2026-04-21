@@ -25,6 +25,7 @@ import { useLoopingOrderAlarm } from '@/hooks/useLoopingOrderAlarm';
 import { printOrderSlip, type OrderSlipInput } from '@/lib/printOrderSlip';
 import { StoreOwnerNavTabs } from '@/components/store/StoreOwnerNavTabs';
 import { enableWebPushForCurrentUser, getWebPushUiStatus, type WebPushUiStatus } from '@/services/push';
+import { formatOrderNo } from '@/lib/orderDisplay';
 
 const StoreLocationMapPicker = dynamic(
   () => import('@/components/map/StoreLocationMapPicker').then((m) => m.StoreLocationMapPicker),
@@ -136,6 +137,7 @@ function StoreDashboardInner() {
     history: {
       kind?: string;
       orderId: string;
+      orderNumber?: number;
       createdAt: string;
       storeAmount: number;
       commissionAmount: number;
@@ -310,7 +312,7 @@ function StoreDashboardInner() {
                   {pending.map((o) => (
                     <Card key={o.id} className="p-4 border-2 border-amber-200">
                       <div className="flex justify-between items-start mb-2">
-                        <p className="font-bold text-slate-800">#{o.orderNumber ?? o.id.slice(-8).toUpperCase()}</p>
+                        <p className="font-bold text-slate-800">{formatOrderNo(o.orderNumber, o.id)}</p>
                         <span className="text-xs text-slate-500">{timeAgo(o.createdAt)}</span>
                       </div>
                       <p className="text-sm text-slate-600">
@@ -375,7 +377,7 @@ function StoreDashboardInner() {
                 <div className="space-y-3 mb-6">
                   {preparing.map((o) => (
                     <Card key={o.id} className="p-4 border-l-4 border-amber-400">
-                      <p className="font-bold text-slate-800">#{o.orderNumber ?? o.id.slice(-8).toUpperCase()}</p>
+                      <p className="font-bold text-slate-800">{formatOrderNo(o.orderNumber, o.id)}</p>
                       <ul className="text-sm text-slate-600 mt-1 space-y-0.5">
                         {o.items.map((i, idx) => (
                           <li key={idx}>{i.product.name} × {Number(i.quantity)}</li>
@@ -405,7 +407,7 @@ function StoreDashboardInner() {
                 <div className="space-y-2 mb-6">
                   {readyForPickup.map((o) => (
                     <Card key={o.id} className="p-4 border-l-4 border-green-400">
-                      <p className="font-bold text-slate-800">#{o.orderNumber ?? o.id.slice(-8).toUpperCase()}</p>
+                      <p className="font-bold text-slate-800">{formatOrderNo(o.orderNumber, o.id)}</p>
                       <p className="text-sm text-slate-500">Waiting for captain</p>
                     </Card>
                   ))}
@@ -421,7 +423,7 @@ function StoreDashboardInner() {
                 <div className="space-y-2">
                   {delivered.slice(0, 10).map((o) => (
                     <Card key={o.id} className="p-3 flex justify-between items-center opacity-80">
-                      <span className="font-medium">#{o.orderNumber ?? o.id.slice(-8).toUpperCase()}</span>
+                      <span className="font-medium">{formatOrderNo(o.orderNumber, o.id)}</span>
                       <span className="text-accent font-semibold">{Number(o.totalAmount).toLocaleString()} PKR</span>
                     </Card>
                   ))}
@@ -512,7 +514,7 @@ function StoreDashboardInner() {
                     {earnings.history.map((e) => (
                       <Card key={e.orderId} className="p-3 flex justify-between">
                         <div>
-                          <p className="font-medium">#{e.orderId.slice(-8).toUpperCase()}</p>
+                          <p className="font-medium">{formatOrderNo(e.orderNumber, e.orderId)}</p>
                           <p className="text-xs text-slate-500">{new Date(e.createdAt).toLocaleDateString()}</p>
                         </div>
                         <p className="font-semibold text-accent">{e.storeAmount.toLocaleString()} PKR</p>

@@ -3,6 +3,8 @@
  * in the print dialog; auto-print after Accept triggers the same dialog.
  */
 
+import { formatOrderNo } from './orderDisplay';
+
 export type OrderSlipLine = {
   name: string;
   quantity: number | string;
@@ -27,7 +29,7 @@ function esc(s: string) {
 }
 
 export function formatOrderSlipText(input: OrderSlipInput): string {
-  const num = (input.orderNumber ?? input.orderId.slice(-8)).toString().toUpperCase();
+  const num = formatOrderNo(input.orderNumber, input.orderId);
   const dt = new Date(input.createdAt);
   const when = Number.isFinite(dt.getTime())
     ? dt.toLocaleString('en-PK', { dateStyle: 'medium', timeStyle: 'short' })
@@ -37,7 +39,7 @@ export function formatOrderSlipText(input: OrderSlipInput): string {
     .join('\n');
   return [
     input.storeName,
-    `Order #${num}`,
+    `Order ${num}`,
     when,
     '',
     `Customer: ${input.customerName ?? '—'}`,
@@ -65,7 +67,7 @@ export function printOrderSlip(input: OrderSlipInput): void {
 <meta charset="utf-8"/>
 <meta name="color-scheme" content="light"/>
 <meta name="supported-color-schemes" content="light"/>
-<title>Order ${esc(String(input.orderNumber ?? input.orderId.slice(-8)))}</title>
+<title>Order ${esc(formatOrderNo(input.orderNumber, input.orderId))}</title>
 <style>
   :root { color-scheme: only light; }
   html, body {
@@ -99,7 +101,7 @@ export function printOrderSlip(input: OrderSlipInput): void {
 </style></head>
 <body>
   <h1>${esc(input.storeName)}</h1>
-  <div class="muted">Order #${esc(String(input.orderNumber ?? input.orderId.slice(-8)).toUpperCase())}</div>
+  <div class="muted">Order ${esc(formatOrderNo(input.orderNumber, input.orderId))}</div>
   <div class="muted">${esc(
     Number.isFinite(new Date(input.createdAt).getTime())
       ? new Date(input.createdAt).toLocaleString('en-PK', { dateStyle: 'medium', timeStyle: 'short' })

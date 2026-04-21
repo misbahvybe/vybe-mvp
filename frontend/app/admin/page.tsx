@@ -13,6 +13,7 @@ import {
 import api from '@/services/api';
 import { useAuthStore } from '@/store/authStore';
 import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
+import { formatOrderNo } from '@/lib/orderDisplay';
 
 const POLL_MS = 20000;
 
@@ -38,7 +39,7 @@ interface Alerts {
 
 interface LiveOrderRow {
   id: string;
-  orderNumber: number;
+  orderNumber?: number;
   orderStatus: string;
   createdAt: string;
   totalAmount: number;
@@ -167,7 +168,7 @@ export default function AdminDashboardPage() {
                 {liveOrders.map((o) => (
                   <tr key={o.id} className="border-b border-slate-100 last:border-0">
                     <td className="py-2 pr-3 font-mono font-medium text-slate-800">
-                      #{o.orderNumber}
+                      {formatOrderNo(o.orderNumber, o.id)}
                       <span className="block text-xs font-normal text-slate-500">
                         {new Date(o.createdAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}
                       </span>

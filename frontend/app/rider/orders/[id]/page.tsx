@@ -11,6 +11,7 @@ import { Phone, Banknote, CreditCard, ExternalLink } from 'lucide-react';
 import api from '@/services/api';
 import { useOrderDetailRealtime } from '@/hooks/useOrdersRealtime';
 import { RiderDeliveryPanel } from '@/components/rider/RiderDeliveryPanel';
+import { formatOrderNo } from '@/lib/orderDisplay';
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING: 'Pending',
@@ -135,7 +136,7 @@ export default function RiderOrderDetailPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <StickyHeader
-        title={`Order #${order.orderNumber ?? order.id.slice(-8)}`}
+        title={`Order ${formatOrderNo(order.orderNumber, order.id)}`}
         backHref="/rider/dashboard"
         wideShell
       />
