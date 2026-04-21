@@ -415,6 +415,8 @@ model Order {
   orderStatus     OrderStatus   @default(PENDING) @map("order_status")
   /// True when rider claimed from READY_FOR_PICKUP pool (not admin-assigned).
   riderSelfAssigned Boolean     @default(false) @map("rider_self_assigned")
+  /// Set when rider confirms they are at the pickup location (required before marking picked up).
+  riderArrivedAt  DateTime?     @map("rider_arrived_at")
   notes           String?
   cancellationReason CancellationReason? @map("cancellation_reason")
   cancelledByRole Role?         @map("cancelled_by_role")

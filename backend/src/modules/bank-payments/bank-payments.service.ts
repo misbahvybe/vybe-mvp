@@ -5,6 +5,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { PricingService } from '../pricing/pricing.service';
 import { PrepareXPayDto } from '../orders/dto/prepare-xpay.dto';
 import { isStoreWithinPostedHours } from '../../common/store/store-hours.util';
+import { assertMinOrderSubtotalPkr } from '../../common/constants/order-minimum';
 
 export type BankSlug = 'hbl' | 'meezan' | 'allied';
 
@@ -114,6 +115,7 @@ export class BankPaymentsService {
       }
       subtotal += item.quantity * serverPrice;
     }
+    assertMinOrderSubtotalPkr(subtotal);
     return { subtotal };
   }
 

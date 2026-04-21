@@ -6,19 +6,11 @@ import { useAuthStore } from '@/store/authStore';
 import { StickyHeader } from '@/components/layout/StickyHeader';
 import { ContentPanel } from '@/components/layout/ContentPanel';
 import { Card } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
 import { Loader } from '@/components/ui/Loader';
-import {
-  Phone,
-  Banknote,
-  CreditCard,
-  ExternalLink,
-  Check,
-  X,
-  Package,
-} from 'lucide-react';
+import { Phone, Banknote, CreditCard, ExternalLink } from 'lucide-react';
 import api from '@/services/api';
 import { useOrderDetailRealtime } from '@/hooks/useOrdersRealtime';
+import { RiderDeliveryPanel } from '@/components/rider/RiderDeliveryPanel';
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING: 'Pending',
@@ -46,7 +38,10 @@ function googleMapsUrl(lat?: number | string, lng?: number | string, address?: s
 
 interface OrderDetail {
   id: string;
+  orderNumber?: number;
   orderStatus: string;
+  riderId?: string | null;
+  riderArrivedAt?: string | null;
   totalAmount: number;
   paymentMethod?: string;
   store?: { name: string; address?: string; latitude?: number; longitude?: number; phone?: string };
@@ -82,12 +77,7 @@ export default function RiderOrderDetailPage() {
     if (orderId) loadOrder();
   }, [token, router, orderId, loadOrder]);
 
-  useOrderDetailRealtime(
-    !!token && user?.role === 'RIDER',
-    orderId,
-    token,
-    loadOrder,
-  );
+  useOrderDetailRealtime(!!token && user?.role === 'RIDER', orderId, token, loadOrder);
 
   const updateStatus = async (status: string) => {
     if (!order) return;
@@ -103,6 +93,30 @@ export default function RiderOrderDetailPage() {
     }
   };
 
+  const markArrived = async () => {
+    if (!order) return;
+    setLoading(true);
+    try {
+      await api.post(`/orders/${order.id}/rider/arrived`);
+      const res = await api.get<OrderDetail>(`/orders/${order.id}`);
+      setOrder(res.data);
+    } catch (e) {
+      alert((e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const confirmPickup = () => {
+    if (!confirm('Have you collected the full order from the restaurant?')) return;
+    void updateStatus('PICKED_UP');
+  };
+
+  const confirmDeliver = () => {
+    if (!confirm('Hand the order to the customer and confirm delivery.')) return;
+    void updateStatus('DELIVERED');
+  };
+
   if (!order) {
     return (
       <div className="min-h-screen flex flex-col">
@@ -114,14 +128,35 @@ export default function RiderOrderDetailPage() {
     );
   }
 
-  const allowed = order.allowedTransitions ?? [];
   const formatDate = (d: string) => new Date(d).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
+  const riderId = user?.id ?? '';
+  const isMyOrder = order.riderId === riderId;
 
   return (
     <div className="min-h-screen flex flex-col">
-      <StickyHeader title={`Order #${order.id.slice(-8)}`} backHref="/rider/dashboard" wideShell />
+      <StickyHeader
+        title={`Order #${order.orderNumber ?? order.id.slice(-8)}`}
+        backHref="/rider/dashboard"
+        wideShell
+      />
       <ContentPanel>
         <main className="app-shell-wide py-4 space-y-4">
+          {isMyOrder && order.orderStatus !== 'DELIVERED' && order.orderStatus !== 'CANCELLED' && (
+            <Card className="p-4">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Your next step</p>
+              <RiderDeliveryPanel
+                order={order}
+                riderId={riderId}
+                loading={loading}
+                onAccept={() => void updateStatus('RIDER_ACCEPTED')}
+                onReject={() => void updateStatus('READY_FOR_PICKUP')}
+                onArrived={() => void markArrived()}
+                onPickup={confirmPickup}
+                onDeliver={confirmDeliver}
+              />
+            </Card>
+          )}
+
           <Card className="p-4">
             <p className="text-sm font-semibold text-slate-600 uppercase mb-3">Timeline</p>
             <div className="space-y-2">
@@ -137,6 +172,11 @@ export default function RiderOrderDetailPage() {
                 </div>
               ))}
             </div>
+            {order.riderArrivedAt && (
+              <p className="text-xs text-slate-600 mt-3 pt-3 border-t border-slate-100">
+                Arrived at restaurant: {formatDate(order.riderArrivedAt)}
+              </p>
+            )}
           </Card>
 
           <Card className="p-4">
@@ -181,7 +221,9 @@ export default function RiderOrderDetailPage() {
             <p className="text-sm font-semibold text-slate-600 uppercase mb-2">Items</p>
             {order.items.map((i, idx) => (
               <div key={idx} className="flex justify-between py-1 text-sm">
-                <span>{i.product.name} × {Number(i.quantity)}</span>
+                <span>
+                  {i.product.name} × {Number(i.quantity)}
+                </span>
                 <span>Rs {(Number(i.quantity) * Number(i.price)).toFixed(0)}</span>
               </div>
             ))}
@@ -200,39 +242,6 @@ export default function RiderOrderDetailPage() {
               </p>
             )}
           </Card>
-
-          {allowed.length > 0 && (
-            <Card className="p-4">
-              <p className="text-sm font-semibold text-slate-600 uppercase mb-3">Action</p>
-              <div className="space-y-2">
-                {allowed.includes('RIDER_ASSIGNED') && order.orderStatus === 'READY_FOR_PICKUP' && (
-                  <Button size="lg" fullWidth loading={loading} onClick={() => updateStatus('RIDER_ASSIGNED')}>
-                    <Package className="w-5 h-5 mr-2" /> Pick this order
-                  </Button>
-                )}
-                {allowed.includes('RIDER_ACCEPTED') && (
-                  <div className="flex gap-2">
-                    <Button size="lg" fullWidth loading={loading} onClick={() => updateStatus('RIDER_ACCEPTED')}>
-                      <Check className="w-5 h-5 mr-2" /> Accept Order
-                    </Button>
-                    <Button size="lg" variant="outline" disabled={loading} onClick={() => updateStatus('READY_FOR_PICKUP')}>
-                      <X className="w-5 h-5" />
-                    </Button>
-                  </div>
-                )}
-                {allowed.includes('PICKED_UP') && (
-                  <Button size="lg" fullWidth loading={loading} onClick={() => updateStatus('PICKED_UP')}>
-                    <Package className="w-5 h-5 mr-2" /> Mark Picked Up
-                  </Button>
-                )}
-                {allowed.includes('DELIVERED') && (
-                  <Button size="lg" fullWidth loading={loading} onClick={() => updateStatus('DELIVERED')}>
-                    Mark Delivered
-                  </Button>
-                )}
-              </div>
-            </Card>
-          )}
         </main>
       </ContentPanel>
     </div>

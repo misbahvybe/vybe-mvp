@@ -1,4 +1,4 @@
-import { Get, Patch, Body, Controller, UseGuards, Query, BadRequestException } from '@nestjs/common';
+import { Get, Patch, Post, Body, Controller, UseGuards, Query, BadRequestException, Param } from '@nestjs/common';
 import { RidersService } from './riders.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -33,7 +33,13 @@ export class RidersController {
     @Query('latitude') latitude?: string,
     @Query('longitude') longitude?: string,
   ) {
-    return this.riders.findAvailableOrdersNear(user.id, latitude, longitude);
+    return this.riders.findAvailableOrdersMerged(user.id, latitude, longitude);
+  }
+
+  /** First nearby rider to call this reserves the delivery while the store still prepares. */
+  @Post('me/accept-early-offer/:orderId')
+  async acceptEarlyOffer(@CurrentUser() user: User, @Param('orderId') orderId: string) {
+    return this.riders.acceptEarlyDeliveryOffer(user.id, orderId);
   }
 
   @Patch('me/location')

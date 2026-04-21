@@ -124,6 +124,7 @@ export function useOrdersRealtime(
 
       if (role === 'ADMIN') {
         socket.on('order:rider_self_claimed', refresh);
+        socket.on('admin:pipeline:updated', refresh);
       }
     } catch {
       // ignore
@@ -205,6 +206,8 @@ export function useRiderAssignmentRealtime(
       socket.on('order:updated', refresh);
       socket.on('pickup_pool:updated', refresh);
       socket.on('pickup:new', refresh);
+      socket.on('order:offer', refresh);
+      socket.on('order:offer_resolved', refresh);
       socket.on('rider:cod_wallet', refresh);
     } catch {
       // ignore

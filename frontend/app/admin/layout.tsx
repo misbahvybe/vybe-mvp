@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { NotificationsBell } from '@/components/notifications/NotificationsBell';
 import { NotificationsToasts } from '@/components/notifications/NotificationsToasts';
+import { AdminLivePipelineBadge } from '@/components/admin/AdminLivePipelineBadge';
 
 const NAV = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
@@ -105,7 +106,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           >
             <Menu className="w-6 h-6" />
           </button>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center">
+            <AdminLivePipelineBadge />
             <NotificationsBell compact />
           </div>
         </header>

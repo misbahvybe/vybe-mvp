@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/Button';
 import { Loader } from '@/components/ui/Loader';
 import api from '@/services/api';
 import type { Address } from '@/types';
+import { MIN_ORDER_SUBTOTAL_PKR } from '@/lib/orderMinimum';
 
 type OrderQuote = {
   subtotal: string;
@@ -33,7 +34,8 @@ function CheckoutContent() {
   const searchParams = useSearchParams();
   const token = useAuthStore((s) => s.token);
   const hasHydrated = useAuthStore((s) => s._hasHydrated);
-  const { items, storeId, total, clearCart } = useCartStore();
+  const { items, storeId, total: cartTotal, clearCart } = useCartStore();
+  const subtotalPkr = cartTotal();
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [payment, setPayment] = useState<'COD' | 'JAZZCASH' | 'EASYPAISA'>('COD');
@@ -53,6 +55,11 @@ function CheckoutContent() {
   useEffect(() => {
     if (!token || !storeId || !selectedAddressId || items.length === 0) {
       setQuote(null);
+      return;
+    }
+    if (subtotalPkr < MIN_ORDER_SUBTOTAL_PKR) {
+      setQuote(null);
+      setQuoteLoading(false);
       return;
     }
     let cancelled = false;
@@ -81,7 +88,7 @@ function CheckoutContent() {
     return () => {
       cancelled = true;
     };
-  }, [token, storeId, selectedAddressId, cartKey, items.length, payment]);
+  }, [token, storeId, selectedAddressId, cartKey, items.length, payment, subtotalPkr]);
 
   useEffect(() => {
     const err = searchParams?.get('error');
@@ -119,6 +126,10 @@ function CheckoutContent() {
   const placeOrder = async () => {
     if (!selectedAddressId || !storeId || items.length === 0) {
       setError('Select a delivery address and ensure cart is not empty.');
+      return;
+    }
+    if (subtotalPkr < MIN_ORDER_SUBTOTAL_PKR) {
+      setError(`Minimum order is Rs ${MIN_ORDER_SUBTOTAL_PKR}. Add more items to your cart.`);
       return;
     }
     setError('');
@@ -164,7 +175,11 @@ function CheckoutContent() {
     }
   };
 
-  const canPlaceOrder = selectedAddressId && items.length > 0 && addresses.length > 0;
+  const canPlaceOrder =
+    selectedAddressId &&
+    items.length > 0 &&
+    addresses.length > 0 &&
+    subtotalPkr >= MIN_ORDER_SUBTOTAL_PKR;
 
   if (!hasHydrated) return null;
   if (!token) return null;
@@ -260,6 +275,14 @@ function CheckoutContent() {
         </div>
 
         <h2 className="text-lg font-bold text-slate-800 mb-2">Order summary</h2>
+        {subtotalPkr < MIN_ORDER_SUBTOTAL_PKR && items.length > 0 && (
+          <Card className="mb-4 border-amber-200 bg-amber-50/80">
+            <p className="text-sm text-amber-900">
+              Minimum order is <span className="font-semibold">Rs {MIN_ORDER_SUBTOTAL_PKR}</span> (cart subtotal). Your
+              subtotal is Rs {subtotalPkr.toFixed(0)} — add more items to continue.
+            </p>
+          </Card>
+        )}
         <Card className="mb-4">
           {items.map((i) => (
             <div key={i.lineId} className="flex justify-between py-2 border-b border-slate-100 last:border-0">
@@ -273,7 +296,7 @@ function CheckoutContent() {
           ))}
           <div className="flex justify-between py-2 text-slate-600">
             <span>Subtotal</span>
-            <span>Rs {quote ? Number(quote.subtotal).toFixed(0) : total().toFixed(0)}</span>
+            <span>Rs {quote ? Number(quote.subtotal).toFixed(0) : subtotalPkr.toFixed(0)}</span>
           </div>
           <div className="flex justify-between py-2 text-slate-600">
             <span>Delivery fee</span>
@@ -316,7 +339,7 @@ function CheckoutContent() {
                 ? '…'
                 : quote
                   ? `Rs ${Number(quote.totalAmount).toFixed(0)}`
-                  : `Rs ${total().toFixed(0)}`}
+                  : `Rs ${subtotalPkr.toFixed(0)}`}
             </span>
           </div>
         </Card>

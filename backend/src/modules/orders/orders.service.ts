@@ -20,6 +20,7 @@ import { StoresService } from '../stores/stores.service';
 import { RidersService } from '../riders/riders.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { isStoreWithinPostedHours } from '../../common/store/store-hours.util';
+import { assertMinOrderSubtotalPkr } from '../../common/constants/order-minimum';
 
 /** Set `false` when Stripe / XPay keys are ready and clients show those options again. */
 const PAYMENTS_COD_ONLY = true;
@@ -308,6 +309,7 @@ export class OrdersService {
       }
       subtotal += item.quantity * serverPrice;
     }
+    assertMinOrderSubtotalPkr(subtotal);
     return { subtotal, productById, variantById };
   }
 
@@ -764,6 +766,8 @@ export class OrdersService {
           data: { orderId: order.o.id, storeId: order.o.storeId },
         });
       }
+      void this.riders.notifyNearbyRidersForNewOrder(order.o.id).catch(() => undefined);
+      this.ordersGateway.emitAdminPipelineUpdated();
     } else {
       const paidOrder = await this.prisma.order.findUnique({
         where: { id: order.o.id },
@@ -798,6 +802,8 @@ export class OrdersService {
             data: { orderId: paidOrder.id, storeId: paidOrder.storeId },
           });
         }
+        void this.riders.notifyNearbyRidersForNewOrder(paidOrder.id).catch(() => undefined);
+        this.ordersGateway.emitAdminPipelineUpdated();
       }
     }
 
@@ -873,6 +879,10 @@ export class OrdersService {
       );
     }
 
+    if (toStatus === OrderStatus.PICKED_UP && role === Role.RIDER && !order.riderArrivedAt) {
+      throw new BadRequestException('Mark “Arrived” at the restaurant before pickup.');
+    }
+
     if (isRiderSelfClaim) {
       await this.riders.assertRiderCanSelfClaimPickup(userId, orderId);
       const rider = await this.prisma.user.findFirst({
@@ -884,6 +894,8 @@ export class OrdersService {
           riderId: userId,
           orderStatus: {
             in: [
+              OrderStatus.PENDING,
+              OrderStatus.STORE_ACCEPTED,
               OrderStatus.READY_FOR_PICKUP,
               OrderStatus.RIDER_ASSIGNED,
               OrderStatus.RIDER_ACCEPTED,
@@ -956,6 +968,7 @@ export class OrdersService {
         order.riderId,
       );
       this.ordersGateway.emitPickupPoolUpdated();
+      this.ordersGateway.emitAdminPipelineUpdated();
       return updated;
     }
 
@@ -967,6 +980,7 @@ export class OrdersService {
       orderStatus: OrderStatus;
       riderId?: string | null;
       riderSelfAssigned?: boolean;
+      riderArrivedAt?: Date | null;
       cancellationReason?: import('@prisma/client').CancellationReason;
       cancelledByRole?: Role;
     } = { orderStatus: toStatus };
@@ -1006,10 +1020,14 @@ export class OrdersService {
       if (!rider) throw new BadRequestException('Rider not found');
       updateData.riderId = dto.riderId;
       updateData.riderSelfAssigned = false;
+      if (order.riderId !== dto.riderId) {
+        updateData.riderArrivedAt = null;
+      }
     }
     if (toStatus === 'READY_FOR_PICKUP' && order.orderStatus === 'RIDER_ASSIGNED') {
       updateData.riderId = null;
       updateData.riderSelfAssigned = false;
+      updateData.riderArrivedAt = null;
     }
     if (toStatus === 'CANCELLED') {
       updateData.cancellationReason = (dto.cancellationReason as import('@prisma/client').CancellationReason) ?? (role === 'CUSTOMER' ? 'CUSTOMER_CANCELLED' : role === 'STORE_OWNER' ? 'STORE_REJECTED' : 'ADMIN_CANCELLED');
@@ -1110,11 +1128,56 @@ export class OrdersService {
       await this.riders.emitCodWalletSnapshotForRider(updated.riderId);
     }
 
+    this.ordersGateway.emitAdminPipelineUpdated();
+
     return updated;
   }
 
   getAllowedTransitions(fromStatus: OrderStatus, role: Role) {
     return getAllowedTransitions(fromStatus, role);
+  }
+
+  /** Rider confirms they are at the pickup location (required before marking picked up). */
+  async markRiderArrived(orderId: string, riderId: string, role: Role) {
+    if (role !== Role.RIDER) throw new ForbiddenException('Riders only');
+    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) throw new ForbiddenException('Order not found');
+    if (order.riderId !== riderId) throw new ForbiddenException('Order not found');
+    if (order.riderArrivedAt) {
+      return this.findById(orderId);
+    }
+    const canMark =
+      order.orderStatus === OrderStatus.RIDER_ACCEPTED ||
+      ((order.orderStatus === OrderStatus.PENDING || order.orderStatus === OrderStatus.STORE_ACCEPTED) &&
+        order.riderId != null);
+    if (!canMark) {
+      throw new BadRequestException(
+        'Accept the assignment first, then mark arrived when you are at the restaurant.',
+      );
+    }
+    const updated = await this.prisma.order.update({
+      where: { id: orderId },
+      data: { riderArrivedAt: new Date() },
+      include: {
+        store: true,
+        address: true,
+        customer: { select: { name: true, phone: true } },
+        rider: { select: { name: true, phone: true } },
+        items: { include: { product: true } },
+        statusHistory: { orderBy: { createdAt: 'asc' } },
+      },
+    });
+    this.ordersGateway.emitOrderUpdated(
+      {
+        orderId: updated.id,
+        orderStatus: updated.orderStatus,
+        storeId: updated.storeId,
+        customerId: updated.customerId,
+        riderId: updated.riderId,
+      },
+      order.riderId,
+    );
+    return updated;
   }
 
   /** Resolves store for owner, bootstrapping a Store row when missing (legacy accounts). */
@@ -1218,6 +1281,7 @@ export class OrdersService {
         data: {
           riderId: newRiderId,
           riderSelfAssigned: false,
+          riderArrivedAt: null,
           ...(advanceFromPickupPool ? { orderStatus: OrderStatus.RIDER_ASSIGNED } : {}),
         },
       });

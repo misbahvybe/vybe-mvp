@@ -65,6 +65,11 @@ export class AdminController {
     return this.admin.getAlerts();
   }
 
+  @Get('orders/live/count')
+  async getLiveOrderCount(@CurrentUser() _user: User) {
+    return this.admin.getLiveOrderCount();
+  }
+
   @Get('orders/live')
   async getLiveOrders(@CurrentUser() _user: User) {
     return this.admin.getLiveOrders();

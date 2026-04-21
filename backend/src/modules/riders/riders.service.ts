@@ -5,6 +5,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { WithdrawService } from '../withdraw/withdraw.service';
 import { haversineDistanceKm } from '../../common/geo/haversine';
 import { OrdersGateway } from '../realtime/orders.gateway';
+import { NotificationsService } from '../notifications/notifications.service';
 import {
   RIDER_COD_COLLECTION_LIMIT_PKR,
   RIDER_NEARBY_ORDER_RADIUS_KM,
@@ -33,12 +34,24 @@ function pickRefLatLng(
   return null;
 }
 
+const EARLY_OFFER_STATUSES: OrderStatus[] = [OrderStatus.PENDING, OrderStatus.STORE_ACCEPTED];
+
+const ACTIVE_RIDER_ORDER_STATUSES: OrderStatus[] = [
+  OrderStatus.PENDING,
+  OrderStatus.STORE_ACCEPTED,
+  OrderStatus.READY_FOR_PICKUP,
+  OrderStatus.RIDER_ASSIGNED,
+  OrderStatus.RIDER_ACCEPTED,
+  OrderStatus.PICKED_UP,
+];
+
 @Injectable()
 export class RidersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly withdraw: WithdrawService,
     private readonly ordersGateway: OrdersGateway,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /** Every rider endpoint should tolerate missing profile (legacy / race on first login). */
@@ -311,6 +324,112 @@ export class RidersService {
   }
 
   /**
+   * Orders still at the restaurant (pre-ready) with no captain yet — first nearby rider to accept is reserved.
+   */
+  async findEarlyOffersNear(riderId: string, latStr?: string, lngStr?: string) {
+    await this.ensureRiderProfile(riderId);
+    const riderProf = await this.prisma.riderProfile.findUnique({
+      where: { userId: riderId },
+      select: {
+        isBlocked: true,
+        currentCollectedAmount: true,
+        currentLatitude: true,
+        currentLongitude: true,
+      },
+    });
+    if (
+      riderProf?.isBlocked ||
+      (riderProf != null && Number(riderProf.currentCollectedAmount) >= RIDER_COD_COLLECTION_LIMIT_PKR)
+    ) {
+      return [];
+    }
+
+    let lat = parseCoord(latStr);
+    let lng = parseCoord(lngStr);
+    if (lat == null || lng == null) {
+      if (riderProf?.currentLatitude != null && riderProf?.currentLongitude != null) {
+        lat = Number(riderProf.currentLatitude);
+        lng = Number(riderProf.currentLongitude);
+      }
+    }
+
+    const radiusKm = RIDER_NEARBY_ORDER_RADIUS_KM;
+    const hasCoords = lat != null && lng != null;
+    const deltaLat = radiusKm / 111;
+    const cos = hasCoords ? Math.cos((Number(lat) * Math.PI) / 180) : 1;
+    const deltaLng = radiusKm / (111 * Math.max(0.2, cos));
+
+    const orders = await this.prisma.order.findMany({
+      where: {
+        orderStatus: { in: [OrderStatus.PENDING, OrderStatus.STORE_ACCEPTED] },
+        riderId: null,
+        ...(hasCoords
+          ? {
+              store: {
+                latitude: { not: null, gte: new Decimal(Number(lat) - deltaLat), lte: new Decimal(Number(lat) + deltaLat) },
+                longitude: { not: null, gte: new Decimal(Number(lng) - deltaLng), lte: new Decimal(Number(lng) + deltaLng) },
+              },
+            }
+          : {}),
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 80,
+      include: {
+        store: {
+          select: {
+            id: true,
+            name: true,
+            address: true,
+            latitude: true,
+            longitude: true,
+            phone: true,
+          },
+        },
+        address: true,
+        customer: { select: { name: true, phone: true } },
+        items: { include: { product: { select: { name: true } } } },
+      },
+    });
+
+    const rows = orders.map((o) => {
+      const ref = pickRefLatLng(o.store, o.address);
+      let distanceKm: number | null = null;
+      if (lat != null && lng != null && ref) {
+        distanceKm = Math.round(haversineDistanceKm(lat, lng, ref.lat, ref.lng) * 100) / 100;
+      }
+      return {
+        id: o.id,
+        orderStatus: o.orderStatus,
+        createdAt: o.createdAt,
+        totalAmount: Number(o.totalAmount),
+        paymentMethod: o.paymentMethod,
+        deliveryFee: Number(o.deliveryFee),
+        distanceKm,
+        store: o.store,
+        address: o.address,
+        customer: o.customer,
+        items: o.items,
+        offerKind: 'EARLY' as const,
+      };
+    });
+
+    const inRange = rows.filter((r) => {
+      if (r.distanceKm == null) return false;
+      return r.distanceKm <= radiusKm;
+    });
+
+    if (lat != null && lng != null) {
+      inRange.sort((a, b) => {
+        const da = a.distanceKm ?? 1e9;
+        const db = b.distanceKm ?? 1e9;
+        return da - db;
+      });
+    }
+
+    return inRange;
+  }
+
+  /**
    * Open pickup pool: READY_FOR_PICKUP, no rider. Sorted by distance when coords known.
    * Only orders within {@link RIDER_NEARBY_ORDER_RADIUS_KM} km; blocked riders see none.
    */
@@ -398,6 +517,7 @@ export class RidersService {
         address: o.address,
         customer: o.customer,
         items: o.items,
+        offerKind: 'PICKUP' as const,
       };
     });
 
@@ -415,6 +535,17 @@ export class RidersService {
     }
 
     return inRange;
+  }
+
+  /**
+   * Merged list: early delivery offers (order just placed / preparing) + classic ready-for-pickup pool.
+   */
+  async findAvailableOrdersMerged(riderId: string, latStr?: string, lngStr?: string) {
+    const [early, pickup] = await Promise.all([
+      this.findEarlyOffersNear(riderId, latStr, lngStr),
+      this.findAvailableOrdersNear(riderId, latStr, lngStr),
+    ]);
+    return [...early, ...pickup];
   }
 
   async updateLocation(riderId: string, latitude: number, longitude: number) {
@@ -494,5 +625,200 @@ export class RidersService {
 
     rows.sort((a, b) => a.distanceKm - b.distanceKm);
     return rows;
+  }
+
+  /**
+   * Same geo as pickup matching, but for orders still in the kitchen queue (no rider yet).
+   */
+  async findNearbyRidersForEarlyOffer(orderId: string): Promise<{ riderId: string; distanceKm: number; storeId: string }[]> {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        store: { select: { id: true, latitude: true, longitude: true } },
+        address: { select: { latitude: true, longitude: true } },
+      },
+    });
+    if (!order) return [];
+    if (order.riderId) return [];
+    if (!EARLY_OFFER_STATUSES.includes(order.orderStatus)) return [];
+
+    const ref = pickRefLatLng(order.store, order.address);
+    if (!ref) return [];
+
+    const radiusKm = RIDER_NEARBY_ORDER_RADIUS_KM;
+    const deltaLat = radiusKm / 111;
+    const cos = Math.cos((ref.lat * Math.PI) / 180);
+    const deltaLng = radiusKm / (111 * Math.max(0.2, cos));
+
+    const candidates = await this.prisma.riderProfile.findMany({
+      where: {
+        isAvailable: true,
+        isBlocked: false,
+        currentLatitude: { not: null, gte: new Decimal(ref.lat - deltaLat), lte: new Decimal(ref.lat + deltaLat) },
+        currentLongitude: { not: null, gte: new Decimal(ref.lng - deltaLng), lte: new Decimal(ref.lng + deltaLng) },
+      },
+      select: { userId: true, currentLatitude: true, currentLongitude: true, currentCollectedAmount: true },
+      take: 150,
+    });
+
+    const rows: { riderId: string; distanceKm: number; storeId: string }[] = [];
+    for (const c of candidates) {
+      const collected = Number(c.currentCollectedAmount ?? 0);
+      if (collected >= RIDER_COD_COLLECTION_LIMIT_PKR) continue;
+      const lat = c.currentLatitude != null ? Number(c.currentLatitude) : null;
+      const lng = c.currentLongitude != null ? Number(c.currentLongitude) : null;
+      if (lat == null || lng == null) continue;
+      const d = haversineDistanceKm(lat, lng, ref.lat, ref.lng);
+      if (d > radiusKm) continue;
+      rows.push({ riderId: c.userId, distanceKm: Math.round(d * 100) / 100, storeId: order.store.id });
+    }
+
+    rows.sort((a, b) => a.distanceKm - b.distanceKm);
+    return rows;
+  }
+
+  /** Call right after a customer order is created (same realtime path as store). */
+  async notifyNearbyRidersForNewOrder(orderId: string): Promise<{ notified: number }> {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        store: { select: { id: true } },
+        customer: { select: { name: true, phone: true } },
+      },
+    });
+    if (!order || order.riderId) return { notified: 0 };
+    if (!EARLY_OFFER_STATUSES.includes(order.orderStatus)) return { notified: 0 };
+
+    const nearby = await this.findNearbyRidersForEarlyOffer(orderId);
+    for (const r of nearby) {
+      this.ordersGateway.emitOrderOfferToRider(r.riderId, {
+        orderId: order.id,
+        storeId: order.storeId,
+        orderStatus: order.orderStatus,
+        createdAt: order.createdAt.toISOString(),
+        totalAmount: order.totalAmount.toString(),
+        distanceKm: r.distanceKm,
+        customer: {
+          name: order.customer?.name ?? '',
+          phone: order.customer?.phone ?? '',
+        },
+      });
+    }
+    this.ordersGateway.emitPickupPoolUpdated();
+    return { notified: nearby.length };
+  }
+
+  async assertRiderCanAcceptEarlyOffer(riderId: string, orderId: string): Promise<void> {
+    await this.ensureRiderProfile(riderId);
+    const profile = await this.prisma.riderProfile.findUniqueOrThrow({
+      where: { userId: riderId },
+      select: {
+        isBlocked: true,
+        currentLatitude: true,
+        currentLongitude: true,
+        currentCollectedAmount: true,
+      },
+    });
+    if (
+      profile.isBlocked ||
+      Number(profile.currentCollectedAmount ?? 0) >= RIDER_COD_COLLECTION_LIMIT_PKR
+    ) {
+      throw new BadRequestException(
+        'Cash collection limit reached. Deposit with admin before accepting new pickups.',
+      );
+    }
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        store: { select: { latitude: true, longitude: true } },
+        address: { select: { latitude: true, longitude: true } },
+      },
+    });
+    if (!order) throw new BadRequestException('Order not found');
+    if (!EARLY_OFFER_STATUSES.includes(order.orderStatus) || order.riderId) {
+      throw new BadRequestException('Order is no longer available for early assignment');
+    }
+    const lat = profile.currentLatitude != null ? Number(profile.currentLatitude) : null;
+    const lng = profile.currentLongitude != null ? Number(profile.currentLongitude) : null;
+    if (lat == null || lng == null) {
+      throw new BadRequestException('Set your location first (GPS) to accept orders within range.');
+    }
+    const ref = pickRefLatLng(order.store, order.address);
+    if (!ref) {
+      throw new BadRequestException('Pickup location unavailable for distance check.');
+    }
+    const d = haversineDistanceKm(lat, lng, ref.lat, ref.lng);
+    if (d > RIDER_NEARBY_ORDER_RADIUS_KM) {
+      throw new BadRequestException(
+        `You must be within ${RIDER_NEARBY_ORDER_RADIUS_KM} km of the pickup to accept this order.`,
+      );
+    }
+  }
+
+  /**
+   * First rider wins (atomic update). Restaurant keeps preparing; captain is reserved for delivery.
+   */
+  async acceptEarlyDeliveryOffer(riderId: string, orderId: string) {
+    await this.assertRiderCanAcceptEarlyOffer(riderId, orderId);
+    const busy = await this.prisma.order.count({
+      where: {
+        riderId,
+        orderStatus: { in: ACTIVE_RIDER_ORDER_STATUSES },
+      },
+    });
+    if (busy > 0) {
+      throw new BadRequestException('Finish or release your current order before accepting another.');
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const res = await tx.order.updateMany({
+        where: {
+          id: orderId,
+          riderId: null,
+          orderStatus: { in: [OrderStatus.PENDING, OrderStatus.STORE_ACCEPTED] },
+        },
+        data: { riderId },
+      });
+      if (res.count === 0) {
+        throw new BadRequestException('Order is no longer available');
+      }
+      return tx.order.findUniqueOrThrow({
+        where: { id: orderId },
+        include: {
+          store: { select: { id: true, name: true, ownerId: true } },
+          address: true,
+          customer: { select: { name: true, phone: true } },
+          items: { include: { product: true } },
+        },
+      });
+    });
+
+    const ownerId = updated.store?.ownerId;
+    if (ownerId) {
+      await this.notifications.create({
+        userId: ownerId,
+        type: 'RIDER_RESERVED',
+        title: `Captain reserved for order (#${(updated as { orderNumber?: number }).orderNumber ?? updated.id.slice(-8)})`,
+        body: 'A rider accepted early — they will head to you when the order is ready.',
+        data: { orderId: updated.id, storeId: updated.storeId, riderId },
+      });
+    }
+
+    this.ordersGateway.emitOrderOfferResolved(orderId, riderId);
+    this.ordersGateway.emitOrderUpdated(
+      {
+        orderId: updated.id,
+        orderStatus: updated.orderStatus,
+        storeId: updated.storeId,
+        customerId: updated.customerId,
+        riderId,
+      },
+      null,
+    );
+    this.ordersGateway.emitPickupPoolUpdated();
+    this.ordersGateway.emitAdminPipelineUpdated();
+    this.ordersGateway.emitRiderAssigned(riderId, updated.id);
+
+    return updated;
   }
 }

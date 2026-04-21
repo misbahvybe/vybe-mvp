@@ -162,6 +162,35 @@ export class OrdersGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.to('riders:pickup_pool').emit('pickup_pool:updated', { at: new Date().toISOString() });
   }
 
+  /**
+   * New order just placed — nearby riders get an instant offer (early assignment flow).
+   * Stops for others when someone accepts (see `emitOrderOfferResolved`).
+   */
+  emitOrderOfferToRider(
+    riderId: string,
+    payload: {
+      orderId: string;
+      storeId: string;
+      orderStatus: string;
+      createdAt: string;
+      totalAmount: string;
+      distanceKm: number;
+      customer: { name: string; phone: string };
+    },
+  ): void {
+    this.server.to(`rider:${riderId}`).emit('order:offer', payload);
+  }
+
+  /** First rider accepted — others should drop this offer from UI and silence alarms. */
+  emitOrderOfferResolved(orderId: string, acceptedByRiderId: string): void {
+    this.server.to('riders:pickup_pool').emit('order:offer_resolved', { orderId, acceptedByRiderId });
+  }
+
+  /** Admin dashboards: cheap tick to refetch live pipeline counts/lists without polling. */
+  emitAdminPipelineUpdated(): void {
+    this.server.to('admin:orders').emit('admin:pipeline:updated', { at: new Date().toISOString() });
+  }
+
   /** Specific nearby pickup offer — lets rider refresh immediately. */
   emitPickupNew(riderId: string, payload: { orderId: string; storeId: string; at: string; distanceKm?: number | null }): void {
     this.server.to(`rider:${riderId}`).emit('pickup:new', payload);

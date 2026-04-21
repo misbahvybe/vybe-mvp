@@ -7,26 +7,20 @@ import { ContentPanel } from '@/components/layout/ContentPanel';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Loader } from '@/components/ui/Loader';
-import {
-  Package,
-  MapPin,
-  Banknote,
-  CreditCard,
-  ExternalLink,
-  Wallet,
-  Check,
-  X,
-} from 'lucide-react';
+import { Package, Banknote, CreditCard, ExternalLink, Wallet } from 'lucide-react';
 import api from '@/services/api';
 import { useAuthStore } from '@/store/authStore';
 import { useRiderAssignmentRealtime } from '@/hooks/useOrdersRealtime';
 import { useLoopingOrderAlarm } from '@/hooks/useLoopingOrderAlarm';
+import { RiderDeliveryPanel } from '@/components/rider/RiderDeliveryPanel';
 
 const DELIVERY_FEE = 150; // Rider earns delivery fee per order
 
 interface Order {
   id: string;
+  orderNumber?: number;
   orderStatus: string;
+  riderArrivedAt?: string | null;
   createdAt: string;
   totalAmount: number;
   paymentMethod?: string;
@@ -44,6 +38,21 @@ interface AvailableOrder {
   store?: { name: string; address?: string };
   address?: { fullAddress: string };
   customer?: { name: string };
+  /** EARLY = reserve delivery while kitchen prepares; PICKUP = classic ready pool. */
+  offerKind?: 'EARLY' | 'PICKUP';
+}
+
+const DISMISS_EARLY_KEY = 'vybe_dismissed_early_offers';
+
+function loadDismissedEarlyIds(): Set<string> {
+  if (typeof window === 'undefined') return new Set();
+  try {
+    const raw = sessionStorage.getItem(DISMISS_EARLY_KEY);
+    const a = raw ? (JSON.parse(raw) as unknown) : [];
+    return new Set(Array.isArray(a) ? a.map(String) : []);
+  } catch {
+    return new Set();
+  }
 }
 
 interface RiderDashboard {
@@ -79,14 +88,23 @@ interface RiderEarnings {
   }[];
 }
 
-const RIDER_ACTIVE_STATUSES = ['READY_FOR_PICKUP', 'RIDER_ASSIGNED', 'RIDER_ACCEPTED', 'PICKED_UP'];
+const RIDER_ACTIVE_STATUSES = [
+  'PENDING',
+  'STORE_ACCEPTED',
+  'READY_FOR_PICKUP',
+  'RIDER_ASSIGNED',
+  'RIDER_ACCEPTED',
+  'PICKED_UP',
+];
 
 function sortRiderActive(a: Order, b: Order) {
   const prio: Record<string, number> = {
     RIDER_ACCEPTED: 0,
     PICKED_UP: 1,
     RIDER_ASSIGNED: 2,
-    READY_FOR_PICKUP: 2,
+    READY_FOR_PICKUP: 3,
+    STORE_ACCEPTED: 4,
+    PENDING: 4,
   };
   return (prio[a.orderStatus] ?? 99) - (prio[b.orderStatus] ?? 99);
 }
@@ -114,6 +132,7 @@ export default function RiderDashboardPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [availableOrders, setAvailableOrders] = useState<AvailableOrder[]>([]);
   const [availLoading, setAvailLoading] = useState(false);
+  const [dismissedEarlyIds, setDismissedEarlyIds] = useState<Set<string>>(new Set());
 
   const fetchAvailable = useCallback(async () => {
     setAvailLoading(true);
@@ -181,6 +200,9 @@ export default function RiderDashboardPage() {
 
   useEffect(() => fetchData(), [fetchData]);
   useEffect(() => {
+    setDismissedEarlyIds(loadDismissedEarlyIds());
+  }, []);
+  useEffect(() => {
     if (tab === 'earnings') fetchEarnings();
   }, [tab, fetchEarnings]);
 
@@ -190,7 +212,12 @@ export default function RiderDashboardPage() {
 
   useRiderAssignmentRealtime(user?.role === 'RIDER', token, refreshRiderHome);
 
-  const riderNeedsAcceptOrDecline = useMemo(() => {
+  const hasUndismissedEarlyOffer = useMemo(() => {
+    if (tab !== 'dashboard') return false;
+    return availableOrders.some((o) => o.offerKind === 'EARLY' && !dismissedEarlyIds.has(o.id));
+  }, [tab, availableOrders, dismissedEarlyIds]);
+
+  const riderNeedsPickupAck = useMemo(() => {
     if (tab !== 'dashboard') return false;
     const act = orders.filter((o) => RIDER_ACTIVE_STATUSES.includes(o.orderStatus));
     const sorted = [...act].sort(sortRiderActive);
@@ -198,7 +225,23 @@ export default function RiderDashboardPage() {
     if (!ao) return false;
     return ao.orderStatus === 'RIDER_ASSIGNED' || ao.orderStatus === 'READY_FOR_PICKUP';
   }, [tab, orders]);
-  const { stopAlarm: stopRiderAlarm } = useLoopingOrderAlarm(Boolean(token && riderNeedsAcceptOrDecline));
+
+  const { stopAlarm: stopRiderAlarm } = useLoopingOrderAlarm(
+    Boolean(token && (hasUndismissedEarlyOffer || riderNeedsPickupAck)),
+  );
+
+  const dismissEarlyOffer = (orderId: string) => {
+    setDismissedEarlyIds((prev) => {
+      const n = new Set(prev);
+      n.add(orderId);
+      try {
+        sessionStorage.setItem(DISMISS_EARLY_KEY, JSON.stringify([...n]));
+      } catch {
+        // ignore
+      }
+      return n;
+    });
+  };
 
   const setAvailable = async (isAvailable: boolean) => {
     try {
@@ -220,6 +263,29 @@ export default function RiderDashboardPage() {
     } finally {
       setActionLoading(null);
     }
+  };
+
+  const markArrivedAtRestaurant = async (orderId: string) => {
+    stopRiderAlarm();
+    setActionLoading(orderId);
+    try {
+      await api.post(`/orders/${orderId}/rider/arrived`);
+      fetchData();
+    } catch (e) {
+      alert((e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Could not save');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const confirmPickup = (orderId: string) => {
+    if (!confirm('Have you collected the full order from the restaurant?')) return;
+    void updateStatus(orderId, 'PICKED_UP');
+  };
+
+  const confirmDeliver = (orderId: string) => {
+    if (!confirm('Hand the order to the customer and confirm delivery.')) return;
+    void updateStatus(orderId, 'DELIVERED');
   };
 
   const claimOpenOrder = async (orderId: string) => {
@@ -254,6 +320,31 @@ export default function RiderDashboardPage() {
   const sortedActive = [...active].sort(sortRiderActive);
   const activeOrder = sortedActive[0];
   const assignedOrders = sortedActive.slice(1);
+
+  const acceptEarlyOffer = async (orderId: string) => {
+    if (dashboard?.cod?.isBlocked) {
+      alert(
+        dashboard.cod.warningMessage ??
+          'Deposit collected cash with admin to receive new orders.',
+      );
+      return;
+    }
+    if (activeOrder) {
+      alert('Finish your current delivery before accepting another.');
+      return;
+    }
+    stopRiderAlarm();
+    setActionLoading(orderId);
+    try {
+      await api.post(`/riders/me/accept-early-offer/${orderId}`);
+      dismissEarlyOffer(orderId);
+      fetchData();
+    } catch (e) {
+      alert((e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Could not accept offer');
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -378,60 +469,128 @@ export default function RiderDashboardPage() {
                 </p>
               </Card>
 
-              <div className="mb-6">
-                <h2 className="text-sm font-semibold text-slate-600 uppercase tracking-wide mb-1">
-                  Nearest pickup offers
-                </h2>
-                <p className="text-xs text-slate-500 mb-3">
-                  Within 2 km of pickup only — pick to claim. Admin sees self-picked orders.
-                </p>
-                {availLoading && availableOrders.length === 0 ? (
-                  <div className="flex justify-center py-8">
-                    <Loader size={44} />
-                  </div>
-                ) : availableOrders.length === 0 ? (
-                  <Card className="p-4 text-center text-sm text-slate-500">No open pickup orders.</Card>
-                ) : (
-                  <div className="space-y-2">
-                    {availableOrders.slice(0, 8).map((o) => (
-                      <Card key={o.id} className="p-4 flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="font-semibold text-slate-800 truncate">{o.store?.name ?? 'Store'}</p>
-                          <p className="text-sm text-slate-600 truncate">
-                            {o.customer?.name ?? 'Customer'} · Rs {Number(o.totalAmount).toLocaleString()}
-                          </p>
-                          {o.distanceKm != null && (
-                            <p className="text-xs text-green-700 font-medium mt-1">~{o.distanceKm} km</p>
-                          )}
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="primary"
-                          disabled={
-                            !!actionLoading || !!activeOrder || !!dashboard?.cod?.isBlocked
-                          }
-                          loading={actionLoading === o.id}
-                          onClick={() => {
-                            if (dashboard?.cod?.isBlocked) {
-                              alert(
-                                dashboard.cod.warningMessage ??
-                                  'Deposit collected cash with admin to receive new orders.',
-                              );
-                              return;
-                            }
-                            if (activeOrder) {
-                              alert('Finish your current delivery before picking another.');
-                              return;
-                            }
-                            void claimOpenOrder(o.id);
-                          }}
-                        >
-                          Pick
-                        </Button>
-                      </Card>
-                    ))}
-                  </div>
-                )}
+              <div className="mb-6 space-y-6">
+                <div>
+                  <h2 className="text-sm font-semibold text-slate-600 uppercase tracking-wide mb-1">
+                    Early delivery (kitchen preparing)
+                  </h2>
+                  <p className="text-xs text-slate-500 mb-3">
+                    New orders within 2 km — first captain to accept is reserved. Alarm stops when you accept or decline.
+                  </p>
+                  {availLoading && availableOrders.filter((x) => x.offerKind === 'EARLY').length === 0 ? (
+                    <div className="flex justify-center py-6">
+                      <Loader size={36} />
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {availableOrders
+                        .filter((o) => o.offerKind === 'EARLY' && !dismissedEarlyIds.has(o.id))
+                        .slice(0, 8)
+                        .map((o) => (
+                          <Card
+                            key={o.id}
+                            className="p-4 flex flex-wrap items-center justify-between gap-3 border-2 border-amber-200 bg-amber-50/40"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-amber-800 uppercase">Early offer</p>
+                              <p className="font-semibold text-slate-800 truncate">{o.store?.name ?? 'Store'}</p>
+                              <p className="text-sm text-slate-600 truncate">
+                                {o.customer?.name ?? 'Customer'} · Rs {Number(o.totalAmount).toLocaleString()}
+                              </p>
+                              {o.distanceKm != null && (
+                                <p className="text-xs text-green-700 font-medium mt-1">~{o.distanceKm} km</p>
+                              )}
+                            </div>
+                            <div className="flex gap-2 shrink-0">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                type="button"
+                                disabled={!!actionLoading}
+                                onClick={() => {
+                                  dismissEarlyOffer(o.id);
+                                  stopRiderAlarm();
+                                }}
+                              >
+                                Decline
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="primary"
+                                disabled={!!actionLoading || !!activeOrder || !!dashboard?.cod?.isBlocked}
+                                loading={actionLoading === o.id}
+                                onClick={() => void acceptEarlyOffer(o.id)}
+                              >
+                                Accept
+                              </Button>
+                            </div>
+                          </Card>
+                        ))}
+                      {availableOrders.filter((o) => o.offerKind === 'EARLY' && !dismissedEarlyIds.has(o.id))
+                        .length === 0 && !availLoading ? (
+                        <Card className="p-4 text-center text-sm text-slate-500">No early offers right now.</Card>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <h2 className="text-sm font-semibold text-slate-600 uppercase tracking-wide mb-1">
+                    Ready for pickup (open pool)
+                  </h2>
+                  <p className="text-xs text-slate-500 mb-3">
+                    Food is ready — pick to claim if no early captain took it. Within 2 km only.
+                  </p>
+                  {availLoading && availableOrders.filter((x) => x.offerKind === 'PICKUP').length === 0 ? (
+                    <div className="flex justify-center py-6">
+                      <Loader size={36} />
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {availableOrders
+                        .filter((o) => o.offerKind === 'PICKUP')
+                        .slice(0, 8)
+                        .map((o) => (
+                          <Card key={o.id} className="p-4 flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="font-semibold text-slate-800 truncate">{o.store?.name ?? 'Store'}</p>
+                              <p className="text-sm text-slate-600 truncate">
+                                {o.customer?.name ?? 'Customer'} · Rs {Number(o.totalAmount).toLocaleString()}
+                              </p>
+                              {o.distanceKm != null && (
+                                <p className="text-xs text-green-700 font-medium mt-1">~{o.distanceKm} km</p>
+                              )}
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="primary"
+                              disabled={!!actionLoading || !!activeOrder || !!dashboard?.cod?.isBlocked}
+                              loading={actionLoading === o.id}
+                              onClick={() => {
+                                if (dashboard?.cod?.isBlocked) {
+                                  alert(
+                                    dashboard.cod.warningMessage ??
+                                      'Deposit collected cash with admin to receive new orders.',
+                                  );
+                                  return;
+                                }
+                                if (activeOrder) {
+                                  alert('Finish your current delivery before picking another.');
+                                  return;
+                                }
+                                void claimOpenOrder(o.id);
+                              }}
+                            >
+                              Pick
+                            </Button>
+                          </Card>
+                        ))}
+                      {availableOrders.filter((o) => o.offerKind === 'PICKUP').length === 0 && !availLoading ? (
+                        <Card className="p-4 text-center text-sm text-slate-500">No open pickup orders.</Card>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {loading ? (
@@ -444,7 +603,15 @@ export default function RiderDashboardPage() {
                     <p className="text-sm font-bold text-primary">ACTIVE ORDER</p>
                   </div>
                   <div className="p-4 space-y-4">
-                    <p className="font-bold text-lg text-slate-800">Order #{activeOrder.id.slice(-8).toUpperCase()}</p>
+                    <p className="font-bold text-lg text-slate-800">
+                      Order #{activeOrder.orderNumber ?? activeOrder.id.slice(-8).toUpperCase()}
+                    </p>
+                    {(activeOrder.orderStatus === 'PENDING' || activeOrder.orderStatus === 'STORE_ACCEPTED') && (
+                      <p className="text-sm rounded-lg bg-sky-50 border border-sky-200 text-sky-900 px-3 py-2">
+                        You are reserved for this delivery. Head toward the restaurant — when they mark the order ready,
+                        confirm pickup below.
+                      </p>
+                    )}
                     <div>
                       <p className="text-xs text-slate-500 uppercase mb-1">Pickup</p>
                       <p className="font-semibold">{activeOrder.store?.name ?? 'Store'}</p>
@@ -484,75 +651,16 @@ export default function RiderDashboardPage() {
                         </>
                       )}
                     </div>
-                    <div className="flex gap-3 pt-2">
-                      {(activeOrder.orderStatus === 'RIDER_ASSIGNED' ||
-                        activeOrder.orderStatus === 'READY_FOR_PICKUP') && (
-                        <>
-                          <Button
-                            size="lg"
-                            fullWidth
-                            loading={actionLoading === activeOrder.id}
-                            onClick={() => updateStatus(activeOrder.id, 'RIDER_ACCEPTED')}
-                          >
-                            <Check className="w-5 h-5 mr-2 inline" /> Accept Order
-                          </Button>
-                          {activeOrder.orderStatus === 'RIDER_ASSIGNED' && (
-                            <Button
-                              size="lg"
-                              variant="outline"
-                              disabled={!!actionLoading}
-                              onClick={() => updateStatus(activeOrder.id, 'READY_FOR_PICKUP')}
-                            >
-                              <X className="w-5 h-5" />
-                            </Button>
-                          )}
-                        </>
-                      )}
-                      {activeOrder.orderStatus === 'RIDER_ACCEPTED' && (
-                        <>
-                          <a
-                            href={googleMapsUrl(activeOrder.store?.latitude, activeOrder.store?.longitude, activeOrder.store?.address)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex-1"
-                          >
-                            <Button variant="outline" size="lg" fullWidth>
-                              <MapPin className="w-5 h-5 mr-2 inline" /> Navigate to Store
-                            </Button>
-                          </a>
-                          <Button
-                            size="lg"
-                            fullWidth
-                            loading={actionLoading === activeOrder.id}
-                            onClick={() => updateStatus(activeOrder.id, 'PICKED_UP')}
-                          >
-                            Mark Picked Up
-                          </Button>
-                        </>
-                      )}
-                      {activeOrder.orderStatus === 'PICKED_UP' && (
-                        <>
-                          <a
-                            href={googleMapsUrl(activeOrder.address?.latitude, activeOrder.address?.longitude, activeOrder.address?.fullAddress)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex-1"
-                          >
-                            <Button variant="outline" size="lg" fullWidth>
-                              <MapPin className="w-5 h-5 mr-2 inline" /> Navigate to Customer
-                            </Button>
-                          </a>
-                          <Button
-                            size="lg"
-                            fullWidth
-                            loading={actionLoading === activeOrder.id}
-                            onClick={() => updateStatus(activeOrder.id, 'DELIVERED')}
-                          >
-                            Mark Delivered
-                          </Button>
-                        </>
-                      )}
-                    </div>
+                    <RiderDeliveryPanel
+                      order={activeOrder}
+                      riderId={user?.id ?? ''}
+                      loading={!!actionLoading && actionLoading === activeOrder.id}
+                      onAccept={() => updateStatus(activeOrder.id, 'RIDER_ACCEPTED')}
+                      onReject={() => updateStatus(activeOrder.id, 'READY_FOR_PICKUP')}
+                      onArrived={() => void markArrivedAtRestaurant(activeOrder.id)}
+                      onPickup={() => confirmPickup(activeOrder.id)}
+                      onDeliver={() => confirmDeliver(activeOrder.id)}
+                    />
                     <Link href={`/rider/orders/${activeOrder.id}`} className="block text-center text-sm text-primary">
                       View full details
                     </Link>

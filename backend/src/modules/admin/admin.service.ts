@@ -321,6 +321,22 @@ export class AdminService {
     }));
   }
 
+  /** Same pipeline definition as live list — for header badge / real-time counter. */
+  async getLiveOrderCount() {
+    const liveStatuses = [
+      'PENDING',
+      'STORE_ACCEPTED',
+      'READY_FOR_PICKUP',
+      'RIDER_ASSIGNED',
+      'RIDER_ACCEPTED',
+      'PICKED_UP',
+    ] as const;
+    const count = await this.prisma.order.count({
+      where: { orderStatus: { in: [...liveStatuses] } },
+    });
+    return { count };
+  }
+
   private async getStoresClosedDuringHours(): Promise<{ id: string; name: string }[]> {
     const stores = await this.prisma.store.findMany({
       where: { isApproved: true, isOpen: false, openingTime: { not: null }, closingTime: { not: null } },

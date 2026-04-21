@@ -181,6 +181,12 @@ export class OrdersController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Post(':id/rider/arrived')
+  async markRiderArrived(@CurrentUser() user: User, @Param('id') id: string) {
+    return this.orders.markRiderArrived(id, user.id, user.role);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Get(':id')
   async getOne(@CurrentUser() user: User, @Param('id') id: string) {
     const order = await this.orders.findById(id);
