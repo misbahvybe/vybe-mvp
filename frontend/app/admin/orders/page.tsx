@@ -7,8 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Loader } from '@/components/ui/Loader';
 import api from '@/services/api';
-import { useAuthStore } from '@/store/authStore';
-import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
+import { useAdminOrdersRefresh } from '@/hooks/useAdminOrdersRefresh';
 import { formatOrderNo } from '@/lib/orderDisplay';
 
 interface Order {
@@ -48,7 +47,6 @@ const OUT_FOR_DELIVERY = ['RIDER_ASSIGNED', 'RIDER_ACCEPTED', 'PICKED_UP'];
 
 function AdminOrdersContent() {
   const searchParams = useSearchParams();
-  const token = useAuthStore((s) => s.token);
   const statusFilter = searchParams?.get('status') ?? '';
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,7 +65,7 @@ function AdminOrdersContent() {
       .catch(() => setRiders([]));
   }, [fetchOrders]);
 
-  useOrdersRealtime(!!token, token, 'ADMIN', undefined, fetchOrders);
+  useAdminOrdersRefresh(fetchOrders);
 
   const filtered = orders.filter((o) => {
     if (!statusFilter) return true;

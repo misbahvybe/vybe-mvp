@@ -21,6 +21,34 @@ import {
 import { NotificationsBell } from '@/components/notifications/NotificationsBell';
 import { NotificationsToasts } from '@/components/notifications/NotificationsToasts';
 import { AdminLivePipelineBadge } from '@/components/admin/AdminLivePipelineBadge';
+import { AdminOrderRealtimeBridge } from '../../components/admin/AdminOrderRealtimeBridge';
+
+/**
+ * Shown in the header when Notification permission is still "default" so the admin
+ * can enable native alerts for new orders.
+ */
+function AdminDesktopOrderAlertsButton() {
+  const [perm, setPerm] = useState<NotificationPermission | 'unsupported' | null>(null);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      setPerm('unsupported');
+      return;
+    }
+    setPerm(Notification.permission);
+  }, []);
+  if (perm !== 'default') return null;
+  return (
+    <button
+      type="button"
+      className="mr-3 text-xs text-slate-500 hover:text-slate-800 underline-offset-2 hover:underline shrink-0"
+      onClick={() => {
+        void Notification.requestPermission().then((p) => setPerm(p));
+      }}
+    >
+      Allow desktop order alerts
+    </button>
+  );
+}
 
 const NAV = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
@@ -58,6 +86,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className="min-h-screen flex bg-slate-50">
+      <AdminOrderRealtimeBridge />
       <NotificationsToasts enableSound />
       <aside
         className={`fixed inset-y-0 left-0 z-40 w-64 bg-primary-dark text-white transform transition-transform md:translate-x-0 ${
@@ -106,7 +135,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           >
             <Menu className="w-6 h-6" />
           </button>
-          <div className="ml-auto flex items-center">
+          <div className="ml-auto flex items-center min-w-0">
+            <AdminDesktopOrderAlertsButton />
             <AdminLivePipelineBadge />
             <NotificationsBell compact />
           </div>

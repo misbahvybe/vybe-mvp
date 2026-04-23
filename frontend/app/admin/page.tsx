@@ -11,8 +11,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import api from '@/services/api';
-import { useAuthStore } from '@/store/authStore';
-import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
+import { useAdminOrdersRefresh } from '@/hooks/useAdminOrdersRefresh';
 import { formatOrderNo } from '@/lib/orderDisplay';
 
 const POLL_MS = 20000;
@@ -59,7 +58,6 @@ const LIVE_STATUS_LABEL: Record<string, string> = {
 };
 
 export default function AdminDashboardPage() {
-  const token = useAuthStore((s) => s.token);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [alerts, setAlerts] = useState<Alerts | null>(null);
   const [liveOrders, setLiveOrders] = useState<LiveOrderRow[]>([]);
@@ -86,10 +84,7 @@ export default function AdminDashboardPage() {
     return () => clearInterval(id);
   }, [fetchData]);
 
-  useOrdersRealtime(Boolean(token), token, 'ADMIN', null, fetchData, {
-    onCreated: fetchData,
-    onUpdated: fetchData,
-  });
+  useAdminOrdersRefresh(fetchData);
 
   if (loading) {
     return (
