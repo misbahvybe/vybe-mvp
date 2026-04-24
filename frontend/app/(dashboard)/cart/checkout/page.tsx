@@ -708,7 +708,11 @@ function CheckoutContent() {
           )}
           {quote && Number(quote.cardProcessingAmount) > 0 && !Number(quote.gstAmount) && (
             <div className="flex justify-between py-2 text-slate-600">
-              <span>Card / online processing</span>
+              <span>
+                {quotePaymentParam() === 'MANUAL'
+                  ? 'Online payment processing'
+                  : 'Card / online processing'}
+              </span>
               <span>Rs {Number(quote.cardProcessingAmount).toFixed(2)}</span>
             </div>
           )}
