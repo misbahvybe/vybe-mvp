@@ -86,7 +86,8 @@ export class PricingService {
     const envFee = Number(this.config.get<string>('MIN_SERVICE_FEE_PKR') ?? '19.99');
     const envCodRaw = Number(this.config.get<string>('COD_GST_RATE') ?? '0.16');
     const envCodRate = envCodRaw > 1 ? envCodRaw / 100 : envCodRaw;
-    const cardProcessingRate = Number(this.config.get<string>('CARD_PROCESSING_RATE') ?? '0.05');
+    /** Off by default; set `CARD_PROCESSING_RATE` (e.g. 0.05) when you introduce GST / non-COD surcharges. */
+    const cardProcessingRate = Number(this.config.get<string>('CARD_PROCESSING_RATE') ?? '0');
     const envDeliveryPerKm = Number(this.config.get<string>('DELIVERY_FEE_PER_KM') ?? '45');
     const envFallback = (): ResolvedCheckoutFees => ({
       serviceFeeMode: CheckoutServiceFeeMode.FIXED,
