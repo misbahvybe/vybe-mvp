@@ -27,7 +27,10 @@ enum PaymentMethod {
 }
 
 enum PaymentStatus {
+  /// Awaiting user upload (manual) or not yet collected (COD).
   PENDING
+  /// User submitted payment screenshot; admin has not decided yet.
+  PENDING_VERIFICATION
   PAID
 }
 
@@ -39,6 +42,8 @@ enum PendingPaymentProvider {
   BANK_HBL
   BANK_MEEZAN
   BANK_ALLIED
+  /// MVP manual “bank transfer” (IBAN / account shown in-app; no redirect API).
+  BANK_MANUAL
 }
 
 enum OrderStatus {
@@ -99,6 +104,12 @@ model User {
   role                 Role      @default(CUSTOMER)
   isVerified           Boolean   @default(false) @map("is_verified")
   isActive             Boolean   @default(true) @map("is_active")
+  /// When set and in the future, recent checkout OTP (WhatsApp) was verified; required when VYBE_CHECKOUT_OTP is enabled.
+  checkoutOtpVerifiedUntil DateTime? @map("checkout_otp_verified_until")
+  /// Set when abuse thresholds hit (cancellations, etc.); new orders are rejected while true.
+  isOrderingBlocked     Boolean  @default(false) @map("is_ordering_blocked")
+  /// Incremented on suspicious cancellations while order was still PENDING; used with VYBE_ORDER_STRIKES.
+  orderStrikeCount      Int      @default(0) @map("order_strike_count")
   passwordSet          Boolean   @default(false) @map("password_set")
   invitationToken      String?   @map("invitation_token")
   invitationExpiresAt  DateTime? @map("invitation_expires_at")
@@ -412,6 +423,10 @@ model Order {
   slaDeadlineAt    DateTime?     @map("sla_deadline_at")
   paymentMethod   PaymentMethod  @default(COD) @map("payment_method")
   paymentStatus   PaymentStatus  @default(PENDING) @map("payment_status")
+  /// JazzCash / Easypaisa / bank (MVP) when `paymentMethod` is MANUAL_TRANSFER.
+  manualTransferProvider PendingPaymentProvider? @map("manual_transfer_provider")
+  /// Customer-uploaded proof (screenshot) for manual MVP payments.
+  paymentScreenshotUrl String?  @map("payment_screenshot_url")
   orderStatus     OrderStatus   @default(PENDING) @map("order_status")
   /// True when rider claimed from READY_FOR_PICKUP pool (not admin-assigned).
   riderSelfAssigned Boolean     @default(false) @map("rider_self_assigned")

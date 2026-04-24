@@ -32,6 +32,7 @@ export class OrderQuoteDto {
 
   @IsOptional()
   @IsString()
-  @IsIn(['COD', 'CARD'])
-  paymentMethod?: 'COD' | 'CARD';
+  @IsIn(['COD', 'CARD', 'MANUAL'])
+  /** MANUAL: same surcharges as card (MVP online transfer, no COD tax). */
+  paymentMethod?: 'COD' | 'CARD' | 'MANUAL';
 }

@@ -5,6 +5,8 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { OtpService } from './otp.service';
 import { SignupDto } from './dto/signup.dto';
+import { checkoutOtpValidUntil } from '../orders/manual-mvp.util';
+import { Role } from '@prisma/client';
 
 const SALT_ROUNDS = 10;
 
@@ -183,6 +185,33 @@ export class AuthService {
       });
     }
     return this.buildTokenResponse(user);
+  }
+
+  async requestCheckoutOtp(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || user.role !== Role.CUSTOMER) {
+      throw new UnauthorizedException('Checkout verification is for customer accounts only.');
+    }
+    const { expiresAt } = await this.otp.createAndSend(user.phone);
+    return { message: 'OTP sent to your WhatsApp', expiresAt: expiresAt.toISOString() };
+  }
+
+  async verifyCheckoutOtp(userId: string, phone: string, code: string) {
+    const ok = await this.otp.verify(phone, code);
+    if (!ok) {
+      throw new UnauthorizedException('Invalid or expired OTP');
+    }
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException('User not found');
+    if (this.normalizePhone(user.phone) !== this.normalizePhone(phone)) {
+      throw new UnauthorizedException('That code was not sent to the phone on this account.');
+    }
+    const until = checkoutOtpValidUntil();
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { checkoutOtpVerifiedUntil: until },
+    });
+    return { ok: true, checkoutOtpVerifiedUntil: until.toISOString() };
   }
 
   async partnerLogin(emailOrPhone: string, password: string) {

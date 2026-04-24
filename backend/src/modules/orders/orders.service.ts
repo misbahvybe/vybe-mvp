@@ -5,7 +5,15 @@ import { StripeService } from '../stripe/stripe.service';
 import { XPayService } from '../xpay/xpay.service';
 import { JazzCashService } from '../jazzcash/jazzcash.service';
 import { EasypaisaService } from '../easypaisa/easypaisa.service';
-import { OrderStatus, PaymentStatus, Prisma, Product, ProductVariant, Role } from '@prisma/client';
+import {
+  OrderStatus,
+  PaymentStatus,
+  PendingPaymentProvider,
+  Prisma,
+  Product,
+  ProductVariant,
+  Role,
+} from '@prisma/client';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 import { PrepareXPayDto } from './dto/prepare-xpay.dto';
@@ -22,6 +30,14 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { isStoreWithinPostedHours } from '../../common/store/store-hours.util';
 import { assertMinOrderSubtotalPkr } from '../../common/constants/order-minimum';
 import { formatOrderNoForDisplay } from '../../common/format/order-number';
+import {
+  isCheckoutOtpEnforced,
+  isFirstOrderOnlineOnlyEnforced,
+  isManualMvpEnabled,
+  manualMvpAccountDisplay,
+  orderStrikeCancelThreshold,
+  pkPhoneHeuristicWarning,
+} from './manual-mvp.util';
 
 /** Set `false` when Stripe / XPay keys are ready and clients show those options again. */
 const PAYMENTS_COD_ONLY = true;
@@ -328,6 +344,7 @@ export class OrdersService {
       checkStock: false,
     });
     const useCard = !PAYMENTS_COD_ONLY && dto.paymentMethod === 'CARD';
+    const useManualMvp = isManualMvpEnabled() && dto.paymentMethod === 'MANUAL';
     const q = await this.pricing.buildQuote({
       storeId: dto.storeId,
       addressLat: Number(address.latitude),
@@ -335,7 +352,7 @@ export class OrdersService {
       storeLat: store.latitude != null ? Number(store.latitude) : null,
       storeLng: store.longitude != null ? Number(store.longitude) : null,
       subtotal,
-      paymentMethod: useCard ? 'CARD' : 'COD',
+      paymentMethod: useManualMvp ? 'MANUAL' : useCard ? 'CARD' : 'COD',
     });
     return {
       subtotal: q.subtotal.toFixed(2),
@@ -514,13 +531,14 @@ export class OrdersService {
     return order;
   }
 
-  isCardPaymentAvailable(): { stripe: boolean; xpay: boolean } {
+  isCardPaymentAvailable(): { stripe: boolean; xpay: boolean; manualMvp: boolean } {
     if (PAYMENTS_COD_ONLY) {
-      return { stripe: false, xpay: false };
+      return { stripe: false, xpay: false, manualMvp: isManualMvpEnabled() };
     }
     return {
       stripe: this.stripe.isConfigured(),
       xpay: this.xpay.isConfigured(),
+      manualMvp: isManualMvpEnabled(),
     };
   }
 
@@ -535,6 +553,27 @@ export class OrdersService {
     if (!store) throw new ForbiddenException('Store not found');
     this.assertCustomerCanOrderFromStore(store);
 
+    const paymentMethod = dto.paymentMethod ?? 'COD';
+    const isManual =
+      paymentMethod === 'MANUAL_TRANSFER' && isManualMvpEnabled();
+    if (isManual) {
+      if (!dto.manualTransferProvider) {
+        throw new BadRequestException('Select JazzCash, Easypaisa, or bank transfer.');
+      }
+      const acc = manualMvpAccountDisplay(
+        dto.manualTransferProvider as PendingPaymentProvider,
+      );
+      if (!acc) {
+        throw new BadRequestException(
+          'This payment method is not configured on the server. Ask the admin to set the merchant account (VYBE_MVP_* env).',
+        );
+      }
+    } else if (paymentMethod === 'MANUAL_TRANSFER' && !isManualMvpEnabled()) {
+      throw new BadRequestException('Manual online payment is not available at the moment.');
+    }
+
+    await this.assertMvpPreOrderRules(customerId, paymentMethod);
+
     if (PAYMENTS_COD_ONLY && !options?.allowCardWhenCodOnly) {
       if (
         dto.paymentMethod === 'CARD' ||
@@ -547,6 +586,7 @@ export class OrdersService {
     }
 
     const useCard = dto.paymentMethod === 'CARD' && (!PAYMENTS_COD_ONLY || options?.allowCardWhenCodOnly);
+    const useCardLikeQuote = useCard || isManual;
 
     const slaDeadlineAt = this.pricing.slaDeadlineFromNow();
 
@@ -569,7 +609,7 @@ export class OrdersService {
           storeLat: store.latitude != null ? Number(store.latitude) : null,
           storeLng: store.longitude != null ? Number(store.longitude) : null,
           subtotal: subtotalAmount,
-          paymentMethod: useCard ? 'CARD' : 'COD',
+          paymentMethod: useCardLikeQuote ? (isManual ? 'MANUAL' : 'CARD') : 'COD',
         });
 
         // NOTE: Prisma interactive transactions should not run queries in parallel.
@@ -611,10 +651,17 @@ export class OrdersService {
           commissionPercentSnapshot: q.commissionPercent,
           deliveryDistanceKm: q.deliveryDistanceKm,
           slaDeadlineAt,
-          paymentMethod: useCard ? 'CARD' : 'COD',
-            // Starts pending for both COD and CARD; CARD becomes PAID after verification.
-            paymentStatus: PaymentStatus.PENDING,
+          paymentMethod: isManual
+            ? 'MANUAL_TRANSFER'
+            : useCard
+              ? 'CARD'
+              : 'COD',
+            // COD: PENDING. CARD: PENDING then PAID. MANUAL: PENDING then PENDING_VERIFICATION then PAID.
+            paymentStatus: isManual ? PaymentStatus.PENDING : PaymentStatus.PENDING,
           orderStatus: OrderStatus.PENDING,
+          manualTransferProvider: isManual
+            ? (dto.manualTransferProvider as PendingPaymentProvider)
+            : null,
           notes: dto.notes,
           items: {
             create: dto.items.map((i) => {
@@ -644,8 +691,8 @@ export class OrdersService {
         data: { orderId: o.id, status: OrderStatus.PENDING, changedByUserId: customerId },
       });
 
-        // For CARD orders we only create earnings after payment is verified.
-        if (!useCard) {
+        // For CARD / manual MVP, earnings only after payment is verified.
+        if (!useCard && !isManual) {
           await tx.storeEarning.create({
             data: {
               storeId: dto.storeId,
@@ -736,9 +783,10 @@ export class OrdersService {
       }
     }
 
-    // Emit to store in realtime only after CARD verification succeeds.
-    // For COD orders, emit immediately.
-    if (!useCard) {
+    // Emit to store: COD immediately; CARD after API verification; manual MVP only after admin approves.
+    if (isManual) {
+      // no emit — kitchen sees the order only once payment is confirmed (see verifyManualMvpPayment).
+    } else if (!useCard) {
       this.ordersGateway.emitOrderCreated({
         id: order.o.id,
         orderNumber: order.o.orderNumber,
@@ -828,6 +876,38 @@ export class OrdersService {
     }
   }
 
+  private async assertMvpPreOrderRules(customerId: string, paymentMethod: string) {
+    const u = await this.prisma.user.findUnique({
+      where: { id: customerId },
+      select: {
+        checkoutOtpVerifiedUntil: true,
+        isOrderingBlocked: true,
+        role: true,
+      },
+    });
+    if (!u) throw new ForbiddenException();
+    if (u.role !== Role.CUSTOMER) return;
+    if (u.isOrderingBlocked) {
+      throw new BadRequestException('Your account cannot place new orders. Contact support.');
+    }
+    if (isCheckoutOtpEnforced()) {
+      if (!u.checkoutOtpVerifiedUntil || u.checkoutOtpVerifiedUntil.getTime() < Date.now()) {
+        throw new BadRequestException(
+          'Please verify the OTP sent to your phone before checking out. Use “Verify phone” on the payment step.',
+        );
+      }
+    }
+    if (!isFirstOrderOnlineOnlyEnforced()) return;
+    const deliveredCount = await this.prisma.order.count({
+      where: { customerId, orderStatus: OrderStatus.DELIVERED },
+    });
+    if (deliveredCount < 1 && paymentMethod === 'COD') {
+      throw new BadRequestException(
+        'Cash on delivery unlocks after your first completed delivery. For your first order, pay with JazzCash, Easypaisa, or bank transfer.',
+      );
+    }
+  }
+
   async findById(id: string) {
     return this.prisma.order.findUnique({
       where: { id },
@@ -880,6 +960,17 @@ export class OrdersService {
       throw new BadRequestException(
         `Cannot change status from ${order.orderStatus} to ${toStatus}`
       );
+    }
+
+    if (role === Role.STORE_OWNER && toStatus === OrderStatus.STORE_ACCEPTED) {
+      if (
+        order.paymentMethod === 'MANUAL_TRANSFER' &&
+        order.paymentStatus !== PaymentStatus.PAID
+      ) {
+        throw new BadRequestException(
+          'This order is not visible to the store until the payment is verified by the team.',
+        );
+      }
     }
 
     if (toStatus === OrderStatus.PICKED_UP && role === Role.RIDER && !order.riderArrivedAt) {
@@ -1087,6 +1178,37 @@ export class OrdersService {
       return o;
     });
 
+    if (
+      toStatus === OrderStatus.CANCELLED &&
+      order.paymentMethod === 'MANUAL_TRANSFER' &&
+      order.paymentStatus === PaymentStatus.PENDING
+    ) {
+      await this.prisma.$transaction(async (tx) => {
+        await this.restoreStockForOrderInTx(tx, orderId, order.storeId);
+      });
+    }
+
+    if (
+      toStatus === OrderStatus.CANCELLED &&
+      role === Role.CUSTOMER &&
+      order.orderStatus === OrderStatus.PENDING
+    ) {
+      const th = orderStrikeCancelThreshold();
+      if (th != null) {
+        const n = await this.prisma.user.update({
+          where: { id: userId },
+          data: { orderStrikeCount: { increment: 1 } },
+          select: { orderStrikeCount: true },
+        });
+        if (n.orderStrikeCount >= th) {
+          await this.prisma.user.update({
+            where: { id: userId },
+            data: { isOrderingBlocked: true },
+          });
+        }
+      }
+    }
+
     // Notifications on key status transitions
     if (updated.orderStatus === OrderStatus.RIDER_ASSIGNED && updated.riderId) {
       await this.notifications.create({
@@ -1138,6 +1260,26 @@ export class OrdersService {
 
   getAllowedTransitions(fromStatus: OrderStatus, role: Role) {
     return getAllowedTransitions(fromStatus, role);
+  }
+
+  /**
+   * Skips store actions until manual payment is confirmed (MVP) so the kitchen does not act on fake tabs.
+   */
+  getAllowedTransitionsForOrder(
+    order: { orderStatus: OrderStatus; paymentMethod: string; paymentStatus: PaymentStatus },
+    role: Role,
+  ) {
+    const base = getAllowedTransitions(order.orderStatus, role);
+    if (
+      role === Role.STORE_OWNER &&
+      order.paymentMethod === 'MANUAL_TRANSFER' &&
+      order.paymentStatus !== PaymentStatus.PAID
+    ) {
+      return base.filter(
+        (s) => s !== OrderStatus.STORE_ACCEPTED && s !== OrderStatus.STORE_REJECTED,
+      );
+    }
+    return base;
   }
 
   /** Rider confirms they are at the pickup location (required before marking picked up). */
@@ -1216,7 +1358,15 @@ export class OrdersService {
       const store = await this.stores.getStoreForOwner(userId);
       if (!store) return [];
       return this.prisma.order.findMany({
-        where: { storeId: store.id },
+        where: {
+          storeId: store.id,
+          NOT: {
+            AND: [
+              { paymentMethod: 'MANUAL_TRANSFER' },
+              { paymentStatus: { in: [PaymentStatus.PENDING, PaymentStatus.PENDING_VERIFICATION] } },
+            ],
+          },
+        },
         orderBy: { createdAt: 'desc' },
         include: {
           customer: { select: { name: true, phone: true } },
@@ -1433,5 +1583,183 @@ export class OrdersService {
     });
 
     return { success: true };
+  }
+
+  private async restoreStockForOrderInTx(
+    tx: Prisma.TransactionClient,
+    orderId: string,
+    storeId: string,
+  ) {
+    const orderItems = await tx.orderItem.findMany({ where: { orderId } });
+    if (orderItems.length === 0) return;
+    const qtyByProductId = new Map<string, number>();
+    for (const it of orderItems) {
+      qtyByProductId.set(
+        it.productId,
+        (qtyByProductId.get(it.productId) ?? 0) + Number(it.quantity),
+      );
+    }
+    const productIds = Array.from(qtyByProductId.keys());
+    const cases = productIds.map((id) =>
+      Prisma.sql`WHEN ${id} THEN ${new Decimal(qtyByProductId.get(id) ?? 0)}`,
+    );
+    await tx.$executeRaw(
+      Prisma.sql`
+        UPDATE "Product"
+        SET "stock" = "stock" + (CASE "id" ${Prisma.join(cases, ' ')} ELSE 0 END)
+        WHERE "store_id" = ${storeId} AND "id" IN (${Prisma.join(productIds)})
+      `,
+    );
+    await tx.product.updateMany({
+      where: { storeId, stock: { gt: 0 } },
+      data: { isOutOfStock: false },
+    });
+  }
+
+  async getCheckoutEligibility(customerId: string) {
+    const u = await this.prisma.user.findUnique({
+      where: { id: customerId },
+      select: {
+        phone: true,
+        checkoutOtpVerifiedUntil: true,
+        isOrderingBlocked: true,
+        role: true,
+      },
+    });
+    if (!u) throw new ForbiddenException();
+    const deliveredCount =
+      u.role === Role.CUSTOMER
+        ? await this.prisma.order.count({ where: { customerId, orderStatus: OrderStatus.DELIVERED } })
+        : 0;
+    return {
+      manualMvpEnabled: isManualMvpEnabled(),
+      firstOrderRulesActive: isFirstOrderOnlineOnlyEnforced(),
+      checkoutOtpRequired: isCheckoutOtpEnforced(),
+      deliveredOrderCount: deliveredCount,
+      canUseCod: u.role !== Role.CUSTOMER || !isFirstOrderOnlineOnlyEnforced() || deliveredCount >= 1,
+      otpSatisfied:
+        u.role !== Role.CUSTOMER ||
+        !isCheckoutOtpEnforced() ||
+        (!!u.checkoutOtpVerifiedUntil && u.checkoutOtpVerifiedUntil.getTime() > Date.now()),
+      isBlocked: u.isOrderingBlocked,
+      phoneWarning: u.role === Role.CUSTOMER ? pkPhoneHeuristicWarning(u.phone) : null,
+      mvpAccountHints: isManualMvpEnabled()
+        ? {
+            JAZZCASH: manualMvpAccountDisplay('JAZZCASH'),
+            EASYPAISA: manualMvpAccountDisplay('EASYPAISA'),
+            BANK_MANUAL: manualMvpAccountDisplay('BANK_MANUAL'),
+          }
+        : null,
+    };
+  }
+
+  async attachPaymentScreenshotFromUrl(customerId: string, orderId: string, imageUrl: string) {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, customerId },
+    });
+    if (!order) throw new ForbiddenException('Order not found');
+    if (order.paymentMethod !== 'MANUAL_TRANSFER') {
+      throw new BadRequestException('Payment proof only applies to JazzCash, Easypaisa, or bank transfer orders.');
+    }
+    if (order.paymentStatus !== PaymentStatus.PENDING || order.orderStatus !== OrderStatus.PENDING) {
+      throw new BadRequestException('You can only upload a screenshot while the order is waiting for payment proof.');
+    }
+    if (order.paymentScreenshotUrl) {
+      throw new BadRequestException('A payment screenshot was already submitted.');
+    }
+    const updated = await this.prisma.order.update({
+      where: { id: orderId },
+      data: { paymentScreenshotUrl: imageUrl, paymentStatus: PaymentStatus.PENDING_VERIFICATION },
+    });
+    this.ordersGateway.emitAdminPipelineUpdated();
+    return updated;
+  }
+
+  async verifyManualMvpPayment(_adminId: string, orderId: string, decision: 'approve' | 'reject') {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { store: { select: { ownerId: true, name: true } }, customer: { select: { name: true, phone: true } } },
+    });
+    if (!order) throw new BadRequestException('Order not found');
+    if (order.paymentMethod !== 'MANUAL_TRANSFER') {
+      throw new BadRequestException('This order is not a manual online payment.');
+    }
+    if (order.paymentStatus !== PaymentStatus.PENDING_VERIFICATION) {
+      throw new BadRequestException('This order is not in payment review.');
+    }
+    if (order.orderStatus === OrderStatus.CANCELLED) {
+      throw new BadRequestException('Order is already cancelled.');
+    }
+
+    const store = order.store;
+    if (decision === 'reject') {
+      await this.prisma.$transaction(async (tx) => {
+        await this.restoreStockForOrderInTx(tx, order.id, order.storeId);
+        await tx.order.update({
+          where: { id: orderId },
+          data: {
+            orderStatus: OrderStatus.CANCELLED,
+            cancellationReason: 'OTHER',
+            cancelledByRole: Role.ADMIN,
+          },
+        });
+      });
+      this.ordersGateway.emitOrderUpdated(
+        {
+          orderId: order.id,
+          orderStatus: OrderStatus.CANCELLED,
+          storeId: order.storeId,
+          customerId: order.customerId,
+          riderId: order.riderId,
+        },
+        order.riderId,
+      );
+      this.ordersGateway.emitAdminPipelineUpdated();
+      return { success: true, orderStatus: OrderStatus.CANCELLED };
+    }
+
+    const storeAmount = new Decimal(order.subtotalAmount).minus(new Decimal(order.commissionAmount));
+    await this.prisma.$transaction(async (tx) => {
+      await tx.order.update({
+        where: { id: orderId },
+        data: { paymentStatus: PaymentStatus.PAID },
+      });
+      await tx.storeEarning.create({
+        data: {
+          storeId: order.storeId,
+          orderId: order.id,
+          storeAmount: storeAmount.toDecimalPlaces(2, Decimal.ROUND_HALF_UP),
+          commissionAmount: order.commissionAmount,
+        },
+      });
+    });
+    this.ordersGateway.emitOrderCreated({
+      id: order.id,
+      orderNumber: order.orderNumber,
+      storeId: order.storeId,
+      customerId: order.customerId,
+      orderStatus: order.orderStatus,
+      createdAt: order.createdAt.toISOString(),
+      totalAmount: order.totalAmount.toString(),
+      subtotalAmount: order.subtotalAmount.toString(),
+      deliveryFee: order.deliveryFee.toString(),
+      serviceFee: order.serviceFee.toString(),
+      gstAmount: order.gstAmount.toString(),
+      cardProcessingAmount: order.cardProcessingAmount.toString(),
+      slaDeadlineAt: order.slaDeadlineAt?.toISOString() ?? null,
+      customer: { name: order.customer?.name ?? '', phone: order.customer?.phone ?? '' },
+    });
+    if (store?.ownerId) {
+      await this.notifications.create({
+        userId: store.ownerId,
+        type: 'ORDER_NEW',
+        title: `New paid order (manual) (${formatOrderNoForDisplay(order.orderNumber, order.id)})`,
+        body: `Total: Rs ${Number(order.totalAmount).toFixed(0)}`,
+        data: { orderId: order.id, storeId: order.storeId },
+      });
+    }
+    void this.riders.notifyNearbyRidersForNewOrder(order.id).catch(() => undefined);
+    this.ordersGateway.emitAdminPipelineUpdated();
+    return { success: true, orderStatus: order.orderStatus, paymentStatus: PaymentStatus.PAID };
   }
 }

@@ -1,5 +1,7 @@
 import { Body, Controller, Post, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
+import { CurrentUser } from './decorators/current-user.decorator';
+import { User } from '@prisma/client';
 import { SignupDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
 import { SetPasswordDto } from './dto/set-password.dto';
@@ -64,5 +66,17 @@ export class AuthController {
   @Post('me')
   async me(@Body() _body: Record<string, never>) {
     return { message: 'Use JWT to get user from guard' };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('checkout/request-otp')
+  async requestCheckoutOtp(@CurrentUser() user: User) {
+    return this.auth.requestCheckoutOtp(user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('checkout/verify-otp')
+  async verifyCheckoutOtp(@CurrentUser() user: User, @Body() dto: VerifyOtpDto) {
+    return this.auth.verifyCheckoutOtp(user.id, dto.phone, dto.code);
   }
 }

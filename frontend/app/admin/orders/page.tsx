@@ -18,6 +18,8 @@ interface Order {
   totalAmount: number;
   commissionAmount?: number;
   riderSelfAssigned?: boolean;
+  paymentMethod?: string;
+  paymentStatus?: string;
   store?: { name: string };
   customer?: { name: string; phone: string };
   rider?: { name: string; phone: string } | null;
@@ -48,6 +50,7 @@ const OUT_FOR_DELIVERY = ['RIDER_ASSIGNED', 'RIDER_ACCEPTED', 'PICKED_UP'];
 function AdminOrdersContent() {
   const searchParams = useSearchParams();
   const statusFilter = searchParams?.get('status') ?? '';
+  const payFilter = searchParams?.get('pay') ?? '';
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [riders, setRiders] = useState<Rider[]>([]);
@@ -68,6 +71,9 @@ function AdminOrdersContent() {
   useAdminOrdersRefresh(fetchOrders);
 
   const filtered = orders.filter((o) => {
+    if (payFilter === 'verify') {
+      return o.paymentStatus === 'PENDING_VERIFICATION' && o.paymentMethod === 'MANUAL_TRANSFER';
+    }
     if (!statusFilter) return true;
     if (statusFilter === 'out_for_delivery') return OUT_FOR_DELIVERY.includes(o.orderStatus);
     return o.orderStatus === statusFilter;
@@ -114,7 +120,18 @@ function AdminOrdersContent() {
   return (
     <div>
       <h1 className="text-2xl font-bold text-slate-800 mb-4">Orders</h1>
-      {statusFilter && (
+      <div className="flex flex-wrap items-center gap-2 mb-4 text-sm">
+        <span className="text-slate-600">Quick filters:</span>
+        <Link href="/admin/orders" className="text-primary underline">All</Link>
+        <Link href="/admin/orders?pay=verify" className="text-primary font-medium">Payment to verify (MVP)</Link>
+        {statusFilter && (
+          <span className="text-slate-500">
+            · Status: {statusFilter === 'out_for_delivery' ? 'Out for delivery' : STATUS_LABELS[statusFilter] ?? statusFilter}
+          </span>
+        )}
+        {payFilter === 'verify' && <span className="text-slate-500">· Manual payments awaiting review</span>}
+      </div>
+      {statusFilter && !payFilter && (
         <p className="text-sm text-slate-600 mb-4">Filtered by: {statusFilter === 'out_for_delivery' ? 'Out for delivery' : STATUS_LABELS[statusFilter] ?? statusFilter}</p>
       )}
       <Card className="overflow-hidden">
@@ -133,6 +150,7 @@ function AdminOrdersContent() {
                   <th className="text-left p-3 font-medium">Captain</th>
                   <th className="text-left p-3 font-medium">Pick</th>
                   <th className="text-left p-3 font-medium">Status</th>
+                  <th className="text-left p-3 font-medium">Pay</th>
                   <th className="text-right p-3 font-medium">Total</th>
                   <th className="text-right p-3 font-medium">Commission</th>
                   <th className="text-left p-3 font-medium">Created</th>
@@ -176,6 +194,12 @@ function AdminOrdersContent() {
                       }`}>
                         {STATUS_LABELS[o.orderStatus] ?? o.orderStatus}
                       </span>
+                    </td>
+                    <td className="p-3 text-xs text-slate-600 max-w-[120px]">
+                      {o.paymentMethod === 'MANUAL_TRANSFER' ? 'Manual' : o.paymentMethod ?? '—'}
+                      {o.paymentStatus && (
+                        <span className="block text-amber-800">{o.paymentStatus === 'PENDING_VERIFICATION' ? 'Review' : o.paymentStatus}</span>
+                      )}
                     </td>
                     <td className="p-3 text-right font-medium">Rs {Number(o.totalAmount).toLocaleString()}</td>
                     <td className="p-3 text-right">Rs {Number(o.commissionAmount ?? 0).toLocaleString()}</td>

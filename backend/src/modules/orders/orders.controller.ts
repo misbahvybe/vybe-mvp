@@ -1,11 +1,38 @@
-import { Get, Post, Patch, Body, Param, Query, Controller, UseGuards, ForbiddenException, Res } from '@nestjs/common';
+import {
+  Get,
+  Post,
+  Patch,
+  Body,
+  Param,
+  Query,
+  Controller,
+  UseGuards,
+  ForbiddenException,
+  Res,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
+  Req,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
+import type { Request } from 'express';
 import { OrdersService } from './orders.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Public } from '../auth/decorators/public.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { User } from '@prisma/client';
-import { CreateOrderDto } from './dto/create-order.dto';
+import { User, Role, PaymentStatus } from '@prisma/client';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import {
+  multerImageFileOptions,
+  PRODUCTS_UPLOAD_DIR,
+  publicUploadedImageUrl,
+} from '../../common/uploads/image-multer';
+import { isCloudinaryConfigured, uploadProductImageToCloudinary } from '../../common/uploads/cloudinary';
+import { extname, join } from 'path';
+import { writeFile } from 'fs/promises';
+import { randomUUID } from 'crypto';import { CreateOrderDto } from './dto/create-order.dto';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 import { PrepareXPayDto } from './dto/prepare-xpay.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
@@ -187,18 +214,83 @@ export class OrdersController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get('checkout/eligibility')
+  async checkoutEligibility(@CurrentUser() user: User) {
+    return this.orders.getCheckoutEligibility(user.id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CUSTOMER)
+  @Post(':id/payment-screenshot')
+  @UseInterceptors(FileInterceptor('file', multerImageFileOptions()))
+  async uploadPaymentScreenshot(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Req() req: Request,
+  ) {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('Upload a JPEG, PNG, GIF, or WebP image (max 5 MB)');
+    }
+    const isProd = process.env.NODE_ENV === 'production';
+    if (isProd && !isCloudinaryConfigured()) {
+      throw new BadRequestException('Image storage is not configured. Set Cloudinary (see uploads) for production.');
+    }
+    let imageUrl: string;
+    if (isCloudinaryConfigured()) {
+      const { secureUrl } = await uploadProductImageToCloudinary({
+        buffer: file.buffer,
+        mimetype: file.mimetype,
+      });
+      imageUrl = secureUrl;
+    } else {
+      const fromName = extname(file.originalname || '').toLowerCase();
+      const ext = ['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(fromName)
+        ? fromName === '.jpeg'
+          ? '.jpg'
+          : fromName
+        : '.jpg';
+      const filename = `${randomUUID()}${ext}`;
+      await writeFile(join(PRODUCTS_UPLOAD_DIR, filename), file.buffer);
+      imageUrl = publicUploadedImageUrl(req, filename);
+    }
+    return this.orders.attachPaymentScreenshotFromUrl(user.id, id, imageUrl);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @Post(':id/verify-manual-payment')
+  async verifyManualPayment(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @Body() body: { decision: 'approve' | 'reject' },
+  ) {
+    return this.orders.verifyManualMvpPayment(user.id, id, body.decision);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Get(':id')
   async getOne(@CurrentUser() user: User, @Param('id') id: string) {
     const order = await this.orders.findById(id);
     if (!order) throw new ForbiddenException('Order not found');
     if (user.role === 'ADMIN') {
-      const allowed = this.orders.getAllowedTransitions(order.orderStatus, user.role);
+      const allowed = this.orders.getAllowedTransitionsForOrder(
+        { orderStatus: order.orderStatus, paymentMethod: order.paymentMethod, paymentStatus: order.paymentStatus },
+        user.role,
+      );
       return { ...order, allowedTransitions: allowed };
     }
     if (user.role === 'CUSTOMER' && order.customerId !== user.id) throw new ForbiddenException('Order not found');
     if (user.role === 'STORE_OWNER') {
       const store = await this.orders.getStoreForOwner(user.id);
       if (!store || order.storeId !== store.id) throw new ForbiddenException('Order not found');
+      if (
+        order.paymentMethod === 'MANUAL_TRANSFER' &&
+        (order.paymentStatus === PaymentStatus.PENDING ||
+          order.paymentStatus === PaymentStatus.PENDING_VERIFICATION)
+      ) {
+        throw new ForbiddenException('Order not found');
+      }
     }
     if (user.role === 'RIDER') {
       const canViewOpenPool =
@@ -207,7 +299,10 @@ export class OrdersController {
         throw new ForbiddenException('Order not found');
       }
     }
-    const allowed = this.orders.getAllowedTransitions(order.orderStatus, user.role);
+    const allowed = this.orders.getAllowedTransitionsForOrder(
+      { orderStatus: order.orderStatus, paymentMethod: order.paymentMethod, paymentStatus: order.paymentStatus },
+      user.role,
+    );
     return { ...order, allowedTransitions: allowed };
   }
 

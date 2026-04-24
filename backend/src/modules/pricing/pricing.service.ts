@@ -5,7 +5,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { haversineDistanceKm } from '../../common/geo/haversine';
 import { CheckoutServiceFeeMode, PaymentMethod } from '@prisma/client';
 
-export type OrderQuotePayment = 'COD' | 'CARD';
+export type OrderQuotePayment = 'COD' | 'CARD' | 'MANUAL';
 
 export interface OrderPricingQuote {
   subtotal: Decimal;
@@ -318,7 +318,7 @@ export class PricingService {
     const baseBeforeSurcharge = subtotal.add(deliveryFee).add(serviceFee);
     let gstAmount = new Decimal(0);
     let cardProcessingAmount = new Decimal(0);
-    if (paymentMethod === 'CARD') {
+    if (paymentMethod === 'CARD' || paymentMethod === 'MANUAL_TRANSFER') {
       cardProcessingAmount = baseBeforeSurcharge
         .mul(fees.cardProcessingRate)
         .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);

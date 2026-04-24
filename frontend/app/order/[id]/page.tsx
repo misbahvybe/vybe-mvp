@@ -25,6 +25,9 @@ interface OrderDetail {
   gstAmount?: number;
   cardProcessingAmount?: number;
   paymentMethod?: string;
+  paymentStatus?: string;
+  paymentScreenshotUrl?: string | null;
+  manualTransferProvider?: string | null;
   slaDeadlineAt?: string | null;
   store?: { name: string };
   address?: { fullAddress: string };
@@ -105,6 +108,9 @@ export default function OrderDetailPage() {
   const [riderId, setRiderId] = useState('');
   const [riders, setRiders] = useState<{ id: string; name: string; phone: string }[]>([]);
   const [cancelReason, setCancelReason] = useState('');
+  const [mvpHints, setMvpHints] = useState<Record<string, { accountNumber: string; accountTitle: string; openAppUrl: string | null } | null> | null>(null);
+  const [uploadingProof, setUploadingProof] = useState(false);
+  const [verifyBusy, setVerifyBusy] = useState(false);
 
   const wideOrderShell = Boolean(user?.role && user.role !== 'CUSTOMER');
 
@@ -134,6 +140,17 @@ export default function OrderDetailPage() {
   }, [hasHydrated, token, router, orderIdParam, user?.role, fetchOrder]);
 
   useOrderDetailRealtime(!!token && !!orderIdParam, orderIdParam, token, fetchOrder, 30000);
+
+  useEffect(() => {
+    if (order?.paymentMethod === 'MANUAL_TRANSFER') {
+      api
+        .get<{
+          mvpAccountHints: Record<string, { accountNumber: string; accountTitle: string; openAppUrl: string | null } | null> | null;
+        }>('/orders/checkout/eligibility')
+        .then((r) => setMvpHints(r.data?.mvpAccountHints ?? null))
+        .catch(() => setMvpHints(null));
+    }
+  }, [order?.paymentMethod, orderIdParam]);
 
   const updateStatus = async (status: string, extra?: { riderId?: string; cancellationReason?: string }) => {
     if (!order) return;
@@ -201,6 +218,134 @@ export default function OrderDetailPage() {
             <p className="text-sm text-red-600 mt-2">Reason: {CANCELLATION_LABELS[order.cancellationReason] ?? order.cancellationReason}</p>
           )}
         </Card>
+
+        {user?.role === 'CUSTOMER' && order.paymentMethod === 'MANUAL_TRANSFER' && order.orderStatus === 'PENDING' && order.paymentStatus === 'PENDING' && (
+          <Card className="mb-4 border-primary/30">
+            <p className="font-semibold text-slate-800 mb-2">Complete payment (exact amount)</p>
+            <p className="text-2xl font-bold text-primary mb-3">Rs {Number(order.totalAmount).toFixed(0)}</p>
+            {order.manualTransferProvider && mvpHints && (() => {
+              const p = order.manualTransferProvider;
+              const h = p ? mvpHints[p] : null;
+              if (!h) {
+                return <p className="text-sm text-amber-800">Account details are not configured. Contact support with your order number.</p>;
+              }
+              return (
+                <div className="text-sm space-y-1 mb-4">
+                  <p><span className="text-slate-500">Account title:</span> {h.accountTitle}</p>
+                  <p><span className="text-slate-500">Account / number:</span> {h.accountNumber}</p>
+                </div>
+              );
+            })()}
+            {mvpHints && order.manualTransferProvider && mvpHints[order.manualTransferProvider]?.openAppUrl && (
+              <a
+                href={mvpHints[order.manualTransferProvider]!.openAppUrl!}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-block mb-4 text-sm text-primary font-medium underline"
+              >
+                Open {order.manualTransferProvider === 'BANK_MANUAL' ? 'banking' : 'wallet'} app
+              </a>
+            )}
+            <p className="text-sm text-slate-600 mb-2">After paying, upload a clear screenshot of the transfer.</p>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              className="text-sm w-full"
+              disabled={uploadingProof}
+              onChange={async (e) => {
+                const f = e.target.files?.[0];
+                if (!f || !order) return;
+                setUploadingProof(true);
+                const fd = new FormData();
+                fd.append('file', f);
+                try {
+                  await api.post(`/orders/${order.id}/payment-screenshot`, fd, {
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                  });
+                  await fetchOrder();
+                } catch (err) {
+                  const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Upload failed';
+                  alert(msg);
+                } finally {
+                  setUploadingProof(false);
+                  e.target.value = '';
+                }
+              }}
+            />
+            {uploadingProof && <p className="text-xs text-slate-500 mt-1">Uploading…</p>}
+          </Card>
+        )}
+
+        {user?.role === 'CUSTOMER' && order.paymentMethod === 'MANUAL_TRANSFER' && order.paymentStatus === 'PENDING_VERIFICATION' && (
+          <Card className="mb-4 bg-slate-50">
+            <p className="text-sm text-slate-800 font-medium">Payment received — we are reviewing your screenshot. The store is notified only after approval.</p>
+            {order.paymentScreenshotUrl && (
+              <a href={order.paymentScreenshotUrl} target="_blank" rel="noreferrer" className="text-sm text-primary underline mt-2 inline-block">
+                View your uploaded image
+              </a>
+            )}
+          </Card>
+        )}
+
+        {user?.role === 'ADMIN' && order.paymentMethod === 'MANUAL_TRANSFER' && order.paymentStatus === 'PENDING_VERIFICATION' && (
+          <Card className="mb-4 border-amber-200 bg-amber-50/80">
+            <p className="font-semibold text-amber-950 mb-2">Verify manual payment</p>
+            {order.paymentScreenshotUrl && (
+              <a
+                href={order.paymentScreenshotUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-sm text-primary font-medium underline mb-4 block"
+              >
+                Open customer screenshot
+              </a>
+            )}
+            <p className="text-sm text-slate-800 mb-2">Total: Rs {Number(order.totalAmount).toFixed(0)} · {order.manualTransferProvider}</p>
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                size="sm"
+                variant="primary"
+                disabled={verifyBusy}
+                onClick={async () => {
+                  if (!order) return;
+                  setVerifyBusy(true);
+                  try {
+                    await api.post(`/orders/${order.id}/verify-manual-payment`, { decision: 'approve' });
+                    await fetchOrder();
+                  } catch (e) {
+                    const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Failed';
+                    alert(msg);
+                  } finally {
+                    setVerifyBusy(false);
+                  }
+                }}
+              >
+                Approve (mark paid)
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={verifyBusy}
+                onClick={async () => {
+                  if (!order) return;
+                  if (!window.confirm('Reject payment and cancel this order?')) return;
+                  setVerifyBusy(true);
+                  try {
+                    await api.post(`/orders/${order.id}/verify-manual-payment`, { decision: 'reject' });
+                    await fetchOrder();
+                  } catch (e) {
+                    const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Failed';
+                    alert(msg);
+                  } finally {
+                    setVerifyBusy(false);
+                  }
+                }}
+              >
+                Reject (cancel order)
+              </Button>
+            </div>
+          </Card>
+        )}
 
         {allowed.length > 0 && (
           <Card className="mb-4">

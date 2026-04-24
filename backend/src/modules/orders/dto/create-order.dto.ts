@@ -1,4 +1,4 @@
-import { IsString, IsArray, IsNumber, IsOptional, ValidateNested, ArrayMinSize, IsIn } from 'class-validator';
+import { IsString, IsArray, IsNumber, IsOptional, ValidateNested, ArrayMinSize, IsIn, ValidateIf } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class OrderItemDto {
@@ -35,8 +35,13 @@ export class CreateOrderDto {
 
   @IsOptional()
   @IsString()
-  @IsIn(['COD', 'CARD'])
-  paymentMethod?: 'COD' | 'CARD';
+  @IsIn(['COD', 'CARD', 'MANUAL_TRANSFER'])
+  paymentMethod?: 'COD' | 'CARD' | 'MANUAL_TRANSFER';
+
+  @ValidateIf((o: CreateOrderDto) => o.paymentMethod === 'MANUAL_TRANSFER')
+  @IsString()
+  @IsIn(['JAZZCASH', 'EASYPAISA', 'BANK_MANUAL'])
+  manualTransferProvider?: 'JAZZCASH' | 'EASYPAISA' | 'BANK_MANUAL';
 
   @IsOptional()
   @IsString()
