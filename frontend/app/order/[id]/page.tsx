@@ -281,7 +281,9 @@ export default function OrderDetailPage() {
 
         {user?.role === 'CUSTOMER' && order.paymentMethod === 'MANUAL_TRANSFER' && order.paymentStatus === 'PENDING_VERIFICATION' && (
           <Card className="mb-4 bg-slate-50">
-            <p className="text-sm text-slate-800 font-medium">Payment received — we are reviewing your screenshot. The store is notified only after approval.</p>
+            <p className="text-sm text-slate-800 font-medium">
+              Payment received — we are reviewing your screenshot. Your order is not sent to the restaurant until an admin approves the payment. The store is notified only after approval.
+            </p>
             {order.paymentScreenshotUrl && (
               <a href={order.paymentScreenshotUrl} target="_blank" rel="noreferrer" className="text-sm text-primary underline mt-2 inline-block">
                 View your uploaded image

@@ -97,3 +97,25 @@ export function manualMvpAccountDisplay(
   }
   return null;
 }
+
+/** For checkout UI: separate fields + copy. Returns null if bank is not configured. */
+export function bankManualMvpDisplaySplit(
+  env: NodeJS.ProcessEnv = process.env,
+): {
+  bankName: string;
+  accountTitle: string;
+  iban: string;
+  accountNumber: string;
+} | null {
+  const rawTitle = (env.VYBE_MVP_BANK_TITLE ?? '').trim();
+  const iban = (env.VYBE_MVP_BANK_IBAN ?? '').trim();
+  const accountNumber = (env.VYBE_MVP_BANK_ACCOUNT ?? '').trim();
+  const bankName = (env.VYBE_MVP_BANK_NAME ?? 'MCB').trim() || 'Bank';
+  if (!iban && !accountNumber) return null;
+  return {
+    bankName,
+    accountTitle: rawTitle || 'Account holder',
+    iban,
+    accountNumber,
+  };
+}

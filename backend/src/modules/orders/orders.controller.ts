@@ -32,7 +32,10 @@ import {
 import { isCloudinaryConfigured, uploadProductImageToCloudinary } from '../../common/uploads/cloudinary';
 import { extname, join } from 'path';
 import { writeFile } from 'fs/promises';
-import { randomUUID } from 'crypto';import { CreateOrderDto } from './dto/create-order.dto';
+import { randomUUID } from 'crypto';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
+import { CreateOrderDto } from './dto/create-order.dto';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 import { PrepareXPayDto } from './dto/prepare-xpay.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
@@ -217,6 +220,70 @@ export class OrdersController {
   @Get('checkout/eligibility')
   async checkoutEligibility(@CurrentUser() user: User) {
     return this.orders.getCheckoutEligibility(user.id);
+  }
+
+  /**
+   * **Manual online payment — Option A (strict, default):** no `Order` row and no stock movement until
+   * screenshot + this endpoint succeed. `paymentStatus` is `PENDING_VERIFICATION`; the store is notified
+   * only after `verifyManualMvpPayment` (approve), same as the rest of the manual MVP pipeline.
+   *
+   * *Option B (order first + `PENDING_PAYMENT`)* is intentionally not used here: it complicates stock,
+   * cancellations, and what the store sees, without helping manual proof review.
+   *
+   * Multipart: `file` = payment proof, `payload` = JSON `CreateOrderDto` (server forces `BANK_MANUAL`).
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CUSTOMER)
+  @Post('checkout/manual-bank/confirm')
+  @UseInterceptors(FileInterceptor('file', multerImageFileOptions()))
+  async confirmManualBankCheckout(
+    @CurrentUser() user: User,
+    @Body('payload') payload: string | undefined,
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Req() req: Request,
+  ) {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('Upload a screenshot of your bank transfer (JPEG, PNG, GIF, or WebP, max 5 MB).');
+    }
+    if (typeof payload !== 'string' || !payload.trim()) {
+      throw new BadRequestException('Missing order payload. Refresh checkout and try again.');
+    }
+    let parsed: CreateOrderDto;
+    try {
+      parsed = plainToInstance(CreateOrderDto, JSON.parse(payload) as object);
+    } catch {
+      throw new BadRequestException('Invalid order payload. Refresh checkout and try again.');
+    }
+    const errs = await validate(parsed);
+    if (errs.length > 0) {
+      const msg = errs.map((e) => Object.values(e.constraints ?? {})).flat().join(' ');
+      throw new BadRequestException(msg || 'Invalid order data');
+    }
+    parsed.paymentMethod = 'MANUAL_TRANSFER';
+    parsed.manualTransferProvider = 'BANK_MANUAL';
+    const isProd = process.env.NODE_ENV === 'production';
+    if (isProd && !isCloudinaryConfigured()) {
+      throw new BadRequestException('Image storage is not configured. Set Cloudinary (see uploads) for production.');
+    }
+    let imageUrl: string;
+    if (isCloudinaryConfigured()) {
+      const { secureUrl } = await uploadProductImageToCloudinary({
+        buffer: file.buffer,
+        mimetype: file.mimetype,
+      });
+      imageUrl = secureUrl;
+    } else {
+      const fromName = extname(file.originalname || '').toLowerCase();
+      const ext = ['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(fromName)
+        ? fromName === '.jpeg'
+          ? '.jpg'
+          : fromName
+        : '.jpg';
+      const filename = `${randomUUID()}${ext}`;
+      await writeFile(join(PRODUCTS_UPLOAD_DIR, filename), file.buffer);
+      imageUrl = publicUploadedImageUrl(req, filename);
+    }
+    return this.orders.createManualBankOrderWithProof(user.id, parsed, imageUrl);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

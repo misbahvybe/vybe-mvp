@@ -14,6 +14,7 @@ import { Loader } from '@/components/ui/Loader';
 import api from '@/services/api';
 import type { Address } from '@/types';
 import { MIN_ORDER_SUBTOTAL_PKR } from '@/lib/orderMinimum';
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard';
 
 type OrderQuote = {
   subtotal: string;
@@ -30,6 +31,13 @@ type OrderQuote = {
   codTaxPercent?: string;
   serviceFeeMode?: 'FIXED' | 'PERCENT';
   serviceFeePercent?: string;
+};
+
+type BankManualDisplay = {
+  bankName: string;
+  accountTitle: string;
+  iban: string;
+  accountNumber: string;
 };
 
 type CheckoutEligibility = {
@@ -49,6 +57,7 @@ type CheckoutEligibility = {
     string,
     { accountNumber: string; accountTitle: string; openAppUrl: string | null } | null
   > | null;
+  bankManualDisplay: BankManualDisplay | null;
 };
 
 type PaymentSelect =
@@ -77,6 +86,8 @@ function CheckoutContent() {
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [otpBusy, setOtpBusy] = useState(false);
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const { copy: copyValue, toast: copyToast, clearToast: clearCopyToast } = useCopyToClipboard();
 
   const cartKey = useMemo(
     () =>
@@ -93,6 +104,12 @@ function CheckoutContent() {
   }, [payment]);
 
   useEffect(() => {
+    if (payment === 'MVP_JAZZCASH' || payment === 'MVP_EASYPAISA') {
+      setPayment('MVP_BANK');
+    }
+  }, [payment]);
+
+  useEffect(() => {
     if (!token) return;
     api
       .get<CheckoutEligibility>('/orders/checkout/eligibility')
@@ -101,7 +118,7 @@ function CheckoutContent() {
         const e = r.data;
         if (e?.isBlocked) return;
         if (e && !e.canUseCod && e.manualMvpEnabled) {
-          setPayment('MVP_JAZZCASH');
+          setPayment('MVP_BANK');
         }
       })
       .catch(() => setEligibility(null));
@@ -256,21 +273,31 @@ function CheckoutContent() {
         return;
       }
 
-      if (payment === 'MVP_JAZZCASH' || payment === 'MVP_EASYPAISA' || payment === 'MVP_BANK') {
-        const provider = payment === 'MVP_JAZZCASH' ? 'JAZZCASH' : payment === 'MVP_EASYPAISA' ? 'EASYPAISA' : 'BANK_MANUAL';
-        const res = await api.post<{ id: string }>('/orders', {
-          storeId,
-          addressId: selectedAddressId,
-          items: items.map((i) => ({
-            productId: i.productId,
-            variantId: i.variantId ?? undefined,
-            quantity: i.quantity,
-            price: i.unitPrice,
-          })),
-          paymentMethod: 'MANUAL_TRANSFER',
-          manualTransferProvider: provider,
+      if (payment === 'MVP_BANK') {
+        if (!proofFile) {
+          setError('Please upload a screenshot of your bank transfer. Your order is only created after we receive this proof.');
+          return;
+        }
+        const fd = new FormData();
+        fd.append(
+          'payload',
+          JSON.stringify({
+            storeId,
+            addressId: selectedAddressId,
+            items: items.map((i) => ({
+              productId: i.productId,
+              variantId: i.variantId ?? undefined,
+              quantity: i.quantity,
+              price: i.unitPrice,
+            })),
+          }),
+        );
+        fd.append('file', proofFile);
+        const res = await api.post<{ id: string }>('/orders/checkout/manual-bank/confirm', fd, {
+          headers: { 'Content-Type': 'multipart/form-data' },
         });
         clearCart();
+        setProofFile(null);
         router.push(`/order/${res.data.id}`);
         return;
       }
@@ -296,12 +323,15 @@ function CheckoutContent() {
   };
 
   const mvp = eligibility?.manualMvpEnabled;
+  const bankDisplay = eligibility?.bankManualDisplay;
+  const needsProofUpload = mvp && payment === 'MVP_BANK';
   const canPlaceOrder =
     selectedAddressId &&
     items.length > 0 &&
     addresses.length > 0 &&
     subtotalPkr >= MIN_ORDER_SUBTOTAL_PKR &&
-    !eligibility?.isBlocked;
+    !eligibility?.isBlocked &&
+    (!needsProofUpload || Boolean(proofFile));
 
   if (!hasHydrated) return null;
   if (!token) return null;
@@ -388,6 +418,12 @@ function CheckoutContent() {
         )}
 
         <h2 className="text-lg font-bold text-slate-800 mb-2">Payment method</h2>
+        {mvp && (
+          <p className="text-sm text-slate-600 mb-2">
+            <span className="font-semibold text-slate-800">Online payment</span> — bank transfer with proof. Order is
+            created only after you upload your screenshot.
+          </p>
+        )}
         <div className="space-y-2 mb-6">
           {eligibility?.canUseCod && (
             <div
@@ -411,37 +447,31 @@ function CheckoutContent() {
 
           {mvp && (
             <>
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => setPayment('MVP_JAZZCASH')}
-                onKeyDown={(e) => e.key === 'Enter' && setPayment('MVP_JAZZCASH')}
-                className={`cursor-pointer ${payment === 'MVP_JAZZCASH' ? 'ring-2 ring-primary rounded-card' : ''}`}
-              >
-                <Card>
-                  <div className="flex items-center gap-3">
-                    <MdPayments className="w-5 h-5 text-primary shrink-0" />
-                    <div>
-                      <p className="font-medium text-slate-800">JazzCash (transfer in app)</p>
-                      <p className="text-xs text-slate-500">Pay to our number, then upload receipt on the next screen</p>
+              <div className="opacity-60 pointer-events-none" aria-disabled="true">
+                <Card className="border-dashed border-slate-200">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-3">
+                      <MdPayments className="w-5 h-5 text-slate-400 shrink-0" />
+                      <div>
+                        <p className="font-medium text-slate-600">JazzCash</p>
+                        <p className="text-xs text-slate-500">Coming soon — not available for checkout yet</p>
+                      </div>
                     </div>
+                    <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded">Disabled</span>
                   </div>
                 </Card>
               </div>
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => setPayment('MVP_EASYPAISA')}
-                onKeyDown={(e) => e.key === 'Enter' && setPayment('MVP_EASYPAISA')}
-                className={`cursor-pointer ${payment === 'MVP_EASYPAISA' ? 'ring-2 ring-primary rounded-card' : ''}`}
-              >
-                <Card>
-                  <div className="flex items-center gap-3">
-                    <MdPayments className="w-5 h-5 text-primary shrink-0" />
-                    <div>
-                      <p className="font-medium text-slate-800">Easypaisa (transfer in app)</p>
-                      <p className="text-xs text-slate-500">Pay to our number, then upload receipt on the next screen</p>
+              <div className="opacity-60 pointer-events-none mt-2" aria-disabled="true">
+                <Card className="border-dashed border-slate-200">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-3">
+                      <MdPayments className="w-5 h-5 text-slate-400 shrink-0" />
+                      <div>
+                        <p className="font-medium text-slate-600">Easypaisa</p>
+                        <p className="text-xs text-slate-500">Coming soon — not available for checkout yet</p>
+                      </div>
                     </div>
+                    <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded">Disabled</span>
                   </div>
                 </Card>
               </div>
@@ -450,14 +480,16 @@ function CheckoutContent() {
                 tabIndex={0}
                 onClick={() => setPayment('MVP_BANK')}
                 onKeyDown={(e) => e.key === 'Enter' && setPayment('MVP_BANK')}
-                className={`cursor-pointer ${payment === 'MVP_BANK' ? 'ring-2 ring-primary rounded-card' : ''}`}
+                className={`cursor-pointer mt-2 ${payment === 'MVP_BANK' ? 'ring-2 ring-primary rounded-card' : ''}`}
               >
                 <Card>
                   <div className="flex items-center gap-3">
                     <MdPayments className="w-5 h-5 text-primary shrink-0" />
                     <div>
-                      <p className="font-medium text-slate-800">Bank transfer</p>
-                      <p className="text-xs text-slate-500">IBAN or account on the next screen, then upload proof</p>
+                      <p className="font-medium text-slate-800">Bank transfer (recommended)</p>
+                      <p className="text-xs text-slate-500">
+                        Transfer to our business account, then upload your payment screenshot — your order is created only after you upload proof
+                      </p>
                     </div>
                   </div>
                 </Card>
@@ -505,11 +537,103 @@ function CheckoutContent() {
           )}
         </div>
 
-        {mvp && payment.startsWith('MVP_') && quote && (
-          <Card className="mb-4 bg-slate-50 border-slate-200">
-            <p className="text-sm font-medium text-slate-800 mb-1">You will pay (exactly)</p>
-            <p className="text-2xl font-bold text-primary">Rs {Number(quote.totalAmount).toFixed(0)}</p>
-            <p className="text-xs text-slate-500 mt-2">After you place the order, open the payment app, send this amount, then upload a screenshot.</p>
+        {copyToast && (
+          <div
+            className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-slate-900 text-white px-4 py-2.5 text-sm shadow-lg"
+            role="status"
+            aria-live="polite"
+          >
+            {copyToast}
+            <button
+              type="button"
+              className="ml-3 text-slate-300 hover:text-white text-xs"
+              onClick={() => clearCopyToast()}
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
+        {mvp && payment === 'MVP_BANK' && quote && bankDisplay && (
+          <Card className="mb-4 border-primary/25 bg-slate-50">
+            <p className="text-sm font-semibold text-slate-800 mb-3">Pay by bank transfer</p>
+            <ul className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-4 space-y-1 list-disc list-inside">
+              <li>Transfer the <span className="font-semibold">exact amount</span> (PKR) — do not round.</li>
+              <li>
+                <span className="font-semibold">Upload a screenshot to confirm your order</span> (after the transfer
+                is complete).
+              </li>
+              <li>Your order is <span className="font-semibold">not</span> sent to the restaurant until we verify your payment.</li>
+            </ul>
+            <p className="text-xs font-medium text-red-800 bg-red-50 border border-red-100 rounded px-2 py-1.5 mb-3">
+              Order will not be processed without payment. No order exists in our system until you submit your
+              screenshot.
+            </p>
+            <div className="space-y-3 text-sm">
+              <div>
+                <p className="text-slate-500 text-xs">Bank name</p>
+                <p className="font-medium text-slate-900">{bankDisplay.bankName}</p>
+              </div>
+              <div>
+                <p className="text-slate-500 text-xs">Account title</p>
+                <p className="font-medium text-slate-900">{bankDisplay.accountTitle}</p>
+              </div>
+              {bankDisplay.iban ? (
+                <div className="flex flex-wrap items-end justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-slate-500 text-xs">IBAN</p>
+                    <p className="font-mono text-slate-900 break-all">{bankDisplay.iban}</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="shrink-0 text-sm font-medium text-primary underline-offset-2 hover:underline"
+                    onClick={() => copyValue(bankDisplay.iban)}
+                  >
+                    Copy
+                  </button>
+                </div>
+              ) : null}
+              {bankDisplay.accountNumber ? (
+                <div className="flex flex-wrap items-end justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-slate-500 text-xs">Account number</p>
+                    <p className="font-mono text-slate-900 break-all">{bankDisplay.accountNumber}</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="shrink-0 text-sm font-medium text-primary underline-offset-2 hover:underline"
+                    onClick={() => copyValue(bankDisplay.accountNumber)}
+                  >
+                    Copy
+                  </button>
+                </div>
+              ) : null}
+              <div className="pt-2 border-t border-slate-200">
+                <p className="text-slate-500 text-xs">Amount to pay (exactly)</p>
+                <p className="text-2xl font-bold text-primary">Rs {Number(quote.totalAmount).toFixed(0)}</p>
+              </div>
+            </div>
+            <div className="mt-4">
+              <p className="text-sm font-medium text-slate-800 mb-2">Upload screenshot to confirm order</p>
+              <p className="text-xs text-slate-500 mb-2">
+                Clear image of the successful transfer (reference or receipt visible if possible).
+              </p>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="text-sm w-full"
+                onChange={(e) => {
+                  const f = e.target.files?.[0] ?? null;
+                  setProofFile(f);
+                }}
+              />
+            </div>
+          </Card>
+        )}
+
+        {mvp && payment === 'MVP_BANK' && quote && !bankDisplay && (
+          <Card className="mb-4 border-amber-200 bg-amber-50">
+            <p className="text-sm text-amber-900">Bank details are not configured. You cannot use bank transfer until the server has VYBE_MVP_BANK_* set.</p>
           </Card>
         )}
 
@@ -614,12 +738,13 @@ function CheckoutContent() {
           disabled={
             !canPlaceOrder ||
             (eligibility?.checkoutOtpRequired && !eligibility?.otpSatisfied) ||
-            (payment === 'COD' && !eligibility?.canUseCod)
+            (payment === 'COD' && !eligibility?.canUseCod) ||
+            (payment === 'MVP_BANK' && !eligibility?.bankManualDisplay)
           }
           onClick={placeOrder}
           className="min-h-[44px]"
         >
-          Place order
+          {payment === 'MVP_BANK' ? 'Submit payment & place order' : 'Place order'}
         </Button>
       </main>
       </ContentPanel>

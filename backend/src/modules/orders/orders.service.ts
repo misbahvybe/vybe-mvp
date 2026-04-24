@@ -38,6 +38,7 @@ import {
   manualMvpAccountDisplay,
   orderStrikeCancelThreshold,
   pkPhoneHeuristicWarning,
+  bankManualMvpDisplaySplit,
 } from './manual-mvp.util';
 
 /** Set `false` when Stripe / XPay keys are ready and clients show those options again. */
@@ -555,7 +556,37 @@ export class OrdersService {
     };
   }
 
-  async create(customerId: string, dto: CreateOrderDto, options?: { allowCardWhenCodOnly?: boolean }) {
+  /**
+   * **Option A (strict) —** no `Order` / stock / store signal until proof exists; see `create(..., { manualBankProofUrl })`.
+   * Option B (order first + pending payment) is not used for manual bank+screenshot. Ref: `POST checkout/manual-bank/confirm`.
+   */
+  async createManualBankOrderWithProof(
+    customerId: string,
+    dto: CreateOrderDto,
+    paymentScreenshotUrl: string,
+  ) {
+    if (!isManualMvpEnabled()) {
+      throw new BadRequestException('Manual online payment is not available at the moment.');
+    }
+    if (dto.paymentMethod !== 'MANUAL_TRANSFER' || dto.manualTransferProvider !== 'BANK_MANUAL') {
+      throw new BadRequestException('This endpoint only accepts bank transfer (IBAN).');
+    }
+    if (!paymentScreenshotUrl?.trim()) {
+      throw new BadRequestException('Please upload a payment screenshot.');
+    }
+    if (!manualMvpAccountDisplay('BANK_MANUAL' as PendingPaymentProvider)) {
+      throw new BadRequestException(
+        'Bank transfer is not configured on the server. Ask the admin to set VYBE_MVP_BANK_* env variables.',
+      );
+    }
+    return this.create(customerId, dto, { manualBankProofUrl: paymentScreenshotUrl });
+  }
+
+  async create(
+    customerId: string,
+    dto: CreateOrderDto,
+    options?: { allowCardWhenCodOnly?: boolean; /** MVP: create order only after bank transfer screenshot. */ manualBankProofUrl?: string },
+  ) {
     const address = await this.prisma.address.findFirst({
       where: { id: dto.addressId, userId: customerId },
     });
@@ -567,11 +598,19 @@ export class OrdersService {
     this.assertCustomerCanOrderFromStore(store);
 
     const paymentMethod = dto.paymentMethod ?? 'COD';
-    const isManual =
-      paymentMethod === 'MANUAL_TRANSFER' && isManualMvpEnabled();
+    const isManualMvp = paymentMethod === 'MANUAL_TRANSFER' && isManualMvpEnabled();
+    const isManualWithProof = !!options?.manualBankProofUrl?.trim();
+    const isManual = isManualMvp || isManualWithProof;
+
+    if (isManualWithProof) {
+      if (dto.paymentMethod !== 'MANUAL_TRANSFER' || dto.manualTransferProvider !== 'BANK_MANUAL') {
+        throw new BadRequestException('When uploading payment proof, use bank transfer (IBAN) only.');
+      }
+    }
+
     if (isManual) {
       if (!dto.manualTransferProvider) {
-        throw new BadRequestException('Select JazzCash, Easypaisa, or bank transfer.');
+        throw new BadRequestException('Select a transfer method or use bank transfer from checkout with proof.');
       }
       const acc = manualMvpAccountDisplay(
         dto.manualTransferProvider as PendingPaymentProvider,
@@ -583,6 +622,12 @@ export class OrdersService {
       }
     } else if (paymentMethod === 'MANUAL_TRANSFER' && !isManualMvpEnabled()) {
       throw new BadRequestException('Manual online payment is not available at the moment.');
+    }
+
+    if (isManualMvp && !isManualWithProof) {
+      throw new BadRequestException(
+        'Online transfer orders are placed only after you upload your payment proof on checkout. Use “Submit payment & place order” at the end of the bank transfer step—no order is created before your screenshot is received.',
+      );
     }
 
     await this.assertMvpPreOrderRules(customerId, paymentMethod);
@@ -675,9 +720,12 @@ export class OrdersService {
             : useCard
               ? 'CARD'
               : 'COD',
-            // COD: PENDING. CARD: PENDING then PAID. MANUAL: PENDING then PENDING_VERIFICATION then PAID.
-            paymentStatus: isManual ? PaymentStatus.PENDING : PaymentStatus.PENDING,
+            // COD: PENDING. CARD: PENDING then PAID. MANUAL with proof: PENDING_VERIFICATION at creation; admin approves → PAID.
+            paymentStatus: options?.manualBankProofUrl
+              ? PaymentStatus.PENDING_VERIFICATION
+              : PaymentStatus.PENDING,
           orderStatus: OrderStatus.PENDING,
+          paymentScreenshotUrl: options?.manualBankProofUrl?.trim() ?? null,
           manualTransferProvider: isManual
             ? (dto.manualTransferProvider as PendingPaymentProvider)
             : null,
@@ -804,7 +852,8 @@ export class OrdersService {
 
     // Emit to store: COD immediately; CARD after API verification; manual MVP only after admin approves.
     if (isManual) {
-      // no emit — kitchen sees the order only once payment is confirmed (see verifyManualMvpPayment).
+      // Admin list / payment-audit: show PENDING_VERIFICATION. No store or rider notify until verifyManualMvpPayment.
+      this.ordersGateway.emitAdminPipelineUpdated();
     } else if (!useCard) {
       this.ordersGateway.emitOrderCreated({
         id: order.o.id,
@@ -1702,6 +1751,8 @@ export class OrdersService {
             BANK_MANUAL: manualMvpAccountDisplay('BANK_MANUAL'),
           }
         : null,
+      /** Split fields for “Copy” + primary bank UI (IBAN, account, bank name). */
+      bankManualDisplay: isManualMvpEnabled() ? bankManualMvpDisplaySplit() : null,
     };
   }
 
