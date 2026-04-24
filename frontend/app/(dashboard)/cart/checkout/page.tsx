@@ -19,6 +19,9 @@ type OrderQuote = {
   subtotal: string;
   deliveryDistanceKm: string;
   deliveryFee: string;
+  deliveryFeeGross?: string;
+  deliveryDiscount?: string;
+  freeDeliveryApplied?: boolean;
   serviceFee: string;
   baseBeforeSurcharge: string;
   gstAmount: string;
@@ -31,9 +34,13 @@ type OrderQuote = {
 
 type CheckoutEligibility = {
   manualMvpEnabled: boolean;
-  firstOrderRulesActive: boolean;
+  firstOrderRulesActive?: boolean;
+  codUnlockedWithoutDelivery?: boolean;
   checkoutOtpRequired: boolean;
   deliveredOrderCount: number;
+  priorPlacedOrderCount?: number;
+  freeDeliveryOrderCap?: number;
+  qualifiesFreeDelivery?: boolean;
   canUseCod: boolean;
   otpSatisfied: boolean;
   isBlocked: boolean;
@@ -332,6 +339,15 @@ function CheckoutContent() {
           </div>
         )}
 
+        {eligibility?.qualifiesFreeDelivery && (
+          <Card className="mb-4 border-emerald-200 bg-emerald-50/80">
+            <p className="text-sm text-emerald-900 font-medium">First orders offer</p>
+            <p className="text-xs text-emerald-800 mt-1">
+              Delivery fee is waived on your first {eligibility.freeDeliveryOrderCap ?? 2} orders (see breakdown below).
+            </p>
+          </Card>
+        )}
+
         {eligibility?.phoneWarning && (
           <Card className="mb-4 border-amber-200 bg-amber-50/80">
             <p className="text-sm text-amber-900">{eligibility.phoneWarning}</p>
@@ -521,12 +537,29 @@ function CheckoutContent() {
             <span>Subtotal</span>
             <span>Rs {quote ? Number(quote.subtotal).toFixed(0) : subtotalPkr.toFixed(0)}</span>
           </div>
-          <div className="flex justify-between py-2 text-slate-600">
-            <span>Delivery fee</span>
-            <span>
-              {quoteLoading ? '…' : quote ? `Rs ${Number(quote.deliveryFee).toFixed(0)}` : '—'}
-            </span>
-          </div>
+          {quote && quote.freeDeliveryApplied && quote.deliveryFeeGross != null && Number(quote.deliveryFeeGross) > 0 ? (
+            <>
+              <div className="flex justify-between py-2 text-slate-600">
+                <span>Delivery fee (list)</span>
+                <span>Rs {Number(quote.deliveryFeeGross).toFixed(0)}</span>
+              </div>
+              <div className="flex justify-between py-2 text-emerald-800">
+                <span>First-orders delivery discount</span>
+                <span>− Rs {Number(quote.deliveryDiscount ?? quote.deliveryFeeGross).toFixed(0)}</span>
+              </div>
+              <div className="flex justify-between py-2 text-slate-800 font-medium">
+                <span>Total delivery</span>
+                <span>Rs {Number(quote.deliveryFee).toFixed(0)}</span>
+              </div>
+            </>
+          ) : (
+            <div className="flex justify-between py-2 text-slate-600">
+              <span>Delivery fee</span>
+              <span>
+                {quoteLoading ? '…' : quote ? `Rs ${Number(quote.deliveryFee).toFixed(0)}` : '—'}
+              </span>
+            </div>
+          )}
           <div className="flex justify-between py-2 text-slate-600">
             <span>
               Service fee

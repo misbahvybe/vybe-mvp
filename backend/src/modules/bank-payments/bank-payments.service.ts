@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PendingPaymentProvider } from '@prisma/client';
+import { OrderStatus, PendingPaymentProvider } from '@prisma/client';
+import { freeDeliveryOrderCap } from '../orders/manual-mvp.util';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { PricingService } from '../pricing/pricing.service';
 import { PrepareXPayDto } from '../orders/dto/prepare-xpay.dto';
@@ -158,6 +159,12 @@ export class BankPaymentsService {
 
     const items = dto.items as { productId: string; variantId?: string; quantity: number; price?: number }[];
     const { subtotal: subtotalAmount } = await this.assertItemsAndSubtotal(dto.storeId, items, { checkStock: true });
+    const prior = await this.prisma.order.count({
+      where: {
+        customerId,
+        orderStatus: { notIn: [OrderStatus.CANCELLED, OrderStatus.STORE_REJECTED] },
+      },
+    });
     const q = await this.pricing.buildQuote({
       storeId: dto.storeId,
       addressLat: Number(address.latitude),
@@ -166,6 +173,7 @@ export class BankPaymentsService {
       storeLng: store.longitude != null ? Number(store.longitude) : null,
       subtotal: subtotalAmount,
       paymentMethod: 'CARD',
+      waiveDeliveryFee: prior < freeDeliveryOrderCap(),
     });
 
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000);

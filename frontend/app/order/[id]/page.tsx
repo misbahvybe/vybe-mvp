@@ -21,6 +21,9 @@ interface OrderDetail {
   totalAmount: number;
   subtotalAmount?: number;
   deliveryFee?: number;
+  /** Before first-N-orders free delivery promo */
+  deliveryFeeOriginal?: number | null;
+  deliveryDiscount?: number | null;
   serviceFee?: number;
   gstAmount?: number;
   cardProcessingAmount?: number;
@@ -524,7 +527,25 @@ export default function OrderDetailPage() {
               <span>Rs {Number(order.subtotalAmount).toFixed(0)}</span>
             </div>
           )}
-          {order.deliveryFee != null && Number(order.deliveryFee) > 0 && (
+          {order.deliveryFeeOriginal != null &&
+            order.deliveryDiscount != null &&
+            Number(order.deliveryDiscount) > 0 && (
+            <>
+              <div className="flex justify-between py-1 text-slate-600 text-sm">
+                <span>Delivery fee (list)</span>
+                <span>Rs {Number(order.deliveryFeeOriginal).toFixed(0)}</span>
+              </div>
+              <div className="flex justify-between py-1 text-emerald-800 text-sm">
+                <span>First-orders delivery discount</span>
+                <span>− Rs {Number(order.deliveryDiscount).toFixed(0)}</span>
+              </div>
+              <div className="flex justify-between py-1 text-slate-800 text-sm font-medium">
+                <span>Total delivery</span>
+                <span>Rs {Number(order.deliveryFee ?? 0).toFixed(0)}</span>
+              </div>
+            </>
+          )}
+          {order.deliveryFeeOriginal == null && order.deliveryFee != null && Number(order.deliveryFee) > 0 && (
             <div className="flex justify-between py-1 text-slate-600 text-sm">
               <span>Delivery</span>
               <span>Rs {Number(order.deliveryFee).toFixed(0)}</span>

@@ -691,6 +691,28 @@ export class AdminService {
     });
   }
 
+  /** Read-only: manual online payment verify actions (see `orders.service` verify step). */
+  async listManualPaymentAuditLogs(options: { limit?: number; offset?: number }) {
+    const limit = Math.min(Math.max(Number(options.limit) || 50, 1), 200);
+    const offset = Math.max(Number(options.offset) || 0, 0);
+    const where: Prisma.AdminLogWhereInput = {
+      action: { in: ['MANUAL_PAYMENT_APPROVE', 'MANUAL_PAYMENT_REJECT'] },
+    };
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.adminLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+        include: {
+          admin: { select: { id: true, name: true, email: true } },
+        },
+      }),
+      this.prisma.adminLog.count({ where }),
+    ]);
+    return { items, total, limit, offset };
+  }
+
   async getMetricsCharts() {
     const ttl = this.adminChartsTtlSeconds();
     return this.upstash.wrapJson('admin:metrics:charts:v1', ttl, () => this.computeMetricsCharts());

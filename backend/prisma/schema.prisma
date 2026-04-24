@@ -409,6 +409,10 @@ model Order {
   addressId       String        @map("address_id")
   subtotalAmount   Decimal       @map("subtotal_amount") @db.Decimal(10, 2)
   deliveryFee      Decimal       @default(0) @map("delivery_fee") @db.Decimal(10, 2)
+  /// List distance-based fee before “first N orders free” (null = use `deliveryFee` for legacy rows).
+  deliveryFeeOriginal Decimal?  @map("delivery_fee_original") @db.Decimal(10, 2)
+  /// Discount applied to delivery (e.g. first 2 orders free = full list fee here).
+  deliveryDiscount Decimal    @default(0) @map("delivery_discount") @db.Decimal(10, 2)
   serviceFee       Decimal       @default(0) @map("service_fee") @db.Decimal(10, 2)
   /// COD: configurable % on (subtotal + delivery + service). Card: 0.
   gstAmount        Decimal       @default(0) @map("gst_amount") @db.Decimal(10, 2)

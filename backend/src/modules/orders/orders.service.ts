@@ -32,7 +32,8 @@ import { assertMinOrderSubtotalPkr } from '../../common/constants/order-minimum'
 import { formatOrderNoForDisplay } from '../../common/format/order-number';
 import {
   isCheckoutOtpEnforced,
-  isFirstOrderOnlineOnlyEnforced,
+  allowCodOnFirstOrder,
+  freeDeliveryOrderCap,
   isManualMvpEnabled,
   manualMvpAccountDisplay,
   orderStrikeCancelThreshold,
@@ -81,6 +82,7 @@ export class OrdersService {
     const { subtotal: subtotalAmount } = await this.assertItemsAndSubtotal(this.prisma, dto.storeId, dto.items, {
       checkStock: true,
     });
+    const priorJ = await this.priorPlacedOrderCountForPromos(customerId);
     const q = await this.pricing.buildQuote({
       storeId: dto.storeId,
       addressLat: Number(address.latitude),
@@ -89,6 +91,7 @@ export class OrdersService {
       storeLng: store.longitude != null ? Number(store.longitude) : null,
       subtotal: subtotalAmount,
       paymentMethod: 'CARD',
+      waiveDeliveryFee: priorJ < freeDeliveryOrderCap(),
     });
 
     const user = await this.prisma.user.findUniqueOrThrow({
@@ -195,6 +198,7 @@ export class OrdersService {
     const { subtotal: subtotalAmount } = await this.assertItemsAndSubtotal(this.prisma, dto.storeId, dto.items, {
       checkStock: true,
     });
+    const priorE = await this.priorPlacedOrderCountForPromos(customerId);
     const q = await this.pricing.buildQuote({
       storeId: dto.storeId,
       addressLat: Number(address.latitude),
@@ -203,6 +207,7 @@ export class OrdersService {
       storeLng: store.longitude != null ? Number(store.longitude) : null,
       subtotal: subtotalAmount,
       paymentMethod: 'CARD',
+      waiveDeliveryFee: priorE < freeDeliveryOrderCap(),
     });
 
     const user = await this.prisma.user.findUniqueOrThrow({
@@ -345,6 +350,8 @@ export class OrdersService {
     });
     const useCard = !PAYMENTS_COD_ONLY && dto.paymentMethod === 'CARD';
     const useManualMvp = isManualMvpEnabled() && dto.paymentMethod === 'MANUAL';
+    const prior = await this.priorPlacedOrderCountForPromos(customerId);
+    const waiveDelivery = prior < freeDeliveryOrderCap();
     const q = await this.pricing.buildQuote({
       storeId: dto.storeId,
       addressLat: Number(address.latitude),
@@ -353,11 +360,15 @@ export class OrdersService {
       storeLng: store.longitude != null ? Number(store.longitude) : null,
       subtotal,
       paymentMethod: useManualMvp ? 'MANUAL' : useCard ? 'CARD' : 'COD',
+      waiveDeliveryFee: waiveDelivery,
     });
     return {
       subtotal: q.subtotal.toFixed(2),
       deliveryDistanceKm: q.deliveryDistanceKm.toFixed(4),
       deliveryFee: q.deliveryFee.toFixed(2),
+      deliveryFeeGross: q.deliveryFeeGross.toFixed(2),
+      deliveryDiscount: q.deliveryDiscount.toFixed(2),
+      freeDeliveryApplied: waiveDelivery,
       serviceFee: q.serviceFee.toFixed(2),
       baseBeforeSurcharge: q.baseBeforeSurcharge.toFixed(2),
       gstAmount: q.gstAmount.toFixed(2),
@@ -426,6 +437,7 @@ export class OrdersService {
     const { subtotal: subtotalAmount } = await this.assertItemsAndSubtotal(this.prisma, dto.storeId, dto.items, {
       checkStock: true,
     });
+    const priorX = await this.priorPlacedOrderCountForPromos(customerId);
     const q = await this.pricing.buildQuote({
       storeId: dto.storeId,
       addressLat: Number(address.latitude),
@@ -434,6 +446,7 @@ export class OrdersService {
       storeLng: store.longitude != null ? Number(store.longitude) : null,
       subtotal: subtotalAmount,
       paymentMethod: 'CARD',
+      waiveDeliveryFee: priorX < freeDeliveryOrderCap(),
     });
     const totalAmount = Number(q.totalAmount);
 
@@ -589,6 +602,9 @@ export class OrdersService {
     const useCardLikeQuote = useCard || isManual;
 
     const slaDeadlineAt = this.pricing.slaDeadlineFromNow();
+    // See priorPlacedOrderCountForPromos() JSDoc — snapshot count; not serializable with concurrent carts.
+    const priorPlaced = await this.priorPlacedOrderCountForPromos(customerId);
+    const waiveDelivery = priorPlaced < freeDeliveryOrderCap();
 
     const order = await this.prisma.$transaction(
       async (tx) => {
@@ -610,6 +626,7 @@ export class OrdersService {
           storeLng: store.longitude != null ? Number(store.longitude) : null,
           subtotal: subtotalAmount,
           paymentMethod: useCardLikeQuote ? (isManual ? 'MANUAL' : 'CARD') : 'COD',
+          waiveDeliveryFee: waiveDelivery,
         });
 
         // NOTE: Prisma interactive transactions should not run queries in parallel.
@@ -643,6 +660,8 @@ export class OrdersService {
           addressId: dto.addressId,
           subtotalAmount: subtotalDecimal,
           deliveryFee: q.deliveryFee,
+          deliveryFeeOriginal: q.deliveryFeeGross,
+          deliveryDiscount: q.deliveryDiscount,
           serviceFee: q.serviceFee,
           gstAmount: q.gstAmount,
           cardProcessingAmount: q.cardProcessingAmount,
@@ -876,6 +895,24 @@ export class OrdersService {
     }
   }
 
+  /**
+   * Prior orders that still “count” for promos (not customer/store-cancelled or rejected at checkout).
+   * Next order index = this + 1 (1st, 2nd, …) for up to N free-delivery promos.
+   *
+   * **Race (acceptable for typical traffic):** this count is read *before* the new order is inserted.
+   * Two concurrent checkouts can both see the same `prior` and both get the same waive/COD gating; only
+   * serializable isolation (or a locked counter) would be strict. To harden later, re-check inside the
+   * create-order transaction or use `Serializable` (Postgres) with retries on conflict.
+   */
+  private priorPlacedOrderCountForPromos(customerId: string) {
+    return this.prisma.order.count({
+      where: {
+        customerId,
+        orderStatus: { notIn: [OrderStatus.CANCELLED, OrderStatus.STORE_REJECTED] },
+      },
+    });
+  }
+
   private async assertMvpPreOrderRules(customerId: string, paymentMethod: string) {
     const u = await this.prisma.user.findUnique({
       where: { id: customerId },
@@ -897,14 +934,18 @@ export class OrdersService {
         );
       }
     }
-    if (!isFirstOrderOnlineOnlyEnforced()) return;
-    const deliveredCount = await this.prisma.order.count({
-      where: { customerId, orderStatus: OrderStatus.DELIVERED },
-    });
-    if (deliveredCount < 1 && paymentMethod === 'COD') {
-      throw new BadRequestException(
-        'Cash on delivery unlocks after your first completed delivery. For your first order, pay with JazzCash, Easypaisa, or bank transfer.',
-      );
+    if (allowCodOnFirstOrder()) {
+      return;
+    }
+    if (paymentMethod === 'COD') {
+      const deliveredCount = await this.prisma.order.count({
+        where: { customerId, orderStatus: OrderStatus.DELIVERED },
+      });
+      if (deliveredCount < 1) {
+        throw new BadRequestException(
+          'Your first order must be paid online (card or in-app transfer + screenshot). Cash on delivery is available after your first completed delivery.',
+        );
+      }
     }
   }
 
@@ -1631,12 +1672,23 @@ export class OrdersService {
       u.role === Role.CUSTOMER
         ? await this.prisma.order.count({ where: { customerId, orderStatus: OrderStatus.DELIVERED } })
         : 0;
+    const priorPlaced =
+      u.role === Role.CUSTOMER ? await this.priorPlacedOrderCountForPromos(customerId) : 0;
+    const cap = freeDeliveryOrderCap();
     return {
       manualMvpEnabled: isManualMvpEnabled(),
-      firstOrderRulesActive: isFirstOrderOnlineOnlyEnforced(),
+      /** If true, COD is allowed before any delivery (set VYBE_ALLOW_COD_ON_FIRST_ORDER=1 on server). */
+      codUnlockedWithoutDelivery: u.role === Role.CUSTOMER && allowCodOnFirstOrder(),
+      /** First order should be online until at least one delivery (when codUnlockedWithoutDelivery is false). */
+      firstOrderRulesActive: u.role === Role.CUSTOMER && !allowCodOnFirstOrder(),
       checkoutOtpRequired: isCheckoutOtpEnforced(),
       deliveredOrderCount: deliveredCount,
-      canUseCod: u.role !== Role.CUSTOMER || !isFirstOrderOnlineOnlyEnforced() || deliveredCount >= 1,
+      priorPlacedOrderCount: priorPlaced,
+      freeDeliveryOrderCap: cap,
+      /** Next order gets waived delivery if true (first N “placed” non-rejected/cancelled orders). */
+      qualifiesFreeDelivery: u.role === Role.CUSTOMER && priorPlaced < cap,
+      canUseCod:
+        u.role !== Role.CUSTOMER || allowCodOnFirstOrder() || deliveredCount >= 1,
       otpSatisfied:
         u.role !== Role.CUSTOMER ||
         !isCheckoutOtpEnforced() ||
@@ -1675,7 +1727,7 @@ export class OrdersService {
     return updated;
   }
 
-  async verifyManualMvpPayment(_adminId: string, orderId: string, decision: 'approve' | 'reject') {
+  async verifyManualMvpPayment(adminId: string, orderId: string, decision: 'approve' | 'reject') {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: { store: { select: { ownerId: true, name: true } }, customer: { select: { name: true, phone: true } } },
@@ -1701,6 +1753,13 @@ export class OrdersService {
             orderStatus: OrderStatus.CANCELLED,
             cancellationReason: 'OTHER',
             cancelledByRole: Role.ADMIN,
+          },
+        });
+        await tx.adminLog.create({
+          data: {
+            adminId,
+            action: 'MANUAL_PAYMENT_REJECT',
+            targetId: orderId,
           },
         });
       });
@@ -1730,6 +1789,13 @@ export class OrdersService {
           orderId: order.id,
           storeAmount: storeAmount.toDecimalPlaces(2, Decimal.ROUND_HALF_UP),
           commissionAmount: order.commissionAmount,
+        },
+      });
+      await tx.adminLog.create({
+        data: {
+          adminId,
+          action: 'MANUAL_PAYMENT_APPROVE',
+          targetId: orderId,
         },
       });
     });

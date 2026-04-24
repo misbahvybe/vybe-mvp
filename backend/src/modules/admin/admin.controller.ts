@@ -128,6 +128,19 @@ export class AdminController {
     return this.admin.getFinance();
   }
 
+  /** Approve / reject log for manual bank-transfer payment verification. */
+  @Get('audit-logs/manual-payments')
+  async listManualPaymentAuditLogs(
+    @CurrentUser() _user: User,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.admin.listManualPaymentAuditLogs({
+      limit: limit != null && limit !== '' ? parseInt(limit, 10) : undefined,
+      offset: offset != null && offset !== '' ? parseInt(offset, 10) : undefined,
+    });
+  }
+
   @Get('pricing/platform-category-commissions')
   async listPlatformCategoryCommissions(@CurrentUser() _user: User) {
     return this.admin.listPlatformCategoryCommissions();

@@ -10,8 +10,19 @@ export function isManualMvpEnabled(): boolean {
   return envOn('VYBE_MANUAL_MVP');
 }
 
-export function isFirstOrderOnlineOnlyEnforced(): boolean {
-  return envOn('VYBE_FIRST_ORDER_ONLINE_ONLY');
+/**
+ * When true, customers may use COD even with zero completed deliveries.
+ * When false (default), the first order must be paid online; COD is allowed after the first **delivered** order.
+ */
+export function allowCodOnFirstOrder(): boolean {
+  return envOn('VYBE_ALLOW_COD_ON_FIRST_ORDER');
+}
+
+/** How many of the customer’s first orders get waived delivery (default 2). */
+export function freeDeliveryOrderCap(): number {
+  const n = Number((process.env.VYBE_FREE_DELIVERY_ORDER_COUNT ?? '2').trim());
+  if (!Number.isFinite(n) || n < 0) return 2;
+  return Math.min(50, Math.floor(n));
 }
 
 /** When set, a fresh checkout OTP (WhatsApp) is required to place an order. */
@@ -20,14 +31,16 @@ export function isCheckoutOtpEnforced(): boolean {
 }
 
 /**
- * When set, customer cancels in PENDING increment `orderStrikeCount` and can block at this threshold.
- * Returns null when disabled.
+ * PENDING cancels that increment `orderStrikeCount` before the account is blocked.
+ * Default 5. Set to `0` to disable anti-abuse.
  */
 export function orderStrikeCancelThreshold(): number | null {
-  const raw = (process.env.VYBE_ORDER_STRIKES_MAX ?? '').trim();
-  if (!raw) return null;
+  const raw = (process.env.VYBE_ORDER_STRIKES_MAX ?? '5').trim();
+  if (raw === '0' || raw.toLowerCase() === 'off' || raw.toLowerCase() === 'false') {
+    return null;
+  }
   const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 5;
 }
 
 const OTP_WINDOW_MS = 24 * 60 * 60 * 1000;

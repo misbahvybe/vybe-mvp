@@ -17,6 +17,7 @@ import {
   Menu,
   X,
   Percent,
+  Receipt,
 } from 'lucide-react';
 import { NotificationsBell } from '@/components/notifications/NotificationsBell';
 import { NotificationsToasts } from '@/components/notifications/NotificationsToasts';
@@ -58,6 +59,7 @@ const NAV = [
   { href: '/admin/partners', label: 'Partners', icon: UserPlus },
   { href: '/admin/users', label: 'Users', icon: Users },
   { href: '/admin/finance', label: 'Finance', icon: Wallet },
+  { href: '/admin/payment-audit', label: 'Payment audit', icon: Receipt },
   { href: '/admin/pricing', label: 'Pricing', icon: Percent },
   { href: '/admin/metrics', label: 'Metrics', icon: BarChart3 },
   { href: '/admin/settings', label: 'Settings', icon: Settings },

@@ -10,7 +10,12 @@ export type OrderQuotePayment = 'COD' | 'CARD' | 'MANUAL';
 export interface OrderPricingQuote {
   subtotal: Decimal;
   deliveryDistanceKm: Decimal;
+  /** Net delivery charged (after first-N-orders discount, if any). */
   deliveryFee: Decimal;
+  /** Full distance-based fee before promo (equals `deliveryFee` when no waiver). */
+  deliveryFeeGross: Decimal;
+  /** Amount waived (e.g. first 2 orders free delivery). */
+  deliveryDiscount: Decimal;
   serviceFee: Decimal;
   baseBeforeSurcharge: Decimal;
   gstAmount: Decimal;
@@ -241,6 +246,8 @@ export class PricingService {
     storeLng: number | null;
     subtotal: number;
     paymentMethod: OrderQuotePayment;
+    /** When set, `deliveryFee` is forced to 0 and `deliveryDiscount` = gross list fee (first N orders, etc.). */
+    waiveDeliveryFee?: boolean;
   }): Promise<OrderPricingQuote> {
     const subtotal = new Decimal(params.subtotal);
     let distanceKm = new Decimal('1');
@@ -259,7 +266,12 @@ export class PricingService {
       distanceKm = new Decimal(km.toFixed(4));
     }
     const fees = await this.resolveCheckoutFees();
-    const deliveryFee = distanceKm.mul(fees.deliveryPerKm).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    const deliveryFeeGross = distanceKm.mul(fees.deliveryPerKm).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    const waive = Boolean(params.waiveDeliveryFee);
+    const deliveryFee = waive
+      ? new Decimal(0)
+      : deliveryFeeGross;
+    const deliveryDiscount = waive ? deliveryFeeGross : new Decimal(0);
     const serviceFee = this.computeServiceFee(fees, subtotal, deliveryFee);
     const baseBeforeSurcharge = subtotal.add(deliveryFee).add(serviceFee);
 
@@ -285,6 +297,8 @@ export class PricingService {
       subtotal,
       deliveryDistanceKm: distanceKm,
       deliveryFee,
+      deliveryFeeGross,
+      deliveryDiscount,
       serviceFee,
       baseBeforeSurcharge,
       gstAmount,
