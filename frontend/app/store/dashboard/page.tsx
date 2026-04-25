@@ -22,7 +22,7 @@ import {
 import api from '@/services/api';
 import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
 import { useLoopingOrderAlarm } from '@/hooks/useLoopingOrderAlarm';
-import { type OrderSlipInput } from '@/lib/printOrderSlip';
+import { toOrderSlipInput } from '@/lib/printOrderSlip';
 import { getQzTrayPrinterName, isQzTrayEnvConfigured, printOrderSlipWithQzFallback } from '@/lib/printOrderSlipQz';
 import { StoreOwnerNavTabs } from '@/components/store/StoreOwnerNavTabs';
 import { enableWebPushForCurrentUser, getWebPushUiStatus, type WebPushUiStatus } from '@/services/push';
@@ -56,35 +56,24 @@ interface Order {
   orderStatus: string;
   createdAt: string;
   totalAmount: number;
+  subtotalAmount?: number;
+  deliveryFee?: number;
+  serviceFee?: number;
+  gstAmount?: number;
+  cardProcessingAmount?: number;
   paymentMethod?: string;
   paymentStatus?: string;
   customer?: { name: string; phone: string };
   address?: { fullAddress: string };
+  store?: { name: string; phone?: string; address?: string };
   items: { product: { name: string }; quantity: number; price: number }[];
 }
 
-function orderToSlip(storeName: string, o: Order): OrderSlipInput {
-  return {
-    storeName,
-    orderId: o.id,
-    orderNumber: o.orderNumber,
-    createdAt: o.createdAt,
-    customerName: o.customer?.name,
-    customerPhone: o.customer?.phone,
-    deliveryAddress: o.address?.fullAddress,
-    lines: o.items.map((i) => ({
-      name: i.product.name,
-      quantity: i.quantity,
-      lineTotal: Number(i.price) * Number(i.quantity),
-    })),
-    totalAmount: Number(o.totalAmount),
-    paymentMethodLabel:
-      o.paymentMethod === 'COD'
-        ? 'Cash on delivery (COD)'
-        : o.paymentMethod === 'CARD'
-          ? 'Card / online'
-          : (o.paymentMethod ?? '—'),
-  };
+function orderToSlip(
+  o: Order,
+  store: { name: string; phone?: string; address?: string },
+) {
+  return toOrderSlipInput(o, store);
 }
 
 type Tab = 'orders' | 'products' | 'earnings' | 'settings';
@@ -229,7 +218,13 @@ function StoreDashboardInner() {
       }, 120_000);
       void api.get<Order>(`/orders/${payload.id}`).then((r) => {
         const o = r.data;
-        if (o) void printOrderSlipWithQzFallback(orderToSlip(storeNameRef.current, o));
+        if (!o) return;
+        const st = o.store
+          ? { name: o.store.name, phone: o.store.phone, address: o.store.address }
+          : store
+            ? { name: store.name, phone: store.phone, address: store.address }
+            : null;
+        if (st) void printOrderSlipWithQzFallback(orderToSlip(o, st));
       });
     },
   });
@@ -270,7 +265,10 @@ function StoreDashboardInner() {
       await api.patch(`/orders/${orderId}/status`, { status });
       if (status === 'STORE_ACCEPTED' && store) {
         const slipOrder = orders.find((x) => x.id === orderId);
-        if (slipOrder) void printOrderSlipWithQzFallback(orderToSlip(store.name, slipOrder));
+        if (slipOrder)
+          void printOrderSlipWithQzFallback(
+            orderToSlip(slipOrder, { name: store.name, phone: store.phone, address: store.address }),
+          );
       }
       fetchOrders();
       fetchAll();
@@ -393,7 +391,9 @@ function StoreDashboardInner() {
                           variant="outline"
                           type="button"
                           disabled={!!actionLoading}
-                          onClick={() => store && void printOrderSlipWithQzFallback(orderToSlip(store.name, o))}
+                          onClick={() =>
+                            store && void printOrderSlipWithQzFallback(orderToSlip(o, { name: store.name, phone: store.phone, address: store.address }))
+                          }
                           className="flex-1 min-w-[120px]"
                         >
                           Print slip

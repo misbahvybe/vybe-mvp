@@ -11,7 +11,7 @@ import { Loader } from '@/components/ui/Loader';
 import { StoreOwnerNavTabs } from '@/components/store/StoreOwnerNavTabs';
 import { enableWebPushForCurrentUser, getWebPushUiStatus, type WebPushUiStatus } from '@/services/push';
 import { useLoopingOrderAlarm } from '@/hooks/useLoopingOrderAlarm';
-import { type OrderSlipInput } from '@/lib/printOrderSlip';
+import { toOrderSlipInput } from '@/lib/printOrderSlip';
 import { getQzTrayPrinterName, isQzTrayEnvConfigured, printOrderSlipWithQzFallback } from '@/lib/printOrderSlipQz';
 import { formatOrderNo } from '@/lib/orderDisplay';
 
@@ -21,6 +21,11 @@ type OrderListItem = {
   orderStatus: string;
   createdAt: string;
   totalAmount: number;
+  subtotalAmount?: number;
+  deliveryFee?: number;
+  serviceFee?: number;
+  gstAmount?: number;
+  cardProcessingAmount?: number;
   paymentMethod?: string;
   paymentStatus?: string;
   customer?: { name: string; phone: string };
@@ -42,31 +47,8 @@ function timeHHMM(d: string) {
   }
 }
 
-function orderToSlip(
-  storeName: string,
-  o: OrderListItem,
-): OrderSlipInput {
-  return {
-    storeName,
-    orderId: o.id,
-    orderNumber: o.orderNumber,
-    createdAt: o.createdAt,
-    customerName: o.customer?.name,
-    customerPhone: o.customer?.phone,
-    deliveryAddress: o.address?.fullAddress,
-    lines: o.items.map((i) => ({
-      name: i.product.name,
-      quantity: i.quantity,
-      lineTotal: Number(i.price) * Number(i.quantity),
-    })),
-    totalAmount: Number(o.totalAmount),
-    paymentMethodLabel:
-      o.paymentMethod === 'COD'
-        ? 'Cash on delivery (COD)'
-        : o.paymentMethod === 'CARD'
-          ? 'Card / online'
-          : (o.paymentMethod ?? '—'),
-  };
+function orderToSlip(o: OrderListItem, store: { name: string; phone?: string; address?: string }) {
+  return toOrderSlipInput(o, store);
 }
 
 export default function StorePosPage() {
@@ -75,6 +57,8 @@ export default function StorePosPage() {
   const [loading, setLoading] = useState(true);
   const [storeId, setStoreId] = useState<string | null>(null);
   const [storeName, setStoreName] = useState('Store');
+  const [storePhone, setStorePhone] = useState<string | undefined>(undefined);
+  const [storeAddress, setStoreAddress] = useState<string | undefined>(undefined);
   const [orders, setOrders] = useState<OrderListItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selected, setSelected] = useState<OrderListItem | null>(null);
@@ -96,14 +80,23 @@ export default function StorePosPage() {
     storeNameRef.current = storeName;
   }, [storeName]);
 
+  const storeProfileRef = useRef({ name: 'Store', phone: undefined as string | undefined, address: undefined as string | undefined });
+  useEffect(() => {
+    storeProfileRef.current = { name: storeName, phone: storePhone, address: storeAddress };
+  }, [storeName, storePhone, storeAddress]);
+
   const fetchStore = useCallback(async () => {
     const r = await api.get<{
       id?: string;
       name?: string;
+      phone?: string;
+      address?: string;
       posAutoAcceptOrders?: boolean;
     }>('/store-owner/store');
     setStoreId(r.data?.id ?? null);
     setStoreName(typeof r.data?.name === 'string' ? r.data.name : 'Store');
+    setStorePhone(typeof r.data?.phone === 'string' ? r.data.phone : undefined);
+    setStoreAddress(typeof r.data?.address === 'string' ? r.data.address : undefined);
     setPosAutoAccept(r.data?.posAutoAcceptOrders === true);
   }, []);
 
@@ -152,10 +145,9 @@ export default function StorePosPage() {
       soundClearRef.current = null;
     }, 120_000);
     if (posAutoAcceptRef.current) {
-      const sid = storeNameRef.current;
       void api.get<OrderListItem>(`/orders/${payload.id}`).then((r) => {
         const o = r.data;
-        if (o) void printOrderSlipWithQzFallback(orderToSlip(sid, o));
+        if (o) void printOrderSlipWithQzFallback(orderToSlip(o, storeProfileRef.current));
       });
     } else if (typeof window !== 'undefined' && 'Notification' in window) {
       if (Notification.permission === 'granted') {
@@ -220,7 +212,7 @@ export default function StorePosPage() {
       await fetchOrders();
       if (selectedId === orderId) await fetchSelected(orderId);
       if (status === 'STORE_ACCEPTED' && slipForPrint) {
-        void printOrderSlipWithQzFallback(orderToSlip(storeName, slipForPrint));
+        void printOrderSlipWithQzFallback(orderToSlip(slipForPrint, { name: storeName, phone: storePhone, address: storeAddress }));
       }
     } catch {
       alert('Failed to update order');
@@ -385,7 +377,7 @@ export default function StorePosPage() {
                           disabled={!!actionLoading}
                           onClick={(e) => {
                             e.stopPropagation();
-                            void printOrderSlipWithQzFallback(orderToSlip(storeName, o));
+                            void printOrderSlipWithQzFallback(orderToSlip(o, { name: storeName, phone: storePhone, address: storeAddress }));
                           }}
                         >
                           Print slip
