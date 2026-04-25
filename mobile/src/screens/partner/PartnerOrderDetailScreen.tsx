@@ -412,6 +412,11 @@ export function PartnerOrderDetailScreen() {
                     <Text style={[styles.historyTitle, isLast && !bad && { color: tokens.accent }]}>
                       {STATUS_LABELS[h.status] ?? h.status}
                     </Text>
+                    {h.status === 'STORE_ACCEPTED' && (
+                      <Text style={[styles.mutedSmall, { marginTop: 2 }]}>
+                        {h.changedByUserId == null ? 'System (auto-accept)' : 'Accepted by staff'}
+                      </Text>
+                    )}
                     <Text style={styles.mutedSmall}>{formatDate(h.createdAt)}</Text>
                   </View>
                 </View>

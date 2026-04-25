@@ -432,6 +432,13 @@ export default function OrderDetailPage() {
                       <p className={`font-medium ${isLast ? 'text-primary' : 'text-slate-700'}`}>
                         {STATUS_LABELS[h.status] ?? h.status}
                       </p>
+                      {h.status === 'STORE_ACCEPTED' && (
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {h.changedByUserId == null
+                            ? 'System (auto-accept)'
+                            : 'Accepted by staff / admin'}
+                        </p>
+                      )}
                       <p className="text-xs text-slate-500">{formatDate(h.createdAt)}</p>
                     </div>
                   </div>
