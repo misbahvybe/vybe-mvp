@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
+import { Suspense, useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { StickyHeader } from '@/components/layout/StickyHeader';
@@ -22,7 +22,8 @@ import {
 import api from '@/services/api';
 import { useOrdersRealtime } from '@/hooks/useOrdersRealtime';
 import { useLoopingOrderAlarm } from '@/hooks/useLoopingOrderAlarm';
-import { printOrderSlip, type OrderSlipInput } from '@/lib/printOrderSlip';
+import { type OrderSlipInput } from '@/lib/printOrderSlip';
+import { getQzTrayPrinterName, isQzTrayEnvConfigured, printOrderSlipWithQzFallback } from '@/lib/printOrderSlipQz';
 import { StoreOwnerNavTabs } from '@/components/store/StoreOwnerNavTabs';
 import { enableWebPushForCurrentUser, getWebPushUiStatus, type WebPushUiStatus } from '@/services/push';
 import { formatOrderNo } from '@/lib/orderDisplay';
@@ -176,6 +177,9 @@ function StoreDashboardInner() {
     if (store?.name) storeNameRef.current = store.name;
   }, [store?.posAutoAcceptOrders, store?.name]);
 
+  const qzPrintConfigured = useMemo(() => isQzTrayEnvConfigured(), []);
+  const qzPrinterName = useMemo(() => getQzTrayPrinterName(), []);
+
   const fetchOrders = useCallback(() => {
     api.get<Order[]>('/orders').then((r) => setOrders(r.data ?? [])).catch(() => setOrders([]));
   }, []);
@@ -225,7 +229,7 @@ function StoreDashboardInner() {
       }, 120_000);
       void api.get<Order>(`/orders/${payload.id}`).then((r) => {
         const o = r.data;
-        if (o) printOrderSlip(orderToSlip(storeNameRef.current, o));
+        if (o) void printOrderSlipWithQzFallback(orderToSlip(storeNameRef.current, o));
       });
     },
   });
@@ -266,7 +270,7 @@ function StoreDashboardInner() {
       await api.patch(`/orders/${orderId}/status`, { status });
       if (status === 'STORE_ACCEPTED' && store) {
         const slipOrder = orders.find((x) => x.id === orderId);
-        if (slipOrder) printOrderSlip(orderToSlip(store.name, slipOrder));
+        if (slipOrder) void printOrderSlipWithQzFallback(orderToSlip(store.name, slipOrder));
       }
       fetchOrders();
       fetchAll();
@@ -287,7 +291,21 @@ function StoreDashboardInner() {
               <p className="text-sm font-semibold text-slate-800">POS / Kitchen Screen</p>
               <p className="text-xs text-slate-500">Use on a tablet for live order alerts + big buttons.</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              <span
+                className={`text-xs px-2 py-1 rounded-full border shrink-0 ${
+                  qzPrintConfigured
+                    ? 'border-violet-200 bg-violet-50 text-violet-800'
+                    : 'border-slate-200 bg-slate-50 text-slate-600'
+                }`}
+                title={
+                  qzPrintConfigured
+                    ? `QZ Tray: print jobs are sent to “${qzPrinterName}” when QZ is running. If QZ is unavailable, the app falls back to the browser print dialog.`
+                    : 'Browser print: the system print dialog opens. Set NEXT_PUBLIC_QZ_TRAY_PRINTER_NAME and install QZ Tray on this device for direct thermal printing.'
+                }
+              >
+                Printing: {qzPrintConfigured ? 'QZ Tray' : 'Browser'}
+              </span>
               {pushUi && (
                 <span
                   className={`text-xs px-2 py-1 rounded-full border ${
@@ -375,7 +393,7 @@ function StoreDashboardInner() {
                           variant="outline"
                           type="button"
                           disabled={!!actionLoading}
-                          onClick={() => store && printOrderSlip(orderToSlip(store.name, o))}
+                          onClick={() => store && void printOrderSlipWithQzFallback(orderToSlip(store.name, o))}
                           className="flex-1 min-w-[120px]"
                         >
                           Print slip

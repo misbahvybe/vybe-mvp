@@ -11,7 +11,8 @@ import { Loader } from '@/components/ui/Loader';
 import { StoreOwnerNavTabs } from '@/components/store/StoreOwnerNavTabs';
 import { enableWebPushForCurrentUser, getWebPushUiStatus, type WebPushUiStatus } from '@/services/push';
 import { useLoopingOrderAlarm } from '@/hooks/useLoopingOrderAlarm';
-import { printOrderSlip, type OrderSlipInput } from '@/lib/printOrderSlip';
+import { type OrderSlipInput } from '@/lib/printOrderSlip';
+import { getQzTrayPrinterName, isQzTrayEnvConfigured, printOrderSlipWithQzFallback } from '@/lib/printOrderSlipQz';
 import { formatOrderNo } from '@/lib/orderDisplay';
 
 type OrderListItem = {
@@ -84,6 +85,8 @@ export default function StorePosPage() {
   const [posAutoAccept, setPosAutoAccept] = useState(false);
   const [posNewOrderSound, setPosNewOrderSound] = useState(false);
   const soundClearRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const qzPrintConfigured = useMemo(() => isQzTrayEnvConfigured(), []);
+  const qzPrinterName = useMemo(() => getQzTrayPrinterName(), []);
   const posAutoAcceptRef = useRef(false);
   const storeNameRef = useRef('Store');
   useEffect(() => {
@@ -152,7 +155,7 @@ export default function StorePosPage() {
       const sid = storeNameRef.current;
       void api.get<OrderListItem>(`/orders/${payload.id}`).then((r) => {
         const o = r.data;
-        if (o) printOrderSlip(orderToSlip(sid, o));
+        if (o) void printOrderSlipWithQzFallback(orderToSlip(sid, o));
       });
     } else if (typeof window !== 'undefined' && 'Notification' in window) {
       if (Notification.permission === 'granted') {
@@ -217,7 +220,7 @@ export default function StorePosPage() {
       await fetchOrders();
       if (selectedId === orderId) await fetchSelected(orderId);
       if (status === 'STORE_ACCEPTED' && slipForPrint) {
-        printOrderSlip(orderToSlip(storeName, slipForPrint));
+        void printOrderSlipWithQzFallback(orderToSlip(storeName, slipForPrint));
       }
     } catch {
       alert('Failed to update order');
@@ -266,7 +269,21 @@ export default function StorePosPage() {
               <span className={`ml-1 inline-block w-2 h-2 rounded-full ${connected ? 'bg-emerald-500' : 'bg-amber-500'}`} />
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <span
+              className={`text-xs px-2 py-1 rounded-full border shrink-0 ${
+                qzPrintConfigured
+                  ? 'border-violet-200 bg-violet-50 text-violet-800'
+                  : 'border-slate-200 bg-slate-50 text-slate-600'
+              }`}
+              title={
+                qzPrintConfigured
+                  ? `QZ Tray: print jobs are sent to “${qzPrinterName}” when QZ is running. If QZ is unavailable, the app falls back to the browser print dialog.`
+                  : 'Browser print: the system print dialog opens. Set NEXT_PUBLIC_QZ_TRAY_PRINTER_NAME and install QZ Tray on this PC for direct thermal printing (see deploy env).'
+              }
+            >
+              Printing: {qzPrintConfigured ? 'QZ Tray' : 'Browser'}
+            </span>
             {pushUi && (
               <span
                 className={`text-xs px-2 py-1 rounded-full border ${
@@ -368,7 +385,7 @@ export default function StorePosPage() {
                           disabled={!!actionLoading}
                           onClick={(e) => {
                             e.stopPropagation();
-                            printOrderSlip(orderToSlip(storeName, o));
+                            void printOrderSlipWithQzFallback(orderToSlip(storeName, o));
                           }}
                         >
                           Print slip

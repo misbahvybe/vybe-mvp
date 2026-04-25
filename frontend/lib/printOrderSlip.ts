@@ -54,15 +54,14 @@ export function formatOrderSlipText(input: OrderSlipInput): string {
   ].join('\n');
 }
 
-/** Opens print dialog with a 58mm receipt layout (white paper, black text). */
-export function printOrderSlip(input: OrderSlipInput): void {
-  if (typeof window === 'undefined') return;
-  const w = window.open('', '_blank');
-  if (!w) {
-    window.alert('Allow pop-ups for this site to print the order slip.');
-    return;
-  }
-  const body = `<!DOCTYPE html>
+/**
+ * Full HTML document for 58mm thermal. Used by `window.print()` and optionally QZ Tray (no browser print dialog).
+ * @param options.autoPrintScript — when true, injects a script that calls `window.print()` on load (browser flow only).
+ */
+export function buildOrderSlipHtmlDocument(input: OrderSlipInput, options?: { autoPrintScript?: boolean }): string {
+  const autoPrint = options?.autoPrintScript !== false;
+  const printScript = autoPrint ? '<script>window.onload=function(){window.print();};</script>' : '';
+  return `<!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="utf-8"/>
 <meta name="color-scheme" content="light"/>
@@ -120,8 +119,18 @@ export function printOrderSlip(input: OrderSlipInput): void {
   </table>
   <div class="total">Total: Rs ${Number(input.totalAmount).toFixed(0)}</div>
   <div>Payment: ${esc(input.paymentMethodLabel)}</div>
-  <script>window.onload=function(){window.print();};</script>
+  ${printScript}
 </body></html>`;
-  w.document.write(body);
+}
+
+/** Opens print dialog with a 58mm receipt layout (white paper, black text). */
+export function printOrderSlip(input: OrderSlipInput): void {
+  if (typeof window === 'undefined') return;
+  const w = window.open('', '_blank');
+  if (!w) {
+    window.alert('Allow pop-ups for this site to print the order slip.');
+    return;
+  }
+  w.document.write(buildOrderSlipHtmlDocument(input, { autoPrintScript: true }));
   w.document.close();
 }
