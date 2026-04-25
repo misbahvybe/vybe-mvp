@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { Suspense, useEffect, useState, useCallback } from 'react';
+import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { StickyHeader } from '@/components/layout/StickyHeader';
@@ -124,6 +124,7 @@ function StoreDashboardInner() {
     acceptingOrders?: boolean;
     openingTime?: string;
     closingTime?: string;
+    posAutoAcceptOrders?: boolean;
   } | null>(null);
   const [earnings, setEarnings] = useState<{
     today: { orders: number; revenue: number; commission: number; net: number };
@@ -166,6 +167,14 @@ function StoreDashboardInner() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [pushUi, setPushUi] = useState<WebPushUiStatus | null>(null);
+  const [posNewOrderSound, setPosNewOrderSound] = useState(false);
+  const posAutoRef = useRef(false);
+  const storeNameRef = useRef('Store');
+  const soundTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    posAutoRef.current = store?.posAutoAcceptOrders === true;
+    if (store?.name) storeNameRef.current = store.name;
+  }, [store?.posAutoAcceptOrders, store?.name]);
 
   const fetchOrders = useCallback(() => {
     api.get<Order[]>('/orders').then((r) => setOrders(r.data ?? [])).catch(() => setOrders([]));
@@ -205,13 +214,21 @@ function StoreDashboardInner() {
     return () => clearInterval(id);
   }, [tab, fetchOrders]);
 
-  useOrdersRealtime(
-    tab === 'orders' && !!token,
-    token,
-    'STORE_OWNER',
-    store?.id ?? null,
-    fetchOrders,
-  );
+  useOrdersRealtime(tab === 'orders' && !!token, token, 'STORE_OWNER', store?.id ?? null, fetchOrders, {
+    onCreated: (payload) => {
+      if (!posAutoRef.current) return;
+      if (soundTimeoutRef.current) clearTimeout(soundTimeoutRef.current);
+      setPosNewOrderSound(true);
+      soundTimeoutRef.current = setTimeout(() => {
+        setPosNewOrderSound(false);
+        soundTimeoutRef.current = null;
+      }, 120_000);
+      void api.get<Order>(`/orders/${payload.id}`).then((r) => {
+        const o = r.data;
+        if (o) printOrderSlip(orderToSlip(storeNameRef.current, o));
+      });
+    },
+  });
 
   // Fallback polling: if socket delivery is missed, keep orders fresh.
   useEffect(() => {
@@ -225,9 +242,22 @@ function StoreDashboardInner() {
   const readyForPickup = orders.filter((o) => o.orderStatus === 'READY_FOR_PICKUP');
   const delivered = orders.filter((o) => o.orderStatus === 'DELIVERED');
 
+  const posAuto = store?.posAutoAcceptOrders === true;
   const shouldRingNewOrders =
-    tab === 'orders' && Boolean(token) && pending.length > 0 && !actionLoading;
+    tab === 'orders' &&
+    Boolean(token) &&
+    !actionLoading &&
+    (posAuto ? posNewOrderSound : pending.length > 0);
   const { stopAlarm } = useLoopingOrderAlarm(shouldRingNewOrders);
+
+  const dismissPosAlarm = useCallback(() => {
+    stopAlarm();
+    if (soundTimeoutRef.current) {
+      clearTimeout(soundTimeoutRef.current);
+      soundTimeoutRef.current = null;
+    }
+    setPosNewOrderSound(false);
+  }, [stopAlarm]);
 
   const updateOrderStatus = async (orderId: string, status: string) => {
     stopAlarm();
@@ -302,6 +332,14 @@ function StoreDashboardInner() {
         <main className="app-shell-wide py-4">
           {tab === 'orders' && (
             <>
+              {posAuto && shouldRingNewOrders && (
+                <Card className="mb-4 p-3 border-2 border-amber-300 bg-amber-50 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm text-amber-950">New order sound is playing (auto-accept mode). Use Stop if the kitchen has seen the ticket.</p>
+                  <Button size="sm" variant="primary" type="button" onClick={dismissPosAlarm}>
+                    Stop alert
+                  </Button>
+                </Card>
+              )}
               <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">New Orders</h2>
               {pending.length === 0 ? (
                 <Card className="py-6 text-center mb-6">
@@ -342,26 +380,30 @@ function StoreDashboardInner() {
                         >
                           Print slip
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="primary"
-                          loading={actionLoading === o.id}
-                          onClick={() => updateOrderStatus(o.id, 'STORE_ACCEPTED')}
-                          className="flex-1 min-w-[120px]"
-                        >
-                          <Check className="w-4 h-4 mr-1 inline" />
-                          Accept
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={!!actionLoading}
-                          onClick={() => updateOrderStatus(o.id, 'STORE_REJECTED')}
-                          className="flex-1 min-w-[120px]"
-                        >
-                          <X className="w-4 h-4 mr-1 inline" />
-                          Reject
-                        </Button>
+                        {!posAuto && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="primary"
+                              loading={actionLoading === o.id}
+                              onClick={() => updateOrderStatus(o.id, 'STORE_ACCEPTED')}
+                              className="flex-1 min-w-[120px]"
+                            >
+                              <Check className="w-4 h-4 mr-1 inline" />
+                              Accept
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={!!actionLoading}
+                              onClick={() => updateOrderStatus(o.id, 'STORE_REJECTED')}
+                              className="flex-1 min-w-[120px]"
+                            >
+                              <X className="w-4 h-4 mr-1 inline" />
+                              Reject
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </Card>
                   ))}

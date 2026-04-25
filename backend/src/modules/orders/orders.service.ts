@@ -40,6 +40,7 @@ import {
   pkPhoneHeuristicWarning,
   bankManualMvpDisplaySplit,
 } from './manual-mvp.util';
+import { isPosAutoAcceptOrdersEnabled } from '../../common/pos/pos-workflow.util';
 
 /** Set `false` when Stripe / XPay keys are ready and clients show those options again. */
 const PAYMENTS_COD_ONLY = true;
@@ -855,23 +856,28 @@ export class OrdersService {
       // Admin list / payment-audit: show PENDING_VERIFICATION. No store or rider notify until verifyManualMvpPayment.
       this.ordersGateway.emitAdminPipelineUpdated();
     } else if (!useCard) {
+      await this.applyPosAutoAcceptIfEnabled(order.o.id);
+      const oForEmit = await this.prisma.order.findFirst({
+        where: { id: order.o.id },
+        include: { customer: { select: { name: true, phone: true } } },
+      });
       this.ordersGateway.emitOrderCreated({
-        id: order.o.id,
-        orderNumber: order.o.orderNumber,
-        storeId: order.o.storeId,
-        customerId: order.o.customerId,
-        orderStatus: order.o.orderStatus,
-        createdAt: order.o.createdAt.toISOString(),
-        totalAmount: order.o.totalAmount.toString(),
-        subtotalAmount: order.o.subtotalAmount.toString(),
-        deliveryFee: order.o.deliveryFee.toString(),
-        serviceFee: order.o.serviceFee.toString(),
-        gstAmount: order.o.gstAmount.toString(),
-        cardProcessingAmount: order.o.cardProcessingAmount.toString(),
-        slaDeadlineAt: order.o.slaDeadlineAt?.toISOString() ?? null,
+        id: oForEmit!.id,
+        orderNumber: oForEmit!.orderNumber,
+        storeId: oForEmit!.storeId,
+        customerId: oForEmit!.customerId,
+        orderStatus: oForEmit!.orderStatus,
+        createdAt: oForEmit!.createdAt.toISOString(),
+        totalAmount: oForEmit!.totalAmount.toString(),
+        subtotalAmount: oForEmit!.subtotalAmount.toString(),
+        deliveryFee: oForEmit!.deliveryFee.toString(),
+        serviceFee: oForEmit!.serviceFee.toString(),
+        gstAmount: oForEmit!.gstAmount.toString(),
+        cardProcessingAmount: oForEmit!.cardProcessingAmount.toString(),
+        slaDeadlineAt: oForEmit!.slaDeadlineAt?.toISOString() ?? null,
         customer: {
-          name: order.o.customer?.name ?? '',
-          phone: order.o.customer?.phone ?? '',
+          name: oForEmit?.customer?.name ?? '',
+          phone: oForEmit?.customer?.phone ?? '',
         },
       });
       // Store owner in-app notification (bell/toasts)
@@ -892,23 +898,28 @@ export class OrdersService {
         include: { customer: { select: { name: true, phone: true } } },
       });
       if (paidOrder?.paymentStatus === PaymentStatus.PAID && paidOrder.orderStatus !== OrderStatus.CANCELLED) {
+        await this.applyPosAutoAcceptIfEnabled(paidOrder.id);
+        const oForEmit = await this.prisma.order.findFirst({
+          where: { id: paidOrder.id },
+          include: { customer: { select: { name: true, phone: true } } },
+        });
         this.ordersGateway.emitOrderCreated({
-          id: paidOrder.id,
-          orderNumber: paidOrder.orderNumber,
-          storeId: paidOrder.storeId,
-          customerId: paidOrder.customerId,
-          orderStatus: paidOrder.orderStatus,
-          createdAt: paidOrder.createdAt.toISOString(),
-          totalAmount: paidOrder.totalAmount.toString(),
-          subtotalAmount: paidOrder.subtotalAmount.toString(),
-          deliveryFee: paidOrder.deliveryFee.toString(),
-          serviceFee: paidOrder.serviceFee.toString(),
-          gstAmount: paidOrder.gstAmount.toString(),
-          cardProcessingAmount: paidOrder.cardProcessingAmount.toString(),
-          slaDeadlineAt: paidOrder.slaDeadlineAt?.toISOString() ?? null,
+          id: oForEmit!.id,
+          orderNumber: oForEmit!.orderNumber,
+          storeId: oForEmit!.storeId,
+          customerId: oForEmit!.customerId,
+          orderStatus: oForEmit!.orderStatus,
+          createdAt: oForEmit!.createdAt.toISOString(),
+          totalAmount: oForEmit!.totalAmount.toString(),
+          subtotalAmount: oForEmit!.subtotalAmount.toString(),
+          deliveryFee: oForEmit!.deliveryFee.toString(),
+          serviceFee: oForEmit!.serviceFee.toString(),
+          gstAmount: oForEmit!.gstAmount.toString(),
+          cardProcessingAmount: oForEmit!.cardProcessingAmount.toString(),
+          slaDeadlineAt: oForEmit!.slaDeadlineAt?.toISOString() ?? null,
           customer: {
-            name: paidOrder.customer?.name ?? '',
-            phone: paidOrder.customer?.phone ?? '',
+            name: oForEmit?.customer?.name ?? '',
+            phone: oForEmit?.customer?.phone ?? '',
           },
         });
         // Store owner in-app notification (bell/toasts)
@@ -927,6 +938,25 @@ export class OrdersService {
     }
 
     return order.o;
+  }
+
+  /**
+   * When `VYBE_POS_AUTO_ACCEPT_ORDERS` is on, skip the store "Accept" step: `PENDING` → `STORE_ACCEPTED`
+   * for any order the kitchen is allowed to see (COD, card, or manual after payment verification).
+   */
+  private async applyPosAutoAcceptIfEnabled(orderId: string): Promise<void> {
+    if (!isPosAutoAcceptOrdersEnabled()) return;
+    const row = await this.prisma.order.findUnique({ where: { id: orderId } });
+    if (!row || row.orderStatus !== OrderStatus.PENDING) return;
+    if (row.paymentMethod === 'MANUAL_TRANSFER' && row.paymentStatus !== PaymentStatus.PAID) return;
+    const res = await this.prisma.order.updateMany({
+      where: { id: orderId, orderStatus: OrderStatus.PENDING },
+      data: { orderStatus: OrderStatus.STORE_ACCEPTED },
+    });
+    if (res.count === 0) return;
+    await this.prisma.orderStatusHistory.create({
+      data: { orderId, status: OrderStatus.STORE_ACCEPTED, changedByUserId: null },
+    });
   }
 
   private assertCustomerCanOrderFromStore(store: {
@@ -1369,6 +1399,15 @@ export class OrdersService {
         (s) => s !== OrderStatus.STORE_ACCEPTED && s !== OrderStatus.STORE_REJECTED,
       );
     }
+    if (
+      isPosAutoAcceptOrdersEnabled() &&
+      role === Role.STORE_OWNER &&
+      order.orderStatus === OrderStatus.PENDING
+    ) {
+      return base.filter(
+        (s) => s !== OrderStatus.STORE_ACCEPTED && s !== OrderStatus.STORE_REJECTED,
+      );
+    }
     return base;
   }
 
@@ -1485,6 +1524,32 @@ export class OrdersService {
       where: { role: 'RIDER', isActive: true },
       select: { id: true, name: true, phone: true },
     });
+  }
+
+  /**
+   * Admin: compact ops snapshot — “stale” PENDING may mean payment gate or pipeline issue; verify queue
+   * is payment proofs awaiting action.
+   */
+  async getAdminPipelineHealth() {
+    const staleAfterMinutes = 10;
+    const cutoff = new Date(Date.now() - staleAfterMinutes * 60_000);
+    const [stalePendingCount, paymentProofQueueCount] = await Promise.all([
+      this.prisma.order.count({
+        where: { orderStatus: OrderStatus.PENDING, createdAt: { lt: cutoff } },
+      }),
+      this.prisma.order.count({
+        where: {
+          paymentStatus: PaymentStatus.PENDING_VERIFICATION,
+          orderStatus: { not: OrderStatus.CANCELLED },
+        },
+      }),
+    ]);
+    return {
+      posAutoAcceptEnabled: isPosAutoAcceptOrdersEnabled(),
+      stalePendingMinutes: staleAfterMinutes,
+      stalePendingCount,
+      paymentProofQueueCount,
+    };
   }
 
   async reassignRider(orderId: string, newRiderId: string, adminId: string, reason?: string) {
@@ -1850,21 +1915,26 @@ export class OrdersService {
         },
       });
     });
+    await this.applyPosAutoAcceptIfEnabled(order.id);
+    const oAfterAuto = await this.prisma.order.findUnique({
+      where: { id: order.id },
+      include: { customer: { select: { name: true, phone: true } } },
+    });
     this.ordersGateway.emitOrderCreated({
-      id: order.id,
-      orderNumber: order.orderNumber,
-      storeId: order.storeId,
-      customerId: order.customerId,
-      orderStatus: order.orderStatus,
-      createdAt: order.createdAt.toISOString(),
-      totalAmount: order.totalAmount.toString(),
-      subtotalAmount: order.subtotalAmount.toString(),
-      deliveryFee: order.deliveryFee.toString(),
-      serviceFee: order.serviceFee.toString(),
-      gstAmount: order.gstAmount.toString(),
-      cardProcessingAmount: order.cardProcessingAmount.toString(),
-      slaDeadlineAt: order.slaDeadlineAt?.toISOString() ?? null,
-      customer: { name: order.customer?.name ?? '', phone: order.customer?.phone ?? '' },
+      id: oAfterAuto!.id,
+      orderNumber: oAfterAuto!.orderNumber,
+      storeId: oAfterAuto!.storeId,
+      customerId: oAfterAuto!.customerId,
+      orderStatus: oAfterAuto!.orderStatus,
+      createdAt: oAfterAuto!.createdAt.toISOString(),
+      totalAmount: oAfterAuto!.totalAmount.toString(),
+      subtotalAmount: oAfterAuto!.subtotalAmount.toString(),
+      deliveryFee: oAfterAuto!.deliveryFee.toString(),
+      serviceFee: oAfterAuto!.serviceFee.toString(),
+      gstAmount: oAfterAuto!.gstAmount.toString(),
+      cardProcessingAmount: oAfterAuto!.cardProcessingAmount.toString(),
+      slaDeadlineAt: oAfterAuto!.slaDeadlineAt?.toISOString() ?? null,
+      customer: { name: oAfterAuto?.customer?.name ?? '', phone: oAfterAuto?.customer?.phone ?? '' },
     });
     if (store?.ownerId) {
       await this.notifications.create({

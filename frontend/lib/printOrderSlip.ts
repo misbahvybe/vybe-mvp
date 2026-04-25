@@ -1,5 +1,5 @@
 /**
- * Browser printing for 80mm thermal (or system default). Pair the printer in the OS and pick it
+ * Browser printing for 58mm thermal (or system default). Pair the printer in the OS and pick it
  * in the print dialog; auto-print after Accept triggers the same dialog.
  */
 
@@ -54,7 +54,7 @@ export function formatOrderSlipText(input: OrderSlipInput): string {
   ].join('\n');
 }
 
-/** Opens print dialog with an 80mm receipt layout (white paper, black text). */
+/** Opens print dialog with a 58mm receipt layout (white paper, black text). */
 export function printOrderSlip(input: OrderSlipInput): void {
   if (typeof window === 'undefined') return;
   const w = window.open('', '_blank');
@@ -78,22 +78,22 @@ export function printOrderSlip(input: OrderSlipInput): void {
   }
   body {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-    font-size: 12px;
+    font-size: 11px;
     line-height: 1.35;
     box-sizing: border-box;
     width: 100%;
-    max-width: 72mm;
+    max-width: 50mm;
     margin: 0 auto;
-    padding: 8px 6px 12px;
+    padding: 6px 4px 10px;
   }
-  h1 { font-size: 14px; margin: 0 0 8px; font-weight: 700; color: #000; }
-  .muted { color: #333; font-size: 11px; }
+  h1 { font-size: 13px; margin: 0 0 6px; font-weight: 700; color: #000; }
+  .muted { color: #333; font-size: 10px; }
   table { width: 100%; border-collapse: collapse; margin: 8px 0; color: #000; }
   td { padding: 4px 0; vertical-align: top; color: #000; }
   td:last-child { text-align: right; }
   .total { font-weight: bold; border-top: 1px dashed #333; padding-top: 8px; margin-top: 8px; color: #000; }
   p { margin: 0 0 8px; color: #000; }
-  @page { size: 80mm auto; margin: 3mm; }
+  @page { size: 58mm auto; margin: 3mm; }
   @media print {
     html, body { background: #fff !important; color: #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     body { padding: 0; max-width: none; }

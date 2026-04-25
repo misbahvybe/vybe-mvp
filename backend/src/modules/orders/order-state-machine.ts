@@ -5,6 +5,8 @@ const TRANSITIONS: Record<OrderStatus, Partial<Record<Role, OrderStatus[]>>> = {
   PENDING: {
     CUSTOMER: ['CANCELLED'],
     STORE_OWNER: ['STORE_ACCEPTED', 'STORE_REJECTED'],
+    /** Fallback if auto-accept is off or a PENDING order must be fixed manually. */
+    ADMIN: ['STORE_ACCEPTED', 'STORE_REJECTED'],
   },
   STORE_ACCEPTED: {
     STORE_OWNER: ['READY_FOR_PICKUP'],

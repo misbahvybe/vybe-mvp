@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import Link from 'next/link';
 import api from '@/services/api';
 import { useAuthStore } from '@/store/authStore';
@@ -81,11 +81,27 @@ export default function StorePosPage() {
   const [connected, setConnected] = useState<boolean>(false);
   const [lastAlertAt, setLastAlertAt] = useState<string | null>(null);
   const [pushUi, setPushUi] = useState<WebPushUiStatus | null>(null);
+  const [posAutoAccept, setPosAutoAccept] = useState(false);
+  const [posNewOrderSound, setPosNewOrderSound] = useState(false);
+  const soundClearRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const posAutoAcceptRef = useRef(false);
+  const storeNameRef = useRef('Store');
+  useEffect(() => {
+    posAutoAcceptRef.current = posAutoAccept;
+  }, [posAutoAccept]);
+  useEffect(() => {
+    storeNameRef.current = storeName;
+  }, [storeName]);
 
   const fetchStore = useCallback(async () => {
-    const r = await api.get('/store-owner/store');
+    const r = await api.get<{
+      id?: string;
+      name?: string;
+      posAutoAcceptOrders?: boolean;
+    }>('/store-owner/store');
     setStoreId(r.data?.id ?? null);
     setStoreName(typeof r.data?.name === 'string' ? r.data.name : 'Store');
+    setPosAutoAccept(r.data?.posAutoAcceptOrders === true);
   }, []);
 
   const fetchOrders = useCallback(async () => {
@@ -123,22 +139,30 @@ export default function StorePosPage() {
     fetchSelected(selectedId).catch(() => setSelected(null));
   }, [selectedId, fetchSelected]);
 
-  const onCreated = useCallback(
-    (payload: OrderCreatedEvent) => {
-      setLastAlertAt(new Date().toISOString());
-      if (payload?.id) setSelectedId((prev) => prev ?? payload.id);
-      // Attempt browser notifications if already allowed (POS tablets often run Chrome).
-      if (typeof window !== 'undefined' && 'Notification' in window) {
-        if (Notification.permission === 'granted') {
-          // eslint-disable-next-line no-new
-          new Notification('New Vybe order received', {
-            body: `Order ${formatOrderNo(payload.orderNumber, payload.id)} · Rs ${fmtMoney(payload.totalAmount)}`,
-          });
-        }
+  const onCreated = useCallback((payload: OrderCreatedEvent) => {
+    setLastAlertAt(new Date().toISOString());
+    if (payload?.id) setSelectedId((prev) => prev ?? payload.id);
+    if (soundClearRef.current) clearTimeout(soundClearRef.current);
+    setPosNewOrderSound(true);
+    soundClearRef.current = setTimeout(() => {
+      setPosNewOrderSound(false);
+      soundClearRef.current = null;
+    }, 120_000);
+    if (posAutoAcceptRef.current) {
+      const sid = storeNameRef.current;
+      void api.get<OrderListItem>(`/orders/${payload.id}`).then((r) => {
+        const o = r.data;
+        if (o) printOrderSlip(orderToSlip(sid, o));
+      });
+    } else if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'granted') {
+        // eslint-disable-next-line no-new
+        new Notification('New Vybe order received', {
+          body: `Order ${formatOrderNo(payload.orderNumber, payload.id)} · Rs ${fmtMoney(payload.totalAmount)}`,
+        });
       }
-    },
-    [],
-  );
+    }
+  }, []);
 
   useOrdersRealtime(Boolean(token), token, 'STORE_OWNER', storeId, () => fetchOrders(), {
     onCreated,
@@ -171,8 +195,19 @@ export default function StorePosPage() {
   const preparing = useMemo(() => orders.filter((o) => o.orderStatus === 'STORE_ACCEPTED'), [orders]);
   const ready = useMemo(() => orders.filter((o) => o.orderStatus === 'READY_FOR_PICKUP'), [orders]);
 
-  const shouldRingPos = Boolean(token && pending.length > 0 && !actionLoading);
+  const shouldRingPos = posAutoAccept
+    ? Boolean(token && posNewOrderSound && !actionLoading)
+    : Boolean(token && pending.length > 0 && !actionLoading);
   const { stopAlarm: stopPosAlarm } = useLoopingOrderAlarm(shouldRingPos);
+
+  const dismissPosAlarm = useCallback(() => {
+    stopPosAlarm();
+    if (soundClearRef.current) {
+      clearTimeout(soundClearRef.current);
+      soundClearRef.current = null;
+    }
+    setPosNewOrderSound(false);
+  }, [stopPosAlarm]);
 
   const updateOrderStatus = async (orderId: string, status: string, slipForPrint?: OrderListItem) => {
     stopPosAlarm();
@@ -278,6 +313,11 @@ export default function StorePosPage() {
             >
               Test alarm
             </Button>
+            {posAutoAccept && shouldRingPos && (
+              <Button size="sm" variant="primary" onClick={dismissPosAlarm}>
+                Stop alert
+              </Button>
+            )}
             <Button size="sm" variant="outline" onClick={refreshAll}>
               Refresh
             </Button>
@@ -287,9 +327,17 @@ export default function StorePosPage() {
           <div className="px-4 pb-2">
             <Card className="p-2 border-2 border-emerald-200 bg-emerald-50">
               <p className="text-sm text-emerald-900 font-medium">
-                New order alert ({timeHHMM(lastAlertAt)}) — check “New Orders”
+                {posAutoAccept
+                  ? `New order (${timeHHMM(lastAlertAt)}) — auto-accepted. Check “Preparing” and listen for the alarm.`
+                  : `New order alert (${timeHHMM(lastAlertAt)}) — check “New Orders”`}
               </p>
             </Card>
+          </div>
+        )}
+        {posAutoAccept && (
+          <div className="px-4 pb-2 text-xs text-slate-600">
+            Auto-accept mode: orders go straight to Preparing. Use sound + kitchen print. Enable this on the server
+            (VYBE_POS_AUTO_ACCEPT_ORDERS) only after your printer and tablet are set up.
           </div>
         )}
         <Suspense fallback={null}>
@@ -325,29 +373,33 @@ export default function StorePosPage() {
                         >
                           Print slip
                         </Button>
-                        <Button
-                          size="lg"
-                          className="flex-1 min-h-[52px] min-w-[120px]"
-                          loading={actionLoading === o.id}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void updateOrderStatus(o.id, 'STORE_ACCEPTED', o);
-                          }}
-                        >
-                          Accept
-                        </Button>
-                        <Button
-                          size="lg"
-                          variant="outline"
-                          className="flex-1 min-h-[52px] min-w-[120px]"
-                          disabled={!!actionLoading}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void updateOrderStatus(o.id, 'STORE_REJECTED');
-                          }}
-                        >
-                          Reject
-                        </Button>
+                        {!posAutoAccept && (
+                          <>
+                            <Button
+                              size="lg"
+                              className="flex-1 min-h-[52px] min-w-[120px]"
+                              loading={actionLoading === o.id}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void updateOrderStatus(o.id, 'STORE_ACCEPTED', o);
+                              }}
+                            >
+                              Accept
+                            </Button>
+                            <Button
+                              size="lg"
+                              variant="outline"
+                              className="flex-1 min-h-[52px] min-w-[120px]"
+                              disabled={!!actionLoading}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void updateOrderStatus(o.id, 'STORE_REJECTED');
+                              }}
+                            >
+                              Reject
+                            </Button>
+                          </>
+                        )}
                       </div>
                     }
                   />
@@ -408,9 +460,9 @@ export default function StorePosPage() {
                 </p>
               </div>
               {detail ? (
-                <Link href={`/store/pos/print/${detail.id}`} target="_blank" rel="noopener noreferrer" title="80mm thermal / browser print">
+                <Link href={`/store/pos/print/${detail.id}`} target="_blank" rel="noopener noreferrer" title="58mm thermal / browser print">
                   <Button size="sm" variant="outline">
-                    Print (80mm)
+                    Print (58mm)
                   </Button>
                 </Link>
               ) : null}

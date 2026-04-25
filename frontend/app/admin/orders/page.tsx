@@ -55,20 +55,43 @@ function AdminOrdersContent() {
   const [loading, setLoading] = useState(true);
   const [riders, setRiders] = useState<Rider[]>([]);
   const [reassigningId, setReassigningId] = useState<string | null>(null);
+  const [opsHealth, setOpsHealth] = useState<{
+    posAutoAcceptEnabled: boolean;
+    stalePendingMinutes: number;
+    stalePendingCount: number;
+    paymentProofQueueCount: number;
+  } | null>(null);
+
+  const fetchOpsHealth = useCallback(() => {
+    api
+      .get<{
+        posAutoAcceptEnabled: boolean;
+        stalePendingMinutes: number;
+        stalePendingCount: number;
+        paymentProofQueueCount: number;
+      }>('/orders/admin/health')
+      .then((r) => setOpsHealth(r.data ?? null))
+      .catch(() => setOpsHealth(null));
+  }, []);
 
   const fetchOrders = useCallback(() => {
     api.get<Order[]>('/orders').then((r) => setOrders(r.data ?? [])).catch(() => setOrders([])).finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => {
+  const fetchOrdersAndHealth = useCallback(() => {
+    fetchOpsHealth();
     fetchOrders();
+  }, [fetchOpsHealth, fetchOrders]);
+
+  useEffect(() => {
+    fetchOrdersAndHealth();
     api
       .get<Rider[]>('/orders/riders/list')
       .then((r) => setRiders(r.data ?? []))
       .catch(() => setRiders([]));
-  }, [fetchOrders]);
+  }, [fetchOrdersAndHealth]);
 
-  useAdminOrdersRefresh(fetchOrders);
+  useAdminOrdersRefresh(fetchOrdersAndHealth);
 
   const filtered = orders.filter((o) => {
     if (payFilter === 'verify') {
@@ -106,7 +129,7 @@ function AdminOrdersContent() {
         riderId: rider.id,
         reason: reason || undefined,
       });
-      fetchOrders();
+      fetchOrdersAndHealth();
     } catch (e) {
       alert(
         (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
@@ -120,6 +143,50 @@ function AdminOrdersContent() {
   return (
     <div>
       <h1 className="text-2xl font-bold text-slate-800 mb-4">Orders</h1>
+      {opsHealth && (
+        <Card className="mb-4 p-4 border-slate-200">
+          <p className="text-sm font-semibold text-slate-800 mb-2">Pipeline snapshot</p>
+          <ul className="text-sm text-slate-600 space-y-1 list-disc pl-5">
+            <li>
+              Store POS auto-accept (server):{' '}
+              <span className={opsHealth.posAutoAcceptEnabled ? 'text-emerald-700 font-medium' : 'text-slate-500'}>
+                {opsHealth.posAutoAcceptEnabled ? 'On' : 'Off'}
+              </span>
+              {opsHealth.posAutoAcceptEnabled
+                ? ' — stores cannot tap Accept; orders go to Preparing automatically.'
+                : ' — stores must Accept manually until you set VYBE_POS_AUTO_ACCEPT_ORDERS=1 on the API.'}
+            </li>
+            <li>
+              Stuck PENDING longer than {opsHealth.stalePendingMinutes} minutes:{' '}
+              <span className={opsHealth.stalePendingCount > 0 ? 'text-amber-800 font-semibold' : ''}>
+                {opsHealth.stalePendingCount}
+              </span>
+              {opsHealth.stalePendingCount > 0 ? (
+                <>
+                  {' '}
+                  <Link className="text-primary font-medium" href="/admin/orders?status=PENDING">
+                    View filter
+                  </Link>
+                </>
+              ) : null}
+            </li>
+            <li>
+              Manual payment proof queue:{' '}
+              <span className={opsHealth.paymentProofQueueCount > 0 ? 'text-amber-800 font-semibold' : ''}>
+                {opsHealth.paymentProofQueueCount}
+              </span>
+              {opsHealth.paymentProofQueueCount > 0 ? (
+                <>
+                  {' '}
+                  <Link className="text-primary font-medium" href="/admin/orders?pay=verify">
+                    Review
+                  </Link>
+                </>
+              ) : null}
+            </li>
+          </ul>
+        </Card>
+      )}
       <div className="flex flex-wrap items-center gap-2 mb-4 text-sm">
         <span className="text-slate-600">Quick filters:</span>
         <Link href="/admin/orders" className="text-primary underline">All</Link>

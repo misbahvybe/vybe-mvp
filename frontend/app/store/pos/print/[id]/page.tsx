@@ -34,7 +34,7 @@ function money(v: unknown) {
   return n(v).toFixed(0);
 }
 
-/** 80mm thermal layout; Chrome cannot drive inner printer directly — user picks system print target. */
+/** 58mm thermal layout; Chrome cannot drive inner printer directly — user picks system print target. */
 function detectPrintContext() {
   if (typeof navigator === 'undefined') {
     return { isAndroid: false, isSunmi: false, ua: '' };
@@ -110,20 +110,20 @@ function StorePosPrintInner() {
     <div className="p-3">
       <style>{`
         html, body { background: #fff !important; color: #000 !important; color-scheme: only light; }
-        @page { size: 80mm auto; margin: 3mm; }
+        @page { size: 58mm auto; margin: 3mm; }
         @media print {
           html, body { background: #fff !important; color: #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .no-print { display: none !important; }
         }
         .ticket {
-          max-width: 72mm;
+          max-width: 50mm;
           margin: 0 auto;
           font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-          font-size: 11px;
+          font-size: 10px;
           line-height: 1.35;
           color: #000000;
         }
-        .ticket h1 { font-size: 14px; margin: 0 0 4px; font-weight: 700; }
+        .ticket h1 { font-size: 12px; margin: 0 0 4px; font-weight: 700; }
         .muted { color: #475569; }
         .row { display: flex; justify-content: space-between; gap: 6px; }
         .hr { border-top: 1px dashed #64748b; margin: 8px 0; }

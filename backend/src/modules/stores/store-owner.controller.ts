@@ -5,6 +5,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '@prisma/client';
+import { isPosAutoAcceptOrdersEnabled } from '../../common/pos/pos-workflow.util';
 import { UpdateStoreDto } from './dto/update-store.dto';
 import { CreateProductCategoryDto } from './dto/create-product-category.dto';
 import { UpdateProductCategoryDto } from './dto/update-product-category.dto';
@@ -21,7 +22,9 @@ export class StoreOwnerController {
 
   @Get('store')
   async getStore(@CurrentUser() user: User) {
-    return this.stores.getStoreForOwner(user.id);
+    const s = await this.stores.getStoreForOwner(user.id);
+    if (!s) return null;
+    return { ...s, posAutoAcceptOrders: isPosAutoAcceptOrdersEnabled() };
   }
 
   @Patch('store')

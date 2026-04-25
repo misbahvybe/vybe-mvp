@@ -1,12 +1,14 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, FlatList, TouchableOpacity, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { api } from '@api/client';
 import { useAuthStore } from '@store/auth';
-import { useOrdersRealtime } from '@hooks/useOrdersRealtime';
+import { useOrdersRealtime, type OrderCreatedEvent } from '@hooks/useOrdersRealtime';
+import { useLoopingPosAlarm } from '@hooks/useLoopingPosAlarm';
 import { PartnerScreenShell } from '@components/partner/PartnerScreenShell';
 import { tokens } from '@theme/tokens';
 import { formatOrderNo } from '@lib/orderDisplay';
+import { fetchAndPrintOrderIfSunmi } from '@lib/posNewOrderAlert';
 
 const POLL_INTERVAL_MS = 120000;
 
@@ -38,9 +40,17 @@ export function StoreOrdersScreen() {
   const token = useAuthStore((s) => s.token);
   const user = useAuthStore((s) => s.user);
   const [myStoreId, setMyStoreId] = useState<string | null>(null);
+  const [posAutoAccept, setPosAutoAccept] = useState(false);
+  const posAutoAcceptRef = useRef(false);
+  const [posNewOrderSound, setPosNewOrderSound] = useState(false);
+  const soundClearRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    posAutoAcceptRef.current = posAutoAccept;
+  }, [posAutoAccept]);
 
   const fetchOrders = useCallback(() => {
     api
@@ -57,17 +67,53 @@ export function StoreOrdersScreen() {
   useEffect(() => {
     if (!token || user?.role !== 'STORE_OWNER') return;
     api
-      .get<{ id: string }>('/store-owner/store')
-      .then((r) => setMyStoreId(r.data?.id ?? null))
-      .catch(() => setMyStoreId(null));
+      .get<{ id: string; posAutoAcceptOrders?: boolean }>('/store-owner/store')
+      .then((r) => {
+        setMyStoreId(r.data?.id ?? null);
+        setPosAutoAccept(r.data?.posAutoAcceptOrders === true);
+      })
+      .catch(() => {
+        setMyStoreId(null);
+        setPosAutoAccept(false);
+      });
   }, [token, user?.role]);
+
+  const onRealtimeOrder = useCallback(
+    (payload: OrderCreatedEvent) => {
+      void fetchOrders();
+      if (soundClearRef.current) clearTimeout(soundClearRef.current);
+      setPosNewOrderSound(true);
+      soundClearRef.current = setTimeout(() => {
+        setPosNewOrderSound(false);
+        soundClearRef.current = null;
+      }, 120_000);
+      if (!posAutoAcceptRef.current || !payload?.id) return;
+      void fetchAndPrintOrderIfSunmi(payload.id).catch(() => {});
+    },
+    [fetchOrders],
+  );
+
+  const pending = orders.filter((o) => o.orderStatus === 'PENDING');
+  const shouldRing = posAutoAccept
+    ? Boolean(token && posNewOrderSound && !actionLoadingId)
+    : Boolean(token && pending.length > 0 && !actionLoadingId);
+  const { stopAlarm: stopPosAlarm } = useLoopingPosAlarm(shouldRing);
+
+  const dismissPosAlarm = useCallback(() => {
+    stopPosAlarm();
+    if (soundClearRef.current) {
+      clearTimeout(soundClearRef.current);
+      soundClearRef.current = null;
+    }
+    setPosNewOrderSound(false);
+  }, [stopPosAlarm]);
 
   useOrdersRealtime(
     !!token && user?.role === 'STORE_OWNER' && !!myStoreId,
     token,
     'STORE_OWNER',
     myStoreId,
-    fetchOrders,
+    onRealtimeOrder,
   );
 
   useEffect(() => {
@@ -76,6 +122,7 @@ export function StoreOrdersScreen() {
   }, [fetchOrders]);
 
   const updateOrderStatus = async (orderId: string, status: string) => {
+    stopPosAlarm();
     setActionLoadingId(orderId);
     try {
       await api.patch(`/orders/${orderId}/status`, { status });
@@ -88,7 +135,6 @@ export function StoreOrdersScreen() {
     }
   };
 
-  const pending = orders.filter((o) => o.orderStatus === 'PENDING');
   const preparing = orders.filter((o) => o.orderStatus === 'STORE_ACCEPTED');
   const ready = orders.filter((o) => o.orderStatus === 'READY_FOR_PICKUP');
   const delivered = orders.filter((o) => o.orderStatus === 'DELIVERED');
@@ -109,14 +155,30 @@ export function StoreOrdersScreen() {
             contentContainerStyle={styles.listContent}
             ListHeaderComponent={
               <View style={{ gap: 16 }}>
+                {posAutoAccept ? (
+                  <View style={styles.infoBanner}>
+                    <Text style={styles.infoBannerText}>
+                      Auto-accept is on: new orders are accepted and sent to the kitchen. Use Preparing to mark ready. Sunmi
+                      printer will print on arrival when configured.
+                    </Text>
+                  </View>
+                ) : null}
+                {posAutoAccept && shouldRing ? (
+                  <View style={styles.stopAlertRow}>
+                    <Text style={styles.stopAlertText}>New order alert is playing.</Text>
+                    <TouchableOpacity style={styles.stopAlertBtn} onPress={dismissPosAlarm} activeOpacity={0.85}>
+                      <Text style={styles.stopAlertBtnText}>Stop alert</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
                 <Section
                   title="New Orders"
-                  emptyText="No new orders"
+                  emptyText={posAutoAccept ? 'No pending—orders auto-accept' : 'No new orders'}
                   orders={pending}
                   actionLoadingId={actionLoadingId}
                   onOpenDetail={(id) => navigation.navigate('StoreOrderDetail', { id })}
-                  onAccept={(id) => updateOrderStatus(id, 'STORE_ACCEPTED')}
-                  onReject={(id) => updateOrderStatus(id, 'STORE_REJECTED')}
+                  onAccept={!posAutoAccept ? (id) => updateOrderStatus(id, 'STORE_ACCEPTED') : undefined}
+                  onReject={!posAutoAccept ? (id) => updateOrderStatus(id, 'STORE_REJECTED') : undefined}
                 />
                 <Section
                   title="Preparing"
@@ -246,6 +308,46 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingTop: 12
+  },
+  infoBanner: {
+    backgroundColor: '#f0f9ff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+    padding: 12
+  },
+  infoBannerText: {
+    fontSize: 13,
+    color: '#0c4a6e',
+    lineHeight: 19
+  },
+  stopAlertRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    backgroundColor: '#fff7ed',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#fed7aa',
+    padding: 12
+  },
+  stopAlertText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#7c2d12',
+    lineHeight: 19
+  },
+  stopAlertBtn: {
+    backgroundColor: '#0f172a',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 999
+  },
+  stopAlertBtnText: {
+    color: '#facc15',
+    fontSize: 12,
+    fontWeight: '700'
   },
   listContent: {
     paddingBottom: 24,

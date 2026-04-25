@@ -335,6 +335,13 @@ export class OrdersController {
     return this.orders.verifyManualMvpPayment(user.id, id, body.decision);
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @Get('admin/health')
+  async adminOrderHealth() {
+    return this.orders.getAdminPipelineHealth();
+  }
+
   @UseGuards(JwtAuthGuard)
   @Get(':id')
   async getOne(@CurrentUser() user: User, @Param('id') id: string) {
