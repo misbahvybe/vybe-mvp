@@ -529,9 +529,25 @@ export class AdminService {
     };
   }
 
-  async getUsers() {
+  async getUsers(options?: { sort?: 'newest' | 'oldest'; q?: string }) {
+    const order: 'asc' | 'desc' = options?.sort === 'oldest' ? 'asc' : 'desc';
+    const q = options?.q?.trim();
+    const searchFilter = q
+      ? {
+          OR: [
+            { name: { contains: q, mode: 'insensitive' as const } },
+            { phone: { contains: q } },
+            { email: { contains: q, mode: 'insensitive' as const } },
+          ],
+        }
+      : undefined;
+
     const customers = await this.prisma.user.findMany({
-      where: { role: 'CUSTOMER' },
+      where: {
+        role: 'CUSTOMER',
+        ...searchFilter,
+      },
+      orderBy: { createdAt: order },
       include: {
         ordersAsCustomer: { select: { orderStatus: true, totalAmount: true } },
       },
@@ -543,6 +559,7 @@ export class AdminService {
       email: u.email,
       isVerified: u.isVerified,
       isActive: u.isActive,
+      createdAt: u.createdAt.toISOString(),
       ordersCount: u.ordersAsCustomer.filter((o: { orderStatus: string }) => o.orderStatus === 'DELIVERED').length,
       totalSpend: u.ordersAsCustomer
         .filter((o: { orderStatus: string; totalAmount: unknown }) => o.orderStatus === 'DELIVERED')

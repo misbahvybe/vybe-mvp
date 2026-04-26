@@ -119,8 +119,15 @@ export class AdminController {
   }
 
   @Get('users')
-  async getUsers(@CurrentUser() _user: User) {
-    return this.admin.getUsers();
+  async getUsers(
+    @CurrentUser() _user: User,
+    @Query('sort') sort?: string,
+    @Query('q') q?: string,
+  ) {
+    return this.admin.getUsers({
+      sort: sort === 'oldest' ? 'oldest' : 'newest',
+      q: q?.trim() || undefined,
+    });
   }
 
   @Get('finance')
