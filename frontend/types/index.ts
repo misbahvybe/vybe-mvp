@@ -6,6 +6,9 @@ export interface User {
   email: string | null;
   phone: string;
   role: Role;
+  /** Present after profile fetch or login when API includes it. */
+  passwordSet?: boolean;
+  isVerified?: boolean;
 }
 
 export interface AuthState {

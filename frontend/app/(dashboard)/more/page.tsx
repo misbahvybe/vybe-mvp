@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/Button';
 const menuItems = [
   { href: '/more/account', label: 'Account Information', image: '/user-avatar.png' },
   { href: '/addresses', label: 'Delivery Address', image: '/map-location.png' },
-  // COD-only for now — re-add when Stripe / XPay are enabled: '/profile/payment-methods'
+  { href: '/more/payment', label: 'Payment & checkout', image: '/wallet.png' },
   { href: '/more/password', label: 'Password', image: '/secure-padlock.png' },
   { href: '/more/refer', label: 'Reference Friends', image: '/users.png' },
 ];
@@ -33,13 +33,19 @@ export default function MorePage() {
       <main className="app-shell-narrow py-4">
         {user && (
           <div className="text-center mb-6">
-            <div className="w-20 h-20 rounded-full bg-primary mx-auto flex items-center justify-center text-3xl text-white">
-              {user.name.charAt(0)}
+            <div className="w-20 h-20 rounded-full bg-primary mx-auto flex items-center justify-center text-3xl text-white shadow-md ring-4 ring-primary/20">
+              {user.name.charAt(0).toUpperCase()}
             </div>
-            <p className="mt-2 font-semibold text-slate-800">{user.name}</p>
-            <p className="text-sm text-slate-500">{user.email}</p>
+            <p className="mt-3 font-semibold text-slate-800 text-lg tracking-tight">{user.name}</p>
+            {user.email ? (
+              <p className="text-sm text-slate-500 mt-0.5">{user.email}</p>
+            ) : (
+              <p className="text-sm text-slate-400 mt-0.5">Add email in Account information</p>
+            )}
+            <p className="text-xs text-slate-400 mt-1">{user.phone}</p>
           </div>
         )}
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-1">Settings</p>
         <Card padding="none" className="overflow-hidden">
           {menuItems.map((item) => (
             <Link

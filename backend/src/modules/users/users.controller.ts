@@ -5,6 +5,8 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '@prisma/client';
 import { CreateAddressDto } from './dto/create-address.dto';
 import { AddPaymentMethodDto } from './dto/add-payment-method.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard)
@@ -14,6 +16,16 @@ export class UsersController {
   @Get('me')
   async me(@CurrentUser() user: User) {
     return this.users.getProfile(user.id);
+  }
+
+  @Patch('me')
+  async updateMe(@CurrentUser() user: User, @Body() dto: UpdateProfileDto) {
+    return this.users.updateProfile(user.id, dto);
+  }
+
+  @Patch('me/password')
+  async changePassword(@CurrentUser() user: User, @Body() dto: ChangePasswordDto) {
+    return this.users.changePassword(user.id, dto);
   }
 
   @Get('me/addresses')

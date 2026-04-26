@@ -1,10 +1,21 @@
-import { Injectable, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  ForbiddenException,
+  BadRequestException,
+  ConflictException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { StripeService } from '../stripe/stripe.service';
 import { User } from '@prisma/client';
 import { CreateAddressDto } from './dto/create-address.dto';
 import { AddPaymentMethodDto } from './dto/add-payment-method.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { Decimal } from '@prisma/client/runtime/library';
+
+const PASSWORD_SALT_ROUNDS = 10;
 
 @Injectable()
 export class UsersService {
@@ -30,13 +41,66 @@ export class UsersService {
         role: true,
         isVerified: true,
         isActive: true,
+        password: true,
+        passwordSet: true,
         createdAt: true,
         addresses: true,
         riderProfile: true,
         ownedStores: { select: { id: true, name: true, isApproved: true } },
       },
     });
-    return user;
+    if (!user) return user;
+    const { password, ...rest } = user;
+    return { ...rest, hasPassword: Boolean(password) };
+  }
+
+  async updateProfile(userId: string, dto: UpdateProfileDto) {
+    const name = dto.name.trim();
+    let emailTrim: string | null | undefined;
+    if (dto.email !== undefined) {
+      emailTrim = String(dto.email).trim() === '' ? null : String(dto.email).trim();
+      if (emailTrim) {
+        const taken = await this.prisma.user.findFirst({
+          where: { email: emailTrim, NOT: { id: userId } },
+        });
+        if (taken) throw new ConflictException('This email is already used by another account');
+      }
+    }
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { name, ...(emailTrim !== undefined ? { email: emailTrim } : {}) },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        role: true,
+        passwordSet: true,
+        isVerified: true,
+      },
+    });
+    return updated;
+  }
+
+  async changePassword(userId: string, dto: ChangePasswordDto) {
+    if (dto.newPassword !== dto.confirmNewPassword) {
+      throw new BadRequestException('New passwords do not match');
+    }
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new ForbiddenException('User not found');
+    const hasPassword = Boolean(user.password);
+    if (hasPassword) {
+      const current = dto.currentPassword ?? '';
+      if (!current) throw new BadRequestException('Current password is required');
+      const match = await bcrypt.compare(current, user.password!);
+      if (!match) throw new UnauthorizedException('Current password is incorrect');
+    }
+    const passwordHash = await bcrypt.hash(dto.newPassword, PASSWORD_SALT_ROUNDS);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { password: passwordHash, passwordSet: true },
+    });
+    return { success: true as const };
   }
 
   async getAddresses(userId: string) {
