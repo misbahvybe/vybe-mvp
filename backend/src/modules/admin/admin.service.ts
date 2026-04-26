@@ -547,12 +547,13 @@ export class AdminService {
         role: 'CUSTOMER',
         ...searchFilter,
       },
-      orderBy: { createdAt: order },
+      // Tie-break on id for stable ordering when many users share the same createdAt second.
+      orderBy: [{ createdAt: order }, { id: order }],
       include: {
         ordersAsCustomer: { select: { orderStatus: true, totalAmount: true } },
       },
     });
-    return customers.map((u) => ({
+    const rows = customers.map((u) => ({
       id: u.id,
       name: u.name,
       phone: u.phone,
@@ -565,6 +566,14 @@ export class AdminService {
         .filter((o: { orderStatus: string; totalAmount: unknown }) => o.orderStatus === 'DELIVERED')
         .reduce((s: number, o: { totalAmount: unknown }) => s + Number(o.totalAmount), 0),
     }));
+    // Defensive: ensure response order even if a layer ignored SQL ORDER BY.
+    rows.sort((a, b) => {
+      const ta = new Date(a.createdAt).getTime();
+      const tb = new Date(b.createdAt).getTime();
+      if (ta !== tb) return order === 'desc' ? tb - ta : ta - tb;
+      return order === 'desc' ? b.id.localeCompare(a.id) : a.id.localeCompare(b.id);
+    });
+    return rows;
   }
 
   async getFinance() {

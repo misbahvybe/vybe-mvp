@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Loader } from '@/components/ui/Loader';
 import api from '@/services/api';
@@ -39,16 +39,30 @@ export default function AdminUsersPage() {
     setLoading(true);
     const params = new URLSearchParams();
     if (sort === 'oldest') params.set('sort', 'oldest');
+    // Explicit default helps some caches always treat the request the same; backend defaults to newest.
+    if (sort === 'newest') params.set('sort', 'newest');
     const q = debouncedSearch.trim();
     if (q) params.set('q', q);
     const qs = params.toString();
     const url = `/admin/users${qs ? `?${qs}` : ''}`;
     api
       .get<UserRow[]>(url)
-      .then((r) => setUsers(r.data ?? []))
+      .then((r) => setUsers(Array.isArray(r.data) ? r.data : []))
       .catch(() => setUsers([]))
       .finally(() => setLoading(false));
   }, [sort, debouncedSearch]);
+
+  /** Always show newest-on-top (or matching sort) even if the API is an older build or cached. */
+  const displayUsers = useMemo(() => {
+    const list = users.slice();
+    list.sort((a, b) => {
+      const ta = new Date(a.createdAt).getTime();
+      const tb = new Date(b.createdAt).getTime();
+      if (ta !== tb) return sort === 'newest' ? tb - ta : ta - tb;
+      return sort === 'newest' ? b.id.localeCompare(a.id) : a.id.localeCompare(b.id);
+    });
+    return list;
+  }, [users, sort]);
 
   return (
     <div>
@@ -89,6 +103,7 @@ export default function AdminUsersPage() {
                   <th className="text-left p-3 font-medium w-12">#</th>
                   <th className="text-left p-3 font-medium">Name</th>
                   <th className="text-left p-3 font-medium">Phone</th>
+                  <th className="text-left p-3 font-medium whitespace-nowrap">Signed up</th>
                   <th className="text-left p-3 font-medium">Verified</th>
                   <th className="text-left p-3 font-medium">Status</th>
                   <th className="text-right p-3 font-medium">Orders</th>
@@ -96,7 +111,7 @@ export default function AdminUsersPage() {
                 </tr>
               </thead>
               <tbody>
-                {users.map((u, i) => (
+                {displayUsers.map((u, i) => (
                   <tr key={u.id} className="border-t border-slate-100">
                     <td className="p-3 text-slate-500 tabular-nums">{i + 1}</td>
                     <td className="p-3 font-medium">
@@ -108,6 +123,14 @@ export default function AdminUsersPage() {
                       )}
                     </td>
                     <td className="p-3">{u.phone}</td>
+                    <td className="p-3 text-slate-600 text-xs sm:text-sm whitespace-nowrap" title={u.createdAt}>
+                      {u.createdAt
+                        ? new Date(u.createdAt).toLocaleString(undefined, {
+                            dateStyle: 'medium',
+                            timeStyle: 'short',
+                          })
+                        : '—'}
+                    </td>
                     <td className="p-3">{u.isVerified ? 'Yes' : 'No'}</td>
                     <td className="p-3">{u.isActive ? 'Active' : 'Inactive'}</td>
                     <td className="p-3 text-right">{u.ordersCount}</td>

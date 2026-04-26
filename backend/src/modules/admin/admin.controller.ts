@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { PharmacyIngestionService } from './pharmacy-ingestion.service';
 import { StoresService } from '../stores/stores.service';
@@ -119,6 +119,7 @@ export class AdminController {
   }
 
   @Get('users')
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate, private, max-age=0')
   async getUsers(
     @CurrentUser() _user: User,
     @Query('sort') sort?: string,
