@@ -272,6 +272,8 @@ model PlatformCheckoutSettings {
   peakStartTime String @default("18:00") @map("peak_start_time")
   /// Peak window end (HH:mm, Pakistan local time). If <= start, window wraps overnight.
   peakEndTime String @default("22:00") @map("peak_end_time")
+  /// When true (admin-editable), new orders skip store Accept and go to Preparing for all stores. See also `VYBE_POS_AUTO_ACCEPT_ORDERS` env (OR’d with this flag).
+  posAutoAcceptOrders Boolean @default(false) @map("pos_auto_accept_orders")
 
   updatedAt DateTime @updatedAt @map("updated_at")
 

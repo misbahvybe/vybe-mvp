@@ -57,15 +57,20 @@ function AdminOrdersContent() {
   const [reassigningId, setReassigningId] = useState<string | null>(null);
   const [opsHealth, setOpsHealth] = useState<{
     posAutoAcceptEnabled: boolean;
+    posAutoAcceptFromDatabase?: boolean;
+    posAutoAcceptFromEnv?: boolean;
     stalePendingMinutes: number;
     stalePendingCount: number;
     paymentProofQueueCount: number;
   } | null>(null);
+  const [posAutoSaving, setPosAutoSaving] = useState(false);
 
   const fetchOpsHealth = useCallback(() => {
     api
       .get<{
         posAutoAcceptEnabled: boolean;
+        posAutoAcceptFromDatabase?: boolean;
+        posAutoAcceptFromEnv?: boolean;
         stalePendingMinutes: number;
         stalePendingCount: number;
         paymentProofQueueCount: number;
@@ -146,16 +151,70 @@ function AdminOrdersContent() {
       {opsHealth && (
         <Card className="mb-4 p-4 border-slate-200">
           <p className="text-sm font-semibold text-slate-800 mb-2">Pipeline snapshot</p>
+          <div className="text-sm text-slate-600 mb-4 pb-4 border-b border-slate-100">
+            <span className="font-medium text-slate-800">Store POS auto-accept (all stores)</span>
+            <div className="mt-1 space-y-1">
+              <p>
+                Effective:{' '}
+                <span className={opsHealth.posAutoAcceptEnabled ? 'text-emerald-700 font-semibold' : 'text-slate-600'}>
+                  {opsHealth.posAutoAcceptEnabled ? 'On' : 'Off'}
+                </span>
+                {opsHealth.posAutoAcceptEnabled
+                  ? ' — new orders skip Accept and go to Preparing (COD / paid paths as today).'
+                  : ' — stores must tap Accept/Reject on pending orders.'}
+              </p>
+              <p className="text-xs">
+                Database: {opsHealth.posAutoAcceptFromDatabase === true ? 'On' : 'Off'}
+                {' · '}
+                Env <code className="text-[11px] bg-slate-100 px-1 rounded">VYBE_POS_AUTO_ACCEPT_ORDERS</code>:{' '}
+                {opsHealth.posAutoAcceptFromEnv === true ? 'On (override)' : 'Off'}
+              </p>
+              {opsHealth.posAutoAcceptFromEnv === true ? (
+                <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
+                  Env is forcing auto-accept on. Remove it from the API host to allow “Off” when the database flag is
+                  off.
+                </p>
+              ) : null}
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={opsHealth.posAutoAcceptFromDatabase === true ? 'secondary' : 'primary'}
+                  loading={posAutoSaving}
+                  disabled={posAutoSaving}
+                  onClick={async () => {
+                    const next = opsHealth.posAutoAcceptFromDatabase !== true;
+                    if (
+                      !next &&
+                      opsHealth.posAutoAcceptFromEnv === true &&
+                      !window.confirm(
+                        'Database flag will be off, but VYBE_POS_AUTO_ACCEPT_ORDERS is still set on the server, so auto-accept will stay ON until you remove that env. Continue?',
+                      )
+                    ) {
+                      return;
+                    }
+                    setPosAutoSaving(true);
+                    try {
+                      await api.patch('/admin/pricing/checkout-settings', { posAutoAcceptOrders: next });
+                      await fetchOpsHealth();
+                    } catch (e) {
+                      alert(
+                        (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+                          'Could not update auto-accept',
+                      );
+                    } finally {
+                      setPosAutoSaving(false);
+                    }
+                  }}
+                >
+                  {opsHealth.posAutoAcceptFromDatabase === true
+                    ? 'Turn off (saved in database)'
+                    : 'Turn on for all stores'}
+                </Button>
+              </div>
+            </div>
+          </div>
           <ul className="text-sm text-slate-600 space-y-1 list-disc pl-5">
-            <li>
-              Store POS auto-accept (server):{' '}
-              <span className={opsHealth.posAutoAcceptEnabled ? 'text-emerald-700 font-medium' : 'text-slate-500'}>
-                {opsHealth.posAutoAcceptEnabled ? 'On' : 'Off'}
-              </span>
-              {opsHealth.posAutoAcceptEnabled
-                ? ' — stores cannot tap Accept; orders go to Preparing automatically.'
-                : ' — stores must Accept manually until you set VYBE_POS_AUTO_ACCEPT_ORDERS=1 on the API.'}
-            </li>
             <li>
               Stuck PENDING longer than {opsHealth.stalePendingMinutes} minutes:{' '}
               <span className={opsHealth.stalePendingCount > 0 ? 'text-amber-800 font-semibold' : ''}>

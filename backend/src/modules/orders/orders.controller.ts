@@ -348,7 +348,7 @@ export class OrdersController {
     const order = await this.orders.findById(id);
     if (!order) throw new ForbiddenException('Order not found');
     if (user.role === 'ADMIN') {
-      const allowed = this.orders.getAllowedTransitionsForOrder(
+      const allowed = await this.orders.getAllowedTransitionsForOrder(
         { orderStatus: order.orderStatus, paymentMethod: order.paymentMethod, paymentStatus: order.paymentStatus },
         user.role,
       );
@@ -373,7 +373,7 @@ export class OrdersController {
         throw new ForbiddenException('Order not found');
       }
     }
-    const allowed = this.orders.getAllowedTransitionsForOrder(
+    const allowed = await this.orders.getAllowedTransitionsForOrder(
       { orderStatus: order.orderStatus, paymentMethod: order.paymentMethod, paymentStatus: order.paymentStatus },
       user.role,
     );

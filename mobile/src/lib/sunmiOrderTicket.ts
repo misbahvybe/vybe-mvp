@@ -77,10 +77,11 @@ export async function printOrderTicketSunmi(order: OrderForSunmiPrint): Promise<
 
   await Sunmi.initPrinter();
 
-  const storeName = order.store?.name?.trim() || 'VYBE';
+  const storeName = order.store?.name?.trim() || 'Vybe Store';
   await Sunmi.setAlignment(1);
-  await Sunmi.printTextWithOption(storeName, 28, true, false);
-  await Sunmi.setFontSize(22);
+  await Sunmi.printTextWithOption('VYBE SUPER APP\n', 32, true, false);
+  await Sunmi.printTextWithOption(`${storeName}\n`, 28, true, false);
+  await Sunmi.setFontSize(24);
   if (order.store?.address) {
     for (const line of wrapLine(order.store.address, 28)) {
       await Sunmi.printText(`${line}\n`);
@@ -93,10 +94,10 @@ export async function printOrderTicketSunmi(order: OrderForSunmiPrint): Promise<
   await Sunmi.setAlignment(0);
   await Sunmi.printText('--------------------------------\n');
 
-  await Sunmi.printText(`Order  ${formatOrderNo(order.orderNumber, order.id)}\n`);
-  await Sunmi.printText(`${new Date(order.createdAt).toLocaleString()}\n`);
+  await Sunmi.printTextWithOption(`Order ${formatOrderNo(order.orderNumber, order.id)}\n`, 26, true, false);
+  await Sunmi.printTextWithOption(`${new Date(order.createdAt).toLocaleString('en-PK')}\n`, 24, true, false);
   const pay = order.paymentMethod === 'COD' ? 'COD' : 'PAID';
-  await Sunmi.printText(`Payment: ${pay}\n`);
+  await Sunmi.printTextWithOption(`Payment: ${pay}\n`, 24, true, false);
 
   if (order.customer?.name || order.customer?.phone) {
     await Sunmi.printText(
@@ -106,8 +107,8 @@ export async function printOrderTicketSunmi(order: OrderForSunmiPrint): Promise<
 
   await Sunmi.printText('--------------------------------\n');
   await Sunmi.setAlignment(0);
-  await Sunmi.printTextWithOption('ITEMS\n', 24, true, false);
-  await Sunmi.setFontSize(22);
+  await Sunmi.printTextWithOption('ITEMS\n', 28, true, false);
+  await Sunmi.setFontSize(24);
 
   let itemsSum = 0;
   for (const it of order.items ?? []) {
@@ -117,9 +118,9 @@ export async function printOrderTicketSunmi(order: OrderForSunmiPrint): Promise<
     itemsSum += lineAmt;
     const name = it.product?.name?.trim() || 'Item';
     for (const line of wrapLine(`${name}`, 28)) {
-      await Sunmi.printText(`${line}\n`);
+      await Sunmi.printTextWithOption(`${line}\n`, 24, true, false);
     }
-    await Sunmi.printText(`  ${qty} x Rs ${money(price)} = Rs ${money(lineAmt)}\n`);
+    await Sunmi.printTextWithOption(`  ${qty} x Rs ${money(price)} = Rs ${money(lineAmt)}\n`, 24, true, false);
   }
 
   await Sunmi.printText('--------------------------------\n');
@@ -132,7 +133,7 @@ export async function printOrderTicketSunmi(order: OrderForSunmiPrint): Promise<
   }
 
   await Sunmi.setAlignment(1);
-  await Sunmi.printTextWithOption(`TOTAL  Rs ${money(order.totalAmount)}\n`, 28, true, false);
+  await Sunmi.printTextWithOption(`TOTAL\nRs ${money(order.totalAmount)}\n`, 32, true, false);
   await Sunmi.setAlignment(0);
 
   if (order.address?.fullAddress) {

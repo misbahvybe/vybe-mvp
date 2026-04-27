@@ -5,7 +5,8 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '@prisma/client';
-import { isPosAutoAcceptOrdersEnabled } from '../../common/pos/pos-workflow.util';
+import { PrismaService } from '../../common/prisma/prisma.service';
+import { resolvePosAutoAcceptOrdersEnabled } from '../../common/pos/pos-workflow.util';
 import { UpdateStoreDto } from './dto/update-store.dto';
 import { CreateProductCategoryDto } from './dto/create-product-category.dto';
 import { UpdateProductCategoryDto } from './dto/update-product-category.dto';
@@ -18,13 +19,17 @@ import { UpdateProductVariantDto } from './dto/update-product-variant.dto';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('STORE_OWNER')
 export class StoreOwnerController {
-  constructor(private readonly stores: StoresService) {}
+  constructor(
+    private readonly stores: StoresService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @Get('store')
   async getStore(@CurrentUser() user: User) {
     const s = await this.stores.getStoreForOwner(user.id);
     if (!s) return null;
-    return { ...s, posAutoAcceptOrders: isPosAutoAcceptOrdersEnabled() };
+    const posAutoAcceptOrders = await resolvePosAutoAcceptOrdersEnabled(this.prisma);
+    return { ...s, posAutoAcceptOrders };
   }
 
   @Patch('store')

@@ -675,6 +675,7 @@ export class AdminService {
       peakMultiplier?: number;
       peakStartTime?: string;
       peakEndTime?: string;
+      posAutoAcceptOrders?: boolean;
     } = {};
     if (dto.serviceFeeMode !== undefined) data.serviceFeeMode = dto.serviceFeeMode;
     if (dto.serviceFeeFixed !== undefined) data.serviceFeeFixed = dto.serviceFeeFixed;
@@ -686,6 +687,7 @@ export class AdminService {
     if (dto.peakMultiplier !== undefined) data.peakMultiplier = dto.peakMultiplier;
     if (dto.peakStartTime !== undefined) data.peakStartTime = dto.peakStartTime;
     if (dto.peakEndTime !== undefined) data.peakEndTime = dto.peakEndTime;
+    if (dto.posAutoAcceptOrders !== undefined) data.posAutoAcceptOrders = dto.posAutoAcceptOrders;
     if (Object.keys(data).length === 0) {
       return this.prisma.platformCheckoutSettings.findUniqueOrThrow({ where: { id: 'default' } });
     }

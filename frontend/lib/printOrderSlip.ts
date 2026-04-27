@@ -166,15 +166,16 @@ export function formatOrderSlipText(input: OrderSlipInput): string {
 function buildReceiptStyles(widthMm: 58 | 80): string {
   const is80 = widthMm === 80;
   const page = `${widthMm}mm auto`;
-  const bodyMax = is80 ? '72mm' : '48mm';
-  const base = is80 ? '13px' : '12px';
-  const brand = is80 ? '11px' : '10px';
-  const storeTitle = is80 ? '17px' : '15px';
-  const meta = is80 ? '11px' : '10px';
-  const section = is80 ? '12px' : '11px';
-  const itemName = is80 ? '12px' : '11px';
-  const itemDetails = is80 ? '10px' : '9px';
-  const totalSize = is80 ? '18px' : '16px';
+  /** 58mm: use nearly full roll width so type reads larger and less “floating”. */
+  const bodyMax = is80 ? '72mm' : '52mm';
+  const base = is80 ? '13px' : '15px';
+  const brand = is80 ? '12px' : '19px';
+  const storeTitle = is80 ? '17px' : '21px';
+  const meta = is80 ? '11px' : '13px';
+  const section = is80 ? '12px' : '14px';
+  const itemName = is80 ? '12px' : '14px';
+  const itemDetails = is80 ? '10px' : '12px';
+  const totalSize = is80 ? '18px' : '24px';
   return `
   :root { color-scheme: only light; }
   * {
@@ -190,104 +191,104 @@ function buildReceiptStyles(widthMm: 58 | 80): string {
   .receipt {
     font-family: ui-monospace, "Courier New", Courier, Consolas, monospace;
     font-size: ${base};
-    line-height: 1.45;
+    line-height: 1.55;
     box-sizing: border-box;
     width: 100%;
     max-width: ${bodyMax};
     margin: 0 auto;
-    padding: 3mm 2.5mm 4mm;
+    padding: ${is80 ? '3mm 2.5mm 4mm' : '4mm 1.5mm 5mm'};
   }
   .brand {
     text-align: center;
     font-size: ${brand};
-    font-weight: 800;
-    letter-spacing: 0.12em;
+    font-weight: 900;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
-    margin: 0 0 4px;
+    margin: 0 0 6px;
   }
   .store-name {
     text-align: center;
     font-size: ${storeTitle};
-    font-weight: 800;
-    margin: 0 0 2px;
+    font-weight: 900;
+    margin: 0 0 4px;
     line-height: 1.2;
   }
   .store-meta {
     text-align: center;
     font-size: ${meta};
-    font-weight: 600;
-    margin: 0 0 2px;
+    font-weight: 700;
+    margin: 0 0 4px;
     word-break: break-word;
   }
   .rule {
     border: none;
     border-top: 1px dashed #000;
-    margin: 8px 0;
+    margin: 10px 0;
   }
   .section-h {
     font-size: ${section};
-    font-weight: 800;
+    font-weight: 900;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
-    margin: 6px 0 4px;
+    letter-spacing: 0.05em;
+    margin: 8px 0 6px;
   }
   .row {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
     gap: 8px;
-    margin: 3px 0;
+    margin: 5px 0;
     font-size: ${meta};
-    font-weight: 600;
+    font-weight: 700;
   }
   .row .l { flex: 1; min-width: 0; word-break: break-word; }
-  .row .r { white-space: nowrap; font-weight: 700; }
-  .dim { font-size: ${itemDetails}; font-weight: 600; opacity: 1; }
-  .items .item { margin-bottom: 8px; }
-  .items .name { font-size: ${itemName}; font-weight: 800; }
+  .row .r { white-space: nowrap; font-weight: 900; }
+  .dim { font-size: ${itemDetails}; font-weight: 700; opacity: 1; }
+  .items .item { margin-bottom: 10px; }
+  .items .name { font-size: ${itemName}; font-weight: 900; }
   .items .line {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
     gap: 6px;
-    margin-top: 2px;
+    margin-top: 4px;
   }
-  .items .amt { font-weight: 800; white-space: nowrap; }
+  .items .amt { font-weight: 900; white-space: nowrap; }
   .summary .line {
     display: flex;
     justify-content: space-between;
-    margin: 4px 0;
+    margin: 5px 0;
     font-size: ${itemName};
-    font-weight: 700;
+    font-weight: 800;
   }
   .summary .grand {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    margin-top: 10px;
-    padding-top: 8px;
-    border-top: 2px solid #000;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 3px solid #000;
     font-size: ${totalSize};
     font-weight: 900;
   }
   .pay {
-    margin: 8px 0 6px;
+    margin: 10px 0 8px;
     font-size: ${itemName};
-    font-weight: 800;
+    font-weight: 900;
   }
   .footer {
     text-align: center;
     font-size: ${itemName};
-    font-weight: 800;
-    margin: 8px 0 4px;
+    font-weight: 900;
+    margin: 10px 0 6px;
   }
   .subfoot {
     text-align: center;
     font-size: ${itemDetails};
-    font-weight: 700;
+    font-weight: 800;
     margin: 0;
   }
-  @page { size: ${page}; margin: 2.5mm; }
+  @page { size: ${page}; margin: 2mm; }
   @media print {
     html, body { background: #fff !important; }
     .receipt { padding: 0; max-width: none; }

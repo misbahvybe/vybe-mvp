@@ -8,10 +8,14 @@
  * 4. First visit: allow QZ Tray when prompted; production sites need a signed certificate (see https://qz.io/wiki/Signing)
  *
  * If QZ is missing or print fails, callers fall back to `printOrderSlip` (popup + system dialog).
+ *
+ * Raw ESC/POS (bold / double-size for 58mm): set `NEXT_PUBLIC_QZ_TRAY_USE_RAW_ESC_POS=true` so the
+ * driver receives native thermal commands instead of rasterized HTML (crisper on many POS units).
  */
 
 import type { OrderSlipInput } from './printOrderSlip';
 import { buildOrderSlipHtmlDocument, printOrderSlip } from './printOrderSlip';
+import { buildOrderSlipEscPosUint8Array, uint8ArrayToBinaryString } from './printOrderSlipEscPos';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Qz = any;
@@ -30,6 +34,12 @@ export function getQzTrayPrinterName(): string {
   return getPrinterNameFromEnv();
 }
 
+function useQzRawEscPos(): boolean {
+  if (typeof process === 'undefined') return false;
+  const v = (process.env.NEXT_PUBLIC_QZ_TRAY_USE_RAW_ESC_POS ?? '').trim().toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes';
+}
+
 async function loadQz(): Promise<Qz> {
   const mod = await import('qz-tray');
   return mod.default ?? mod;
@@ -46,6 +56,14 @@ export async function printOrderSlipViaQz(input: OrderSlipInput, printerName: st
   if (!qz.websocket.isActive()) {
     await qz.websocket.connect();
   }
+
+  if (useQzRawEscPos()) {
+    const bytes = buildOrderSlipEscPosUint8Array(input);
+    const config = qz.configs.create(printerName);
+    await qz.print(config, [uint8ArrayToBinaryString(bytes)]);
+    return;
+  }
+
   const html = buildOrderSlipHtmlDocument(input, { autoPrintScript: false });
   const config = qz.configs.create(printerName, {
     units: 'mm',

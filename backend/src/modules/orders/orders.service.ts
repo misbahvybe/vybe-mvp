@@ -40,7 +40,10 @@ import {
   pkPhoneHeuristicWarning,
   bankManualMvpDisplaySplit,
 } from './manual-mvp.util';
-import { isPosAutoAcceptOrdersEnabled } from '../../common/pos/pos-workflow.util';
+import {
+  isPosAutoAcceptOrdersEnvEnabled,
+  resolvePosAutoAcceptOrdersEnabled,
+} from '../../common/pos/pos-workflow.util';
 
 /** Set `false` when Stripe / XPay keys are ready and clients show those options again. */
 const PAYMENTS_COD_ONLY = true;
@@ -945,7 +948,7 @@ export class OrdersService {
    * for any order the kitchen is allowed to see (COD, card, or manual after payment verification).
    */
   private async applyPosAutoAcceptIfEnabled(orderId: string): Promise<void> {
-    if (!isPosAutoAcceptOrdersEnabled()) return;
+    if (!(await resolvePosAutoAcceptOrdersEnabled(this.prisma))) return;
     const row = await this.prisma.order.findUnique({ where: { id: orderId } });
     if (!row || row.orderStatus !== OrderStatus.PENDING) return;
     if (row.paymentMethod === 'MANUAL_TRANSFER' && row.paymentStatus !== PaymentStatus.PAID) return;
@@ -1385,7 +1388,7 @@ export class OrdersService {
   /**
    * Skips store actions until manual payment is confirmed (MVP) so the kitchen does not act on fake tabs.
    */
-  getAllowedTransitionsForOrder(
+  async getAllowedTransitionsForOrder(
     order: { orderStatus: OrderStatus; paymentMethod: string; paymentStatus: PaymentStatus },
     role: Role,
   ) {
@@ -1400,7 +1403,7 @@ export class OrdersService {
       );
     }
     if (
-      isPosAutoAcceptOrdersEnabled() &&
+      (await resolvePosAutoAcceptOrdersEnabled(this.prisma)) &&
       role === Role.STORE_OWNER &&
       order.orderStatus === OrderStatus.PENDING
     ) {
@@ -1544,8 +1547,17 @@ export class OrdersService {
         },
       }),
     ]);
+    const posAutoAcceptFromDatabase =
+      (await this.prisma.platformCheckoutSettings.findUnique({
+        where: { id: 'default' },
+        select: { posAutoAcceptOrders: true },
+      }))?.posAutoAcceptOrders === true;
+    const posAutoAcceptFromEnv = isPosAutoAcceptOrdersEnvEnabled();
+    const posAutoAcceptEnabled = posAutoAcceptFromDatabase || posAutoAcceptFromEnv;
     return {
-      posAutoAcceptEnabled: isPosAutoAcceptOrdersEnabled(),
+      posAutoAcceptEnabled,
+      posAutoAcceptFromDatabase,
+      posAutoAcceptFromEnv,
       stalePendingMinutes: staleAfterMinutes,
       stalePendingCount,
       paymentProofQueueCount,

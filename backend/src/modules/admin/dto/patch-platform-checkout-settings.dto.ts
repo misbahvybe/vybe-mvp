@@ -59,4 +59,10 @@ export class PatchPlatformCheckoutSettingsDto {
   @IsOptional()
   @IsString()
   peakEndTime?: string; // HH:mm
+
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  /** Platform-wide: skip store Accept tap (all stores). OR’d with `VYBE_POS_AUTO_ACCEPT_ORDERS` if that env is set. */
+  posAutoAcceptOrders?: boolean;
 }
