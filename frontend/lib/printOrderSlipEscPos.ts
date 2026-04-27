@@ -25,6 +25,8 @@ export const EscPos = {
   boldOff: `${ESC}E\x00`,
   /** Normal size (1×1). */
   sizeNormal: `${GS}!\x00`,
+  /** Double height only — keeps ~32 columns, much taller glyphs (best for item/body text). */
+  sizeDoubleHeight: `${GS}!\x01`,
   /** Double width + double height (max ~16 Latin chars per line on 58mm). */
   sizeDoubleWh: `${GS}!\x11`,
   feedLines(n: number): string {
@@ -143,11 +145,11 @@ export function buildOrderSlipEscPos(input: OrderSlipInput): string {
     o += `${line}\n`;
   }
   o += EscPos.sizeNormal;
+  o += EscPos.sizeDoubleHeight;
   o += EscPos.boldOn;
   for (const line of wrapWords(input.storeName?.trim() || RECEIPT_DEFAULT_STORE, cols)) {
     o += `${line}\n`;
   }
-  o += EscPos.boldOff;
   if (input.storeAddress?.trim()) {
     for (const line of wrapWords(input.storeAddress.trim(), cols)) {
       o += `${line}\n`;
@@ -156,30 +158,36 @@ export function buildOrderSlipEscPos(input: OrderSlipInput): string {
   if (input.storePhone?.trim()) {
     o += `${escPosSafeText(`Tel: ${input.storePhone.trim()}`)}\n`;
   }
+  o += EscPos.sizeNormal;
+  o += EscPos.boldOff;
 
   o += EscPos.alignLeft;
   o += rule(cols);
+  o += EscPos.sizeDoubleHeight;
   o += EscPos.boldOn;
   o += `${escPosPadLeftRight('Order', orderLabel, cols)}\n`;
   o += `${escPosPadLeftRight('Date & time', when, cols)}\n`;
+  o += EscPos.sizeNormal;
   o += EscPos.boldOff;
   o += rule(cols);
 
+  o += EscPos.sizeDoubleHeight;
   o += EscPos.boldOn;
   o += `CUSTOMER\n`;
-  o += EscPos.boldOff;
   o += `${escPosPadLeftRight('Name', input.customerName?.trim() || '—', cols)}\n`;
   o += `${escPosPadLeftRight('Phone', input.customerPhone?.trim() || '—', cols)}\n`;
-  o += EscPos.boldOn;
   o += `Address\n`;
-  o += EscPos.boldOff;
   for (const line of wrapWords(formatAddressForSlip(input.deliveryAddress), cols)) {
     o += `${line}\n`;
   }
+  o += EscPos.sizeNormal;
+  o += EscPos.boldOff;
 
   o += rule(cols);
+  o += EscPos.sizeDoubleHeight;
   o += EscPos.boldOn;
   o += `ITEMS\n`;
+  o += EscPos.sizeNormal;
   o += EscPos.boldOff;
 
   for (const l of input.lines) {
@@ -187,24 +195,28 @@ export function buildOrderSlipEscPos(input: OrderSlipInput): string {
     const lineTot = num(l.lineTotal);
     const unit = qty > 0 ? money(lineTot / qty) : '0';
     const name = l.name?.trim() || 'Item';
+    o += EscPos.sizeDoubleHeight;
+    o += EscPos.boldOn;
     for (const nl of wrapWords(name, cols)) {
       o += `${nl}\n`;
     }
-    o += EscPos.boldOn;
     o += `${escPosPadLeftRight(`  ${qty} x Rs ${unit}`, `Rs ${money(lineTot)}`, cols)}\n`;
+    o += EscPos.sizeNormal;
     o += EscPos.boldOff;
     o += `\n`;
   }
 
   o += rule(cols);
+  o += EscPos.sizeDoubleHeight;
   o += EscPos.boldOn;
   o += `${escPosPadLeftRight('Subtotal', `Rs ${money(sub)}`, cols)}\n`;
-  o += EscPos.boldOff;
   if (dFee > 0) o += `${escPosPadLeftRight('Delivery', `Rs ${money(dFee)}`, cols)}\n`;
   if (sFee > 0) o += `${escPosPadLeftRight('Service fee', `Rs ${money(sFee)}`, cols)}\n`;
   if (gst > 0) o += `${escPosPadLeftRight('Tax', `Rs ${money(gst)}`, cols)}\n`;
   if (card > 0) o += `${escPosPadLeftRight('Card fee', `Rs ${money(card)}`, cols)}\n`;
   if (disc > 0) o += `${escPosPadLeftRight('Discount', `-Rs ${money(disc)}`, cols)}\n`;
+  o += EscPos.sizeNormal;
+  o += EscPos.boldOff;
 
   o += rule(cols);
   o += EscPos.alignCenter;
@@ -216,15 +228,21 @@ export function buildOrderSlipEscPos(input: OrderSlipInput): string {
   o += EscPos.boldOff;
 
   o += EscPos.alignLeft;
+  o += EscPos.sizeDoubleHeight;
   o += EscPos.boldOn;
   o += `${escPosPadLeftRight('Payment', escPosSafeText(input.paymentMethodLabel), cols)}\n`;
+  o += EscPos.sizeNormal;
   o += EscPos.boldOff;
   o += rule(cols);
   o += EscPos.alignCenter;
+  o += EscPos.sizeDoubleHeight;
   o += EscPos.boldOn;
   o += `${RECEIPT_THANK_YOU}\n`;
+  o += EscPos.sizeNormal;
   o += EscPos.boldOff;
+  o += EscPos.boldOn;
   o += `${RECEIPT_POWERED_BY}\n`;
+  o += EscPos.boldOff;
   o += EscPos.feedLines(4);
 
   return o;

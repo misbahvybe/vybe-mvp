@@ -167,15 +167,45 @@ function buildReceiptStyles(widthMm: 58 | 80): string {
   const is80 = widthMm === 80;
   const page = `${widthMm}mm auto`;
   /** 58mm: use nearly full roll width so type reads larger and less “floating”. */
-  const bodyMax = is80 ? '72mm' : '52mm';
-  const base = is80 ? '13px' : '15px';
-  const brand = is80 ? '12px' : '19px';
-  const storeTitle = is80 ? '17px' : '21px';
-  const meta = is80 ? '11px' : '13px';
-  const section = is80 ? '12px' : '14px';
-  const itemName = is80 ? '12px' : '14px';
-  const itemDetails = is80 ? '10px' : '12px';
-  const totalSize = is80 ? '18px' : '24px';
+  const bodyMax = is80 ? '72mm' : '54mm';
+  /** 58mm targets ~18mm printable height per text line on screen; print uses pt for sharper thermal output. */
+  const base = is80 ? '13px' : '18px';
+  const brand = is80 ? '12px' : '26px';
+  const storeTitle = is80 ? '17px' : '29px';
+  const meta = is80 ? '11px' : '17px';
+  const section = is80 ? '12px' : '18px';
+  const itemName = is80 ? '12px' : '18px';
+  const itemDetails = is80 ? '10px' : '16px';
+  const totalSize = is80 ? '18px' : '36px';
+  const print58 = !is80
+    ? `
+  @media print {
+    .receipt {
+      font-size: 13pt !important;
+      line-height: 1.5 !important;
+      font-weight: 800 !important;
+    }
+    .brand {
+      font-size: 19pt !important;
+      letter-spacing: 0.06em !important;
+    }
+    .store-name { font-size: 21pt !important; }
+    .store-meta { font-size: 12.5pt !important; font-weight: 900 !important; }
+    .section-h { font-size: 13pt !important; }
+    .row { font-size: 12.5pt !important; font-weight: 900 !important; }
+    .row .r { font-weight: 900 !important; }
+    .items .name { font-size: 13pt !important; }
+    .dim { font-size: 12pt !important; font-weight: 900 !important; }
+    .summary .line { font-size: 13pt !important; font-weight: 900 !important; }
+    .summary .grand {
+      font-size: 24pt !important;
+      font-weight: 900 !important;
+      border-top-width: 4px !important;
+    }
+    .pay, .footer { font-size: 13pt !important; font-weight: 900 !important; }
+    .subfoot { font-size: 11.5pt !important; font-weight: 900 !important; }
+  }`
+    : '';
   return `
   :root { color-scheme: only light; }
   * {
@@ -191,12 +221,15 @@ function buildReceiptStyles(widthMm: 58 | 80): string {
   .receipt {
     font-family: ui-monospace, "Courier New", Courier, Consolas, monospace;
     font-size: ${base};
-    line-height: 1.55;
+    line-height: 1.6;
+    font-weight: ${is80 ? '600' : '800'};
     box-sizing: border-box;
     width: 100%;
     max-width: ${bodyMax};
     margin: 0 auto;
-    padding: ${is80 ? '3mm 2.5mm 4mm' : '4mm 1.5mm 5mm'};
+    padding: ${is80 ? '3mm 2.5mm 4mm' : '4mm 1mm 5mm'};
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
   .brand {
     text-align: center;
@@ -243,7 +276,7 @@ function buildReceiptStyles(widthMm: 58 | 80): string {
   }
   .row .l { flex: 1; min-width: 0; word-break: break-word; }
   .row .r { white-space: nowrap; font-weight: 900; }
-  .dim { font-size: ${itemDetails}; font-weight: 700; opacity: 1; }
+  .dim { font-size: ${itemDetails}; font-weight: 900; opacity: 1; }
   .items .item { margin-bottom: 10px; }
   .items .name { font-size: ${itemName}; font-weight: 900; }
   .items .line {
@@ -259,7 +292,7 @@ function buildReceiptStyles(widthMm: 58 | 80): string {
     justify-content: space-between;
     margin: 5px 0;
     font-size: ${itemName};
-    font-weight: 800;
+    font-weight: 900;
   }
   .summary .grand {
     display: flex;
@@ -288,11 +321,12 @@ function buildReceiptStyles(widthMm: 58 | 80): string {
     font-weight: 800;
     margin: 0;
   }
-  @page { size: ${page}; margin: 2mm; }
+  @page { size: ${page}; margin: 1.5mm; }
   @media print {
     html, body { background: #fff !important; }
     .receipt { padding: 0; max-width: none; }
   }
+  ${print58}
 `;
 }
 
