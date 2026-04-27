@@ -166,44 +166,43 @@ export function formatOrderSlipText(input: OrderSlipInput): string {
 function buildReceiptStyles(widthMm: 58 | 80): string {
   const is80 = widthMm === 80;
   const page = `${widthMm}mm auto`;
-  /** 58mm: use nearly full roll width so type reads larger and less “floating”. */
+  /** 58mm: full width; one uniform type scale (same visual weight as the old TOTAL block). */
   const bodyMax = is80 ? '72mm' : '54mm';
-  /** 58mm targets ~18mm printable height per text line on screen; print uses pt for sharper thermal output. */
-  const base = is80 ? '13px' : '18px';
-  const brand = is80 ? '12px' : '26px';
-  const storeTitle = is80 ? '17px' : '29px';
-  const meta = is80 ? '11px' : '17px';
-  const section = is80 ? '12px' : '18px';
-  const itemName = is80 ? '12px' : '18px';
-  const itemDetails = is80 ? '10px' : '16px';
+  const base = is80 ? '13px' : '36px';
+  const brand = is80 ? '12px' : '36px';
+  const storeTitle = is80 ? '17px' : '36px';
+  const meta = is80 ? '11px' : '36px';
+  const section = is80 ? '12px' : '36px';
+  const itemName = is80 ? '12px' : '36px';
+  const itemDetails = is80 ? '10px' : '36px';
   const totalSize = is80 ? '18px' : '36px';
   const print58 = !is80
     ? `
   @media print {
-    .receipt {
-      font-size: 13pt !important;
-      line-height: 1.5 !important;
-      font-weight: 800 !important;
-    }
-    .brand {
-      font-size: 19pt !important;
-      letter-spacing: 0.06em !important;
-    }
-    .store-name { font-size: 21pt !important; }
-    .store-meta { font-size: 12.5pt !important; font-weight: 900 !important; }
-    .section-h { font-size: 13pt !important; }
-    .row { font-size: 12.5pt !important; font-weight: 900 !important; }
-    .row .r { font-weight: 900 !important; }
-    .items .name { font-size: 13pt !important; }
-    .dim { font-size: 12pt !important; font-weight: 900 !important; }
-    .summary .line { font-size: 13pt !important; font-weight: 900 !important; }
-    .summary .grand {
-      font-size: 24pt !important;
+    .receipt,
+    .receipt .brand,
+    .receipt .store-name,
+    .receipt .store-meta,
+    .receipt .section-h,
+    .receipt .row,
+    .receipt .dim,
+    .receipt .items .name,
+    .receipt .summary .line,
+    .receipt .summary .grand,
+    .receipt .pay,
+    .receipt .footer,
+    .receipt .subfoot {
+      font-size: 23pt !important;
+      line-height: 1.35 !important;
       font-weight: 900 !important;
-      border-top-width: 4px !important;
+      color: #000 !important;
     }
-    .pay, .footer { font-size: 13pt !important; font-weight: 900 !important; }
-    .subfoot { font-size: 11.5pt !important; font-weight: 900 !important; }
+    .receipt .summary .grand {
+      border-top-width: 5px !important;
+    }
+    .receipt .rule {
+      border-top-width: 2px !important;
+    }
   }`
     : '';
   return `
@@ -221,21 +220,22 @@ function buildReceiptStyles(widthMm: 58 | 80): string {
   .receipt {
     font-family: ui-monospace, "Courier New", Courier, Consolas, monospace;
     font-size: ${base};
-    line-height: 1.6;
-    font-weight: ${is80 ? '600' : '800'};
+    line-height: ${is80 ? '1.6' : '1.35'};
+    font-weight: ${is80 ? '600' : '900'};
     box-sizing: border-box;
     width: 100%;
     max-width: ${bodyMax};
     margin: 0 auto;
-    padding: ${is80 ? '3mm 2.5mm 4mm' : '4mm 1mm 5mm'};
+    padding: ${is80 ? '3mm 2.5mm 4mm' : '3mm 0.5mm 4mm'};
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
+    color: #000 !important;
   }
   .brand {
     text-align: center;
     font-size: ${brand};
     font-weight: 900;
-    letter-spacing: 0.08em;
+    letter-spacing: ${is80 ? '0.08em' : '0.04em'};
     text-transform: uppercase;
     margin: 0 0 6px;
   }
@@ -249,13 +249,13 @@ function buildReceiptStyles(widthMm: 58 | 80): string {
   .store-meta {
     text-align: center;
     font-size: ${meta};
-    font-weight: 700;
+    font-weight: 900;
     margin: 0 0 4px;
     word-break: break-word;
   }
   .rule {
     border: none;
-    border-top: 1px dashed #000;
+    border-top: ${is80 ? '1px' : '2px'} dashed #000;
     margin: 10px 0;
   }
   .section-h {
@@ -272,7 +272,7 @@ function buildReceiptStyles(widthMm: 58 | 80): string {
     gap: 8px;
     margin: 5px 0;
     font-size: ${meta};
-    font-weight: 700;
+    font-weight: 900;
   }
   .row .l { flex: 1; min-width: 0; word-break: break-word; }
   .row .r { white-space: nowrap; font-weight: 900; }
@@ -300,7 +300,7 @@ function buildReceiptStyles(widthMm: 58 | 80): string {
     align-items: baseline;
     margin-top: 12px;
     padding-top: 10px;
-    border-top: 3px solid #000;
+    border-top: ${is80 ? '3px' : '5px'} solid #000;
     font-size: ${totalSize};
     font-weight: 900;
   }
@@ -318,7 +318,7 @@ function buildReceiptStyles(widthMm: 58 | 80): string {
   .subfoot {
     text-align: center;
     font-size: ${itemDetails};
-    font-weight: 800;
+    font-weight: 900;
     margin: 0;
   }
   @page { size: ${page}; margin: 1.5mm; }

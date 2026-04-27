@@ -1,17 +1,22 @@
 /**
- * ESC/POS receipt for 58mm (2") thermal printers — Font A ≈ 32 columns at normal width.
- * Uses bold, double width+height for header/total, and left/right alignment for rows.
+ * ESC/POS receipt for 58mm (2") thermal printers.
+ * Entire slip uses **double width + double height + bold** (same mode as a typical “TOTAL” line) for maximum readability.
+ * Line width ≈ **16 Latin characters** per row in this mode (Font A).
  *
- * Encoding: bytes are Latin-1 (ISO-8859-1); non-Latin-1 characters become '?'.
- * For Urdu/emoji store names, configure the printer for UTF-8/code page or pre-transliterate.
+ * Encoding: Latin-1-safe; non-Latin-1 characters become '?'.
  */
 
 import type { OrderSlipInput } from './printOrderSlip';
 import { RECEIPT_APP_NAME, RECEIPT_DEFAULT_STORE, RECEIPT_POWERED_BY, RECEIPT_THANK_YOU } from './printOrderSlip';
 import { formatOrderNo } from './orderDisplay';
 
-/** Printable columns at normal character width (58mm, Font A). */
+/** Normal Font A width (unused when printing full slip in double-size mode). */
 export const ESCPOS_58MM_COLS = 32;
+
+/**
+ * Max characters per line when `GS ! 0x11` (double W+H) is on — each glyph uses 2×2 cell; ~16 positions on 58mm.
+ */
+export const ESCPOS_58MM_COLS_DOUBLE = 16;
 
 const ESC = '\x1B';
 const GS = '\x1D';
@@ -23,11 +28,9 @@ export const EscPos = {
   alignRight: `${ESC}a\x02`,
   boldOn: `${ESC}E\x01`,
   boldOff: `${ESC}E\x00`,
-  /** Normal size (1×1). */
   sizeNormal: `${GS}!\x00`,
-  /** Double height only — keeps ~32 columns, much taller glyphs (best for item/body text). */
   sizeDoubleHeight: `${GS}!\x01`,
-  /** Double width + double height (max ~16 Latin chars per line on 58mm). */
+  /** Double width + double height — same visual weight as typical “TOTAL” on thermal printers. */
   sizeDoubleWh: `${GS}!\x11`,
   feedLines(n: number): string {
     const k = Math.max(0, Math.min(255, Math.floor(n)));
@@ -44,7 +47,6 @@ function money(n: number): string {
   return n.toFixed(0);
 }
 
-/** Map string to Latin-1 bytes-safe chars for cheap ESC/POS stacks. */
 function escPosSafeText(s: string): string {
   return s
     .replace(/\r\n/g, '\n')
@@ -90,7 +92,7 @@ function wrapWords(text: string, maxCols: number): string[] {
   return out;
 }
 
-/** Left label + right value on one line (normal width). */
+/** Left label + right value on one line (character budget = double-width columns, usually 16). */
 export function escPosPadLeftRight(left: string, right: string, cols: number): string {
   const R = escPosSafeText(right);
   const maxLeft = cols - R.length - 1;
@@ -103,8 +105,8 @@ export function escPosPadLeftRight(left: string, right: string, cols: number): s
   return `${L}${gap > 0 ? ' '.repeat(gap) : ' '}${R}`;
 }
 
-function rule(cols: number): string {
-  return `${'-'.repeat(Math.min(cols, 32))}\n`;
+function ruleDouble(cols: number): string {
+  return `${'-'.repeat(Math.min(cols, ESCPOS_58MM_COLS_DOUBLE))}\n`;
 }
 
 function formatAddressForSlip(raw: string | undefined): string {
@@ -117,10 +119,10 @@ function formatAddressForSlip(raw: string | undefined): string {
 }
 
 /**
- * Builds the full ESC/POS command string (binary; treat as Latin-1 when sending to printer).
+ * Full slip in **double W×H + bold** (matches “TOTAL” prominence throughout).
  */
 export function buildOrderSlipEscPos(input: OrderSlipInput): string {
-  const cols = ESCPOS_58MM_COLS;
+  const cols = ESCPOS_58MM_COLS_DOUBLE;
   const orderLabel = formatOrderNo(input.orderNumber, input.orderId);
   const dt = new Date(input.createdAt);
   const when = Number.isFinite(dt.getTime())
@@ -138,15 +140,13 @@ export function buildOrderSlipEscPos(input: OrderSlipInput): string {
   let o = '';
 
   o += EscPos.init;
-  o += EscPos.alignCenter;
-  o += EscPos.sizeDoubleWh;
   o += EscPos.boldOn;
-  for (const line of wrapWords(RECEIPT_APP_NAME.toUpperCase(), 16)) {
+  o += EscPos.sizeDoubleWh;
+
+  o += EscPos.alignCenter;
+  for (const line of wrapWords(RECEIPT_APP_NAME.toUpperCase(), cols)) {
     o += `${line}\n`;
   }
-  o += EscPos.sizeNormal;
-  o += EscPos.sizeDoubleHeight;
-  o += EscPos.boldOn;
   for (const line of wrapWords(input.storeName?.trim() || RECEIPT_DEFAULT_STORE, cols)) {
     o += `${line}\n`;
   }
@@ -156,23 +156,17 @@ export function buildOrderSlipEscPos(input: OrderSlipInput): string {
     }
   }
   if (input.storePhone?.trim()) {
-    o += `${escPosSafeText(`Tel: ${input.storePhone.trim()}`)}\n`;
+    for (const line of wrapWords(`Tel: ${input.storePhone.trim()}`, cols)) {
+      o += `${line}\n`;
+    }
   }
-  o += EscPos.sizeNormal;
-  o += EscPos.boldOff;
 
   o += EscPos.alignLeft;
-  o += rule(cols);
-  o += EscPos.sizeDoubleHeight;
-  o += EscPos.boldOn;
+  o += ruleDouble(cols);
   o += `${escPosPadLeftRight('Order', orderLabel, cols)}\n`;
-  o += `${escPosPadLeftRight('Date & time', when, cols)}\n`;
-  o += EscPos.sizeNormal;
-  o += EscPos.boldOff;
-  o += rule(cols);
+  o += `${escPosPadLeftRight('Date', when, cols)}\n`;
+  o += ruleDouble(cols);
 
-  o += EscPos.sizeDoubleHeight;
-  o += EscPos.boldOn;
   o += `CUSTOMER\n`;
   o += `${escPosPadLeftRight('Name', input.customerName?.trim() || '—', cols)}\n`;
   o += `${escPosPadLeftRight('Phone', input.customerPhone?.trim() || '—', cols)}\n`;
@@ -180,75 +174,56 @@ export function buildOrderSlipEscPos(input: OrderSlipInput): string {
   for (const line of wrapWords(formatAddressForSlip(input.deliveryAddress), cols)) {
     o += `${line}\n`;
   }
-  o += EscPos.sizeNormal;
-  o += EscPos.boldOff;
 
-  o += rule(cols);
-  o += EscPos.sizeDoubleHeight;
-  o += EscPos.boldOn;
+  o += ruleDouble(cols);
   o += `ITEMS\n`;
-  o += EscPos.sizeNormal;
-  o += EscPos.boldOff;
 
   for (const l of input.lines) {
     const qty = num(l.quantity);
     const lineTot = num(l.lineTotal);
     const unit = qty > 0 ? money(lineTot / qty) : '0';
     const name = l.name?.trim() || 'Item';
-    o += EscPos.sizeDoubleHeight;
-    o += EscPos.boldOn;
     for (const nl of wrapWords(name, cols)) {
       o += `${nl}\n`;
     }
-    o += `${escPosPadLeftRight(`  ${qty} x Rs ${unit}`, `Rs ${money(lineTot)}`, cols)}\n`;
-    o += EscPos.sizeNormal;
-    o += EscPos.boldOff;
+    o += `${escPosPadLeftRight(`${qty} x ${unit}`, `Rs ${money(lineTot)}`, cols)}\n`;
     o += `\n`;
   }
 
-  o += rule(cols);
-  o += EscPos.sizeDoubleHeight;
-  o += EscPos.boldOn;
-  o += `${escPosPadLeftRight('Subtotal', `Rs ${money(sub)}`, cols)}\n`;
-  if (dFee > 0) o += `${escPosPadLeftRight('Delivery', `Rs ${money(dFee)}`, cols)}\n`;
-  if (sFee > 0) o += `${escPosPadLeftRight('Service fee', `Rs ${money(sFee)}`, cols)}\n`;
-  if (gst > 0) o += `${escPosPadLeftRight('Tax', `Rs ${money(gst)}`, cols)}\n`;
-  if (card > 0) o += `${escPosPadLeftRight('Card fee', `Rs ${money(card)}`, cols)}\n`;
-  if (disc > 0) o += `${escPosPadLeftRight('Discount', `-Rs ${money(disc)}`, cols)}\n`;
-  o += EscPos.sizeNormal;
-  o += EscPos.boldOff;
+  o += ruleDouble(cols);
+  o += `${escPosPadLeftRight('Subtotal', `Rs${money(sub)}`, cols)}\n`;
+  if (dFee > 0) o += `${escPosPadLeftRight('Delivery', `Rs${money(dFee)}`, cols)}\n`;
+  if (sFee > 0) o += `${escPosPadLeftRight('Service', `Rs${money(sFee)}`, cols)}\n`;
+  if (gst > 0) o += `${escPosPadLeftRight('Tax', `Rs${money(gst)}`, cols)}\n`;
+  if (card > 0) o += `${escPosPadLeftRight('Card', `Rs${money(card)}`, cols)}\n`;
+  if (disc > 0) o += `${escPosPadLeftRight('Disc', `-Rs${money(disc)}`, cols)}\n`;
 
-  o += rule(cols);
+  o += ruleDouble(cols);
   o += EscPos.alignCenter;
-  o += EscPos.sizeDoubleWh;
-  o += EscPos.boldOn;
   o += `TOTAL\n`;
   o += `Rs ${money(total)}\n`;
-  o += EscPos.sizeNormal;
-  o += EscPos.boldOff;
 
   o += EscPos.alignLeft;
-  o += EscPos.sizeDoubleHeight;
-  o += EscPos.boldOn;
-  o += `${escPosPadLeftRight('Payment', escPosSafeText(input.paymentMethodLabel), cols)}\n`;
-  o += EscPos.sizeNormal;
-  o += EscPos.boldOff;
-  o += rule(cols);
+  for (const line of wrapWords(`Pay: ${escPosSafeText(input.paymentMethodLabel)}`, cols)) {
+    o += `${line}\n`;
+  }
+
+  o += ruleDouble(cols);
   o += EscPos.alignCenter;
-  o += EscPos.sizeDoubleHeight;
-  o += EscPos.boldOn;
-  o += `${RECEIPT_THANK_YOU}\n`;
+  for (const line of wrapWords(RECEIPT_THANK_YOU, cols)) {
+    o += `${line}\n`;
+  }
+  for (const line of wrapWords(RECEIPT_POWERED_BY, cols)) {
+    o += `${line}\n`;
+  }
+
+  o += EscPos.boldOff;
   o += EscPos.sizeNormal;
-  o += EscPos.boldOff;
-  o += EscPos.boldOn;
-  o += `${RECEIPT_POWERED_BY}\n`;
-  o += EscPos.boldOff;
   o += EscPos.feedLines(4);
 
   return o;
 }
 
-/** Convert ESC/POS string to bytes (Latin-1). Safe for fetch/QZ/binary transport. */
 export function escPosStringToUint8Array(escpos: string): Uint8Array {
   const out = new Uint8Array(escpos.length);
   for (let i = 0; i < escpos.length; i++) {
@@ -258,7 +233,6 @@ export function escPosStringToUint8Array(escpos: string): Uint8Array {
   return out;
 }
 
-/** For QZ Tray / drivers that expect a binary JS string. */
 export function uint8ArrayToBinaryString(bytes: Uint8Array): string {
   const chunk = 0x8000;
   const parts: string[] = [];
