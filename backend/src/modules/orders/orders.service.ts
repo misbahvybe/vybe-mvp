@@ -47,6 +47,11 @@ import {
 
 /** Set `false` when Stripe / XPay keys are ready and clients show those options again. */
 const PAYMENTS_COD_ONLY = true;
+
+/** New users can check out with COD when this is true and manual MVP is off — otherwise first-order COD is blocked with no online alternative (deadlock). */
+function codAllowedFirstOrderWhenNoOnlineCheckout(): boolean {
+  return PAYMENTS_COD_ONLY && !isManualMvpEnabled();
+}
 const AUTO_ASSIGN_NEAREST_RIDER = true;
 
 @Injectable()
@@ -1020,6 +1025,9 @@ export class OrdersService {
       return;
     }
     if (paymentMethod === 'COD') {
+      if (codAllowedFirstOrderWhenNoOnlineCheckout()) {
+        return;
+      }
       const deliveredCount = await this.prisma.order.count({
         where: { customerId, orderStatus: OrderStatus.DELIVERED },
       });
@@ -1814,7 +1822,10 @@ export class OrdersService {
       /** Next order gets waived delivery if true (first N “placed” non-rejected/cancelled orders). */
       qualifiesFreeDelivery: u.role === Role.CUSTOMER && priorPlaced < cap,
       canUseCod:
-        u.role !== Role.CUSTOMER || allowCodOnFirstOrder() || deliveredCount >= 1,
+        u.role !== Role.CUSTOMER ||
+        allowCodOnFirstOrder() ||
+        deliveredCount >= 1 ||
+        codAllowedFirstOrderWhenNoOnlineCheckout(),
       otpSatisfied:
         u.role !== Role.CUSTOMER ||
         !isCheckoutOtpEnforced() ||
