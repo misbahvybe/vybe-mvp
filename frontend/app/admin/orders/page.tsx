@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState, useCallback } from 'react';
+import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Card } from '@/components/ui/Card';
@@ -9,6 +9,7 @@ import { Loader } from '@/components/ui/Loader';
 import api from '@/services/api';
 import { useAdminOrdersRefresh } from '@/hooks/useAdminOrdersRefresh';
 import { formatOrderNo } from '@/lib/orderDisplay';
+import { getApiErrorMessage } from '@/lib/apiError';
 
 interface Order {
   id: string;
@@ -64,6 +65,10 @@ function AdminOrdersContent() {
     paymentProofQueueCount: number;
   } | null>(null);
   const [posAutoSaving, setPosAutoSaving] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [deleting, setDeleting] = useState(false);
+  const [purgeMessage, setPurgeMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const listHeaderCheckboxRef = useRef<HTMLInputElement>(null);
 
   const fetchOpsHealth = useCallback(() => {
     api
@@ -106,6 +111,70 @@ function AdminOrdersContent() {
     if (statusFilter === 'out_for_delivery') return OUT_FOR_DELIVERY.includes(o.orderStatus);
     return o.orderStatus === statusFilter;
   });
+
+  const filteredIdsKey = filtered.map((o) => o.id).join(',');
+
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      const allowed = new Set(filtered.map((o) => o.id));
+      let changed = false;
+      const next = new Set<string>();
+      for (const id of prev) {
+        if (allowed.has(id)) next.add(id);
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [filteredIdsKey]);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllFiltered = () => {
+    setSelectedIds(new Set(filtered.map((o) => o.id)));
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const allFilteredSelected = filtered.length > 0 && filtered.every((o) => selectedIds.has(o.id));
+  const someFilteredSelected = filtered.some((o) => selectedIds.has(o.id));
+
+  useEffect(() => {
+    const el = listHeaderCheckboxRef.current;
+    if (el) el.indeterminate = someFilteredSelected && !allFilteredSelected;
+  }, [someFilteredSelected, allFilteredSelected]);
+
+  const handleHardDeleteSelected = async () => {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    setPurgeMessage(null);
+    const ok = window.confirm(
+      `Permanently delete ${ids.length} order(s) from the database? Stock will be restored. Delivered COD orders cannot be removed this way.\n\nThis cannot be undone.`,
+    );
+    if (!ok) return;
+    setDeleting(true);
+    try {
+      const { data } = await api.post<{ deletedCount: number; deletedIds: string[] }>('/orders/admin/hard-delete', {
+        orderIds: ids,
+      });
+      setPurgeMessage({
+        type: 'ok',
+        text: `Removed ${data?.deletedCount ?? 0} order(s).`,
+      });
+      clearSelection();
+      fetchOrdersAndHealth();
+    } catch (e: unknown) {
+      setPurgeMessage({ type: 'err', text: getApiErrorMessage(e, 'Delete failed') });
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const formatDate = (d: string) => new Date(d).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' });
 
@@ -260,6 +329,44 @@ function AdminOrdersContent() {
       {statusFilter && !payFilter && (
         <p className="text-sm text-slate-600 mb-4">Filtered by: {statusFilter === 'out_for_delivery' ? 'Out for delivery' : STATUS_LABELS[statusFilter] ?? statusFilter}</p>
       )}
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <p className="text-sm text-slate-600 max-w-3xl">
+          <span className="font-medium text-slate-800">Test data cleanup:</span> tick rows, then delete permanently from the
+          database (inventory is restored).{' '}
+          <span className="text-amber-800">Delivered cash-on-delivery orders cannot be removed here</span> (rider cash
+          accounting).
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={selectedIds.size === 0 || deleting}
+            onClick={clearSelection}
+          >
+            Clear selection
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            loading={deleting}
+            disabled={selectedIds.size === 0 || deleting}
+            onClick={handleHardDeleteSelected}
+          >
+            Delete selected ({selectedIds.size})
+          </Button>
+        </div>
+      </div>
+      {purgeMessage && (
+        <p
+          className={`mb-3 text-sm rounded-lg px-3 py-2 ${
+            purgeMessage.type === 'ok' ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-700'
+          }`}
+        >
+          {purgeMessage.text}
+        </p>
+      )}
       <Card className="overflow-hidden">
         {loading ? (
           <div className="p-12 text-center">
@@ -270,6 +377,21 @@ function AdminOrdersContent() {
             <table className="w-full text-sm">
               <thead className="bg-slate-50">
                 <tr>
+                  <th className="w-11 p-2 text-center">
+                    <span className="sr-only">Select for delete</span>
+                    <input
+                      ref={listHeaderCheckboxRef}
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-slate-300 align-middle"
+                      checked={allFilteredSelected}
+                      disabled={filtered.length === 0 || loading}
+                      onChange={() => {
+                        if (allFilteredSelected) clearSelection();
+                        else selectAllFiltered();
+                      }}
+                      aria-label="Select all orders in the current list"
+                    />
+                  </th>
                   <th className="text-left p-3 font-medium">Order</th>
                   <th className="text-left p-3 font-medium">Customer</th>
                   <th className="text-left p-3 font-medium">Store</th>
@@ -286,6 +408,15 @@ function AdminOrdersContent() {
               <tbody>
                 {filtered.map((o) => (
                   <tr key={o.id} className="border-t border-slate-100 hover:bg-slate-50">
+                    <td className="p-2 text-center align-middle w-11">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-slate-300"
+                        checked={selectedIds.has(o.id)}
+                        onChange={() => toggleSelect(o.id)}
+                        aria-label={`Select order ${formatOrderNo(o.orderNumber, o.id)}`}
+                      />
+                    </td>
                     <td className="p-3 font-mono text-xs">{formatOrderNo(o.orderNumber, o.id)}</td>
                     <td className="p-3">{o.customer?.name ?? '—'}</td>
                     <td className="p-3">{o.store?.name ?? '—'}</td>

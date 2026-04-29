@@ -41,6 +41,7 @@ import { PrepareXPayDto } from './dto/prepare-xpay.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { EditOrderItemDto } from './dto/edit-order-item.dto';
 import { OrderQuoteDto } from './dto/order-quote.dto';
+import { BulkHardDeleteOrdersDto } from './dto/bulk-hard-delete-orders.dto';
 
 @Controller('orders')
 export class OrdersController {
@@ -340,6 +341,14 @@ export class OrdersController {
   @Get('admin/health')
   async adminOrderHealth() {
     return this.orders.getAdminPipelineHealth();
+  }
+
+  /** Permanently delete selected orders (stock restored). Admin: testing cleanup. Blocked for delivered COD. */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @Post('admin/hard-delete')
+  async adminHardDeleteOrders(@CurrentUser() user: User, @Body() dto: BulkHardDeleteOrdersDto) {
+    return this.orders.adminHardDeleteOrders(user.id, dto.orderIds);
   }
 
   @UseGuards(JwtAuthGuard)

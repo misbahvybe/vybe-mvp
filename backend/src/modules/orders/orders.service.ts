@@ -7,6 +7,7 @@ import { JazzCashService } from '../jazzcash/jazzcash.service';
 import { EasypaisaService } from '../easypaisa/easypaisa.service';
 import {
   OrderStatus,
+  PaymentMethod,
   PaymentStatus,
   PendingPaymentProvider,
   Prisma,
@@ -1941,5 +1942,57 @@ export class OrdersService {
     void this.riders.notifyNearbyRidersForNewOrder(order.id).catch(() => undefined);
     this.ordersGateway.emitAdminPipelineUpdated();
     return { success: true, orderStatus: order.orderStatus, paymentStatus: PaymentStatus.PAID };
+  }
+
+  /**
+   * Permanently remove orders (testing / data cleanup). Restores product stock.
+   * Delivered COD orders are blocked — deleting them would desync rider cash balances.
+   */
+  async adminHardDeleteOrders(adminId: string, orderIds: string[]) {
+    const ids = [...new Set(orderIds.map((id) => id.trim()).filter(Boolean))];
+    if (ids.length === 0) throw new BadRequestException('No order IDs provided');
+    if (ids.length > 100) throw new BadRequestException('Maximum 100 orders per request');
+
+    const codDelivered = await this.prisma.order.count({
+      where: {
+        id: { in: ids },
+        orderStatus: OrderStatus.DELIVERED,
+        paymentMethod: PaymentMethod.COD,
+      },
+    });
+    if (codDelivered > 0) {
+      throw new BadRequestException(
+        `${codDelivered} selected order(s) are delivered cash-on-delivery and cannot be purged here (rider COD balances). Deselect those or adjust in the database.`,
+      );
+    }
+
+    const deleted: string[] = [];
+    await this.prisma.$transaction(
+      async (tx) => {
+        for (const id of ids) {
+          const o = await tx.order.findUnique({ where: { id } });
+          if (!o) continue;
+          await this.restoreStockForOrderInTx(tx, id, o.storeId);
+          await tx.riderEarning.deleteMany({ where: { orderId: id } });
+          await tx.storeEarning.deleteMany({ where: { orderId: id } });
+          await tx.pendingPayment.updateMany({ where: { orderId: id }, data: { orderId: null } });
+          await tx.order.delete({ where: { id } });
+          deleted.push(id);
+        }
+        if (deleted.length > 0) {
+          await tx.adminLog.create({
+            data: {
+              adminId,
+              action: 'ORDERS_HARD_DELETE',
+              targetId: deleted.length <= 5 ? deleted.join(',') : `count:${deleted.length}`,
+            },
+          });
+        }
+      },
+      { timeout: 120_000 },
+    );
+
+    this.ordersGateway.emitAdminPipelineUpdated();
+    return { deletedCount: deleted.length, deletedIds: deleted };
   }
 }
