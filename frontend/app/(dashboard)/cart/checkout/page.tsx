@@ -15,6 +15,7 @@ import api from '@/services/api';
 import type { Address } from '@/types';
 import { MIN_ORDER_SUBTOTAL_PKR } from '@/lib/orderMinimum';
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard';
+import { getApiErrorMessage } from '@/lib/apiError';
 
 type OrderQuote = {
   subtotal: string;
@@ -85,6 +86,7 @@ function CheckoutContent() {
   const [otpCode, setOtpCode] = useState('');
   const [otpBusy, setOtpBusy] = useState(false);
   const [proofFile, setProofFile] = useState<File | null>(null);
+  const [eligibilityFetchFailed, setEligibilityFetchFailed] = useState(false);
   const { copy: copyValue, toast: copyToast, clearToast: clearCopyToast } = useCopyToClipboard();
 
   const cartKey = useMemo(
@@ -109,12 +111,17 @@ function CheckoutContent() {
 
   useEffect(() => {
     if (!token) return;
+    setEligibilityFetchFailed(false);
     api
       .get<CheckoutEligibility>('/orders/checkout/eligibility')
       .then((r) => {
         setEligibility(r.data ?? null);
+        setEligibilityFetchFailed(false);
       })
-      .catch(() => setEligibility(null));
+      .catch(() => {
+        setEligibility(null);
+        setEligibilityFetchFailed(true);
+      });
   }, [token]);
 
   useEffect(() => {
@@ -194,7 +201,7 @@ function CheckoutContent() {
     try {
       await api.post('/auth/checkout/request-otp', {});
     } catch (e: unknown) {
-      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Could not send OTP';
+      const msg = getApiErrorMessage(e, 'Could not send OTP');
       setError(msg);
     } finally {
       setOtpBusy(false);
@@ -218,7 +225,7 @@ function CheckoutContent() {
       setEligibility(e.data ?? null);
       setOtpCode('');
     } catch (e: unknown) {
-      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Invalid code';
+      const msg = getApiErrorMessage(e, 'Invalid code');
       setError(msg);
     } finally {
       setOtpBusy(false);
@@ -227,7 +234,7 @@ function CheckoutContent() {
 
   const placeOrder = async () => {
     if (!selectedAddressId || !storeId || items.length === 0) {
-      setError('Select a delivery address and ensure cart is not empty.');
+      setError('Select a delivery address and ensure your cart has items from a store.');
       return;
     }
     if (eligibility?.isBlocked) {
@@ -304,8 +311,8 @@ function CheckoutContent() {
       });
       submitPostForm(prep.data.postUrl, prep.data.fields);
     } catch (e: unknown) {
-      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Failed to place order';
-      setError(msg);
+      console.error('[checkout] placeOrder failed', e);
+      setError(getApiErrorMessage(e, 'Failed to place order'));
     } finally {
       setLoading(false);
     }
@@ -315,12 +322,57 @@ function CheckoutContent() {
   const bankDisplay = eligibility?.bankManualDisplay;
   const needsProofUpload = mvp && payment === 'MVP_BANK';
   const canPlaceOrder =
+    Boolean(storeId) &&
     selectedAddressId &&
     items.length > 0 &&
     addresses.length > 0 &&
     subtotalPkr >= MIN_ORDER_SUBTOTAL_PKR &&
     !eligibility?.isBlocked &&
     (!needsProofUpload || Boolean(proofFile));
+
+  const otpBlocksPlace =
+    Boolean(eligibility?.checkoutOtpRequired && !eligibility?.otpSatisfied);
+  const bankMvpMisconfigured = payment === 'MVP_BANK' && !eligibility?.bankManualDisplay;
+
+  const placeOrderDisabled =
+    !canPlaceOrder || otpBlocksPlace || bankMvpMisconfigured;
+
+  const placeOrderDisabledHints = useMemo(() => {
+    const hints: string[] = [];
+    if (!addresses.length) hints.push('Add a saved delivery address.');
+    else if (!selectedAddressId) hints.push('Select a delivery address.');
+    if (!items.length) hints.push('Your cart is empty — go back to the store and add items.');
+    if (items.length > 0 && !storeId) hints.push('Cart is missing store — clear the cart and add items again from one store.');
+    if (items.length > 0 && subtotalPkr < MIN_ORDER_SUBTOTAL_PKR) {
+      hints.push(`Cart subtotal must be at least Rs ${MIN_ORDER_SUBTOTAL_PKR} (before fees).`);
+    }
+    if (eligibility?.isBlocked) hints.push('This account cannot place orders — contact support.');
+    if (needsProofUpload && !proofFile) hints.push('Upload a payment screenshot for bank transfer.');
+    if (otpBlocksPlace) hints.push('Verify the checkout code sent to your phone (WhatsApp OTP is required on this platform).');
+    if (bankMvpMisconfigured) {
+      hints.push(
+        'Bank transfer is not configured on the server. Choose Cash on delivery or ask the admin to set VYBE_MVP_BANK_* variables.',
+      );
+    }
+    if (eligibilityFetchFailed && !otpBlocksPlace) {
+      hints.push(
+        'Could not load checkout rules from the server. You can still try — if it fails, refresh or check NEXT_PUBLIC_API_URL / Railway.',
+      );
+    }
+    return hints;
+  }, [
+    addresses.length,
+    selectedAddressId,
+    storeId,
+    items.length,
+    subtotalPkr,
+    eligibility?.isBlocked,
+    needsProofUpload,
+    proofFile,
+    otpBlocksPlace,
+    bankMvpMisconfigured,
+    eligibilityFetchFailed,
+  ]);
 
   if (!hasHydrated) return null;
   if (!token) return null;
@@ -726,16 +778,22 @@ function CheckoutContent() {
           size="lg"
           fullWidth
           loading={loading}
-          disabled={
-            !canPlaceOrder ||
-            (eligibility?.checkoutOtpRequired && !eligibility?.otpSatisfied) ||
-            (payment === 'MVP_BANK' && !eligibility?.bankManualDisplay)
-          }
+          disabled={placeOrderDisabled}
           onClick={placeOrder}
           className="min-h-[44px]"
         >
           {payment === 'MVP_BANK' ? 'Submit payment & place order' : 'Place order'}
         </Button>
+        {placeOrderDisabled && placeOrderDisabledHints.length > 0 && (
+          <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50/90 px-3 py-2 text-sm text-amber-950">
+            <p className="font-medium text-amber-900">Why you can&apos;t place the order yet</p>
+            <ul className="mt-1.5 list-disc list-inside space-y-0.5">
+              {placeOrderDisabledHints.map((h) => (
+                <li key={h}>{h}</li>
+              ))}
+            </ul>
+          </div>
+        )}
       </main>
       </ContentPanel>
     </div>
