@@ -32,7 +32,6 @@ import { assertMinOrderSubtotalPkr } from '../../common/constants/order-minimum'
 import { formatOrderNoForDisplay } from '../../common/format/order-number';
 import {
   isCheckoutOtpEnforced,
-  allowCodOnFirstOrder,
   freeDeliveryOrderCap,
   isManualMvpEnabled,
   manualMvpAccountDisplay,
@@ -47,11 +46,6 @@ import {
 
 /** Set `false` when Stripe / XPay keys are ready and clients show those options again. */
 const PAYMENTS_COD_ONLY = true;
-
-/** New users can check out with COD when this is true and manual MVP is off — otherwise first-order COD is blocked with no online alternative (deadlock). */
-function codAllowedFirstOrderWhenNoOnlineCheckout(): boolean {
-  return PAYMENTS_COD_ONLY && !isManualMvpEnabled();
-}
 const AUTO_ASSIGN_NEAREST_RIDER = true;
 
 @Injectable()
@@ -639,7 +633,7 @@ export class OrdersService {
       );
     }
 
-    await this.assertMvpPreOrderRules(customerId, paymentMethod);
+    await this.assertMvpPreOrderRules(customerId);
 
     if (PAYMENTS_COD_ONLY && !options?.allowCardWhenCodOnly) {
       if (
@@ -1000,7 +994,7 @@ export class OrdersService {
     });
   }
 
-  private async assertMvpPreOrderRules(customerId: string, paymentMethod: string) {
+  private async assertMvpPreOrderRules(customerId: string) {
     const u = await this.prisma.user.findUnique({
       where: { id: customerId },
       select: {
@@ -1018,22 +1012,6 @@ export class OrdersService {
       if (!u.checkoutOtpVerifiedUntil || u.checkoutOtpVerifiedUntil.getTime() < Date.now()) {
         throw new BadRequestException(
           'Please verify the OTP sent to your phone before checking out. Use “Verify phone” on the payment step.',
-        );
-      }
-    }
-    if (allowCodOnFirstOrder()) {
-      return;
-    }
-    if (paymentMethod === 'COD') {
-      if (codAllowedFirstOrderWhenNoOnlineCheckout()) {
-        return;
-      }
-      const deliveredCount = await this.prisma.order.count({
-        where: { customerId, orderStatus: OrderStatus.DELIVERED },
-      });
-      if (deliveredCount < 1) {
-        throw new BadRequestException(
-          'Your first order must be paid online (card or in-app transfer + screenshot). Cash on delivery is available after your first completed delivery.',
         );
       }
     }
@@ -1811,21 +1789,13 @@ export class OrdersService {
     const cap = freeDeliveryOrderCap();
     return {
       manualMvpEnabled: isManualMvpEnabled(),
-      /** If true, COD is allowed before any delivery (set VYBE_ALLOW_COD_ON_FIRST_ORDER=1 on server). */
-      codUnlockedWithoutDelivery: u.role === Role.CUSTOMER && allowCodOnFirstOrder(),
-      /** First order should be online until at least one delivery (when codUnlockedWithoutDelivery is false). */
-      firstOrderRulesActive: u.role === Role.CUSTOMER && !allowCodOnFirstOrder(),
       checkoutOtpRequired: isCheckoutOtpEnforced(),
       deliveredOrderCount: deliveredCount,
       priorPlacedOrderCount: priorPlaced,
       freeDeliveryOrderCap: cap,
       /** Next order gets waived delivery if true (first N “placed” non-rejected/cancelled orders). */
       qualifiesFreeDelivery: u.role === Role.CUSTOMER && priorPlaced < cap,
-      canUseCod:
-        u.role !== Role.CUSTOMER ||
-        allowCodOnFirstOrder() ||
-        deliveredCount >= 1 ||
-        codAllowedFirstOrderWhenNoOnlineCheckout(),
+      canUseCod: true,
       otpSatisfied:
         u.role !== Role.CUSTOMER ||
         !isCheckoutOtpEnforced() ||

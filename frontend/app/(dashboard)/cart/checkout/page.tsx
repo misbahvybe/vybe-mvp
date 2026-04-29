@@ -42,8 +42,6 @@ type BankManualDisplay = {
 
 type CheckoutEligibility = {
   manualMvpEnabled: boolean;
-  firstOrderRulesActive?: boolean;
-  codUnlockedWithoutDelivery?: boolean;
   checkoutOtpRequired: boolean;
   deliveredOrderCount: number;
   priorPlacedOrderCount?: number;
@@ -115,11 +113,6 @@ function CheckoutContent() {
       .get<CheckoutEligibility>('/orders/checkout/eligibility')
       .then((r) => {
         setEligibility(r.data ?? null);
-        const e = r.data;
-        if (e?.isBlocked) return;
-        if (e && !e.canUseCod && e.manualMvpEnabled) {
-          setPayment('MVP_BANK');
-        }
       })
       .catch(() => setEligibility(null));
   }, [token]);
@@ -247,10 +240,6 @@ function CheckoutContent() {
     }
     if (subtotalPkr < MIN_ORDER_SUBTOTAL_PKR) {
       setError(`Minimum order is Rs ${MIN_ORDER_SUBTOTAL_PKR}. Add more items to your cart.`);
-      return;
-    }
-    if (!eligibility?.canUseCod && payment === 'COD') {
-      setError('For your first order, choose an online payment method below.');
       return;
     }
     setError('');
@@ -425,25 +414,23 @@ function CheckoutContent() {
           </p>
         )}
         <div className="space-y-2 mb-6">
-          {eligibility?.canUseCod && (
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={() => setPayment('COD')}
-              onKeyDown={(e) => e.key === 'Enter' && setPayment('COD')}
-              className={`cursor-pointer ${payment === 'COD' ? 'ring-2 ring-primary rounded-card' : ''}`}
-            >
-              <Card>
-                <div className="flex items-center gap-3">
-                  <MdPayments className="w-5 h-5 text-primary shrink-0" />
-                  <div>
-                    <p className="font-medium text-slate-800">Cash on Delivery</p>
-                    <p className="text-xs text-slate-500">Pay when you receive</p>
-                  </div>
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => setPayment('COD')}
+            onKeyDown={(e) => e.key === 'Enter' && setPayment('COD')}
+            className={`cursor-pointer ${payment === 'COD' ? 'ring-2 ring-primary rounded-card' : ''}`}
+          >
+            <Card>
+              <div className="flex items-center gap-3">
+                <MdPayments className="w-5 h-5 text-primary shrink-0" />
+                <div>
+                  <p className="font-medium text-slate-800">Cash on Delivery</p>
+                  <p className="text-xs text-slate-500">Pay when you receive</p>
                 </div>
-              </Card>
-            </div>
-          )}
+              </div>
+            </Card>
+          </div>
 
           {mvp && (
             <>
@@ -742,7 +729,6 @@ function CheckoutContent() {
           disabled={
             !canPlaceOrder ||
             (eligibility?.checkoutOtpRequired && !eligibility?.otpSatisfied) ||
-            (payment === 'COD' && !eligibility?.canUseCod) ||
             (payment === 'MVP_BANK' && !eligibility?.bankManualDisplay)
           }
           onClick={placeOrder}

@@ -10,14 +10,6 @@ export function isManualMvpEnabled(): boolean {
   return envOn('VYBE_MANUAL_MVP');
 }
 
-/**
- * When true, customers may use COD even with zero completed deliveries.
- * When false (default), the first order must be paid online; COD is allowed after the first **delivered** order.
- */
-export function allowCodOnFirstOrder(): boolean {
-  return envOn('VYBE_ALLOW_COD_ON_FIRST_ORDER');
-}
-
 /** How many of the customer’s first orders get waived delivery (default 2). */
 export function freeDeliveryOrderCap(): number {
   const n = Number((process.env.VYBE_FREE_DELIVERY_ORDER_COUNT ?? '2').trim());
