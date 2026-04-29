@@ -51,6 +51,7 @@ type CheckoutEligibility = {
   canUseCod: boolean;
   otpSatisfied: boolean;
   isBlocked: boolean;
+  orderStrikeCount?: number | null;
   phoneWarning: string | null;
   mvpAccountHints: Record<
     string,
@@ -238,7 +239,11 @@ function CheckoutContent() {
       return;
     }
     if (eligibility?.isBlocked) {
-      setError('Your account cannot place orders. Contact support.');
+      const strikes =
+        eligibility.orderStrikeCount != null ? ` (strikes: ${eligibility.orderStrikeCount})` : '';
+      setError(
+        `Ordering is disabled on this account${strikes}. An admin can unblock you under Admin → Users → Unblock ordering.`,
+      );
       return;
     }
     if (eligibility?.checkoutOtpRequired && !eligibility?.otpSatisfied) {
@@ -346,7 +351,13 @@ function CheckoutContent() {
     if (items.length > 0 && subtotalPkr < MIN_ORDER_SUBTOTAL_PKR) {
       hints.push(`Cart subtotal must be at least Rs ${MIN_ORDER_SUBTOTAL_PKR} (before fees).`);
     }
-    if (eligibility?.isBlocked) hints.push('This account cannot place orders — contact support.');
+    if (eligibility?.isBlocked) {
+      const strikes =
+        eligibility.orderStrikeCount != null ? ` (strike count: ${eligibility.orderStrikeCount})` : '';
+      hints.push(
+        `This account is blocked from placing orders${strikes} — usually after several cancellations while orders were still pending. Ask an admin to open Admin → Users and tap “Unblock ordering” for your account, or contact support.`,
+      );
+    }
     if (needsProofUpload && !proofFile) hints.push('Upload a payment screenshot for bank transfer.');
     if (otpBlocksPlace) hints.push('Verify the checkout code sent to your phone (WhatsApp OTP is required on this platform).');
     if (bankMvpMisconfigured) {
@@ -367,6 +378,7 @@ function CheckoutContent() {
     items.length,
     subtotalPkr,
     eligibility?.isBlocked,
+    eligibility?.orderStrikeCount,
     needsProofUpload,
     proofFile,
     otpBlocksPlace,
@@ -422,6 +434,17 @@ function CheckoutContent() {
         {eligibility?.phoneWarning && (
           <Card className="mb-4 border-amber-200 bg-amber-50/80">
             <p className="text-sm text-amber-900">{eligibility.phoneWarning}</p>
+          </Card>
+        )}
+
+        {eligibility?.isBlocked && (
+          <Card className="mb-4 border-red-200 bg-red-50/90">
+            <p className="text-sm font-semibold text-red-900">Ordering disabled on this account</p>
+            <p className="text-sm text-red-800 mt-1">
+              This often happens after several cancellations while an order was still waiting on the store.
+              {eligibility.orderStrikeCount != null ? ` Strike count: ${eligibility.orderStrikeCount}.` : ''} An
+              administrator can unblock you under <strong>Admin → Users</strong> (button &quot;Unblock ordering&quot;).
+            </p>
           </Card>
         )}
 

@@ -131,6 +131,12 @@ export class AdminController {
     });
   }
 
+  /** Reset ordering block + strike count (e.g. testing account hit VYBE_ORDER_STRIKES) */
+  @Patch('users/:userId/unblock-ordering')
+  async unblockCustomerOrdering(@Param('userId') userId: string) {
+    return this.admin.unblockCustomerOrdering(userId);
+  }
+
   @Get('finance')
   async getFinance(@CurrentUser() _user: User) {
     return this.admin.getFinance();

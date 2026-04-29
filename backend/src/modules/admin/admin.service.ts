@@ -560,6 +560,8 @@ export class AdminService {
       email: u.email,
       isVerified: u.isVerified,
       isActive: u.isActive,
+      isOrderingBlocked: u.isOrderingBlocked,
+      orderStrikeCount: u.orderStrikeCount,
       createdAt: u.createdAt.toISOString(),
       ordersCount: u.ordersAsCustomer.filter((o: { orderStatus: string }) => o.orderStatus === 'DELIVERED').length,
       totalSpend: u.ordersAsCustomer
@@ -574,6 +576,20 @@ export class AdminService {
       return order === 'desc' ? b.id.localeCompare(a.id) : a.id.localeCompare(b.id);
     });
     return rows;
+  }
+
+  /** Clear anti-abuse ordering block for a customer (admin / support). */
+  async unblockCustomerOrdering(customerUserId: string) {
+    const u = await this.prisma.user.findFirst({
+      where: { id: customerUserId, role: 'CUSTOMER' },
+      select: { id: true },
+    });
+    if (!u) throw new NotFoundException('Customer not found');
+    await this.prisma.user.update({
+      where: { id: customerUserId },
+      data: { isOrderingBlocked: false, orderStrikeCount: 0 },
+    });
+    return { ok: true as const };
   }
 
   async getFinance() {

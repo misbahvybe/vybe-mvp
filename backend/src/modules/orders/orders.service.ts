@@ -1777,6 +1777,7 @@ export class OrdersService {
         phone: true,
         checkoutOtpVerifiedUntil: true,
         isOrderingBlocked: true,
+        orderStrikeCount: true,
         role: true,
       },
     });
@@ -1802,6 +1803,8 @@ export class OrdersService {
         !isCheckoutOtpEnforced() ||
         (!!u.checkoutOtpVerifiedUntil && u.checkoutOtpVerifiedUntil.getTime() > Date.now()),
       isBlocked: u.isOrderingBlocked,
+      /** Customer strike count (PENDING cancels). Shown when blocked so users know why. */
+      orderStrikeCount: u.role === Role.CUSTOMER ? u.orderStrikeCount : null,
       phoneWarning: u.role === Role.CUSTOMER ? pkPhoneHeuristicWarning(u.phone) : null,
       mvpAccountHints: isManualMvpEnabled()
         ? {

@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
 import { Loader } from '@/components/ui/Loader';
 import api from '@/services/api';
+import { getApiErrorMessage } from '@/lib/apiError';
 
 const NEW_USER_MS = 24 * 60 * 60 * 1000;
 
@@ -18,6 +20,8 @@ interface UserRow {
   email?: string;
   isVerified: boolean;
   isActive: boolean;
+  isOrderingBlocked?: boolean;
+  orderStrikeCount?: number;
   createdAt: string;
   ordersCount: number;
   totalSpend: number;
@@ -29,6 +33,8 @@ export default function AdminUsersPage() {
   const [sort, setSort] = useState<'newest' | 'oldest'>('newest');
   const [searchInput, setSearchInput] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [unblockId, setUnblockId] = useState<string | null>(null);
+  const [banner, setBanner] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchInput), 300);
@@ -67,6 +73,15 @@ export default function AdminUsersPage() {
   return (
     <div>
       <h1 className="text-2xl font-bold text-slate-800 mb-4">Users (Customers)</h1>
+      {banner && (
+        <p
+          className={`mb-3 text-sm rounded-lg px-3 py-2 ${
+            banner.type === 'ok' ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-700'
+          }`}
+        >
+          {banner.text}
+        </p>
+      )}
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
         <label className="block flex-1 min-w-[200px]">
           <span className="text-sm text-slate-600 mb-1 block">Search</span>
@@ -106,8 +121,11 @@ export default function AdminUsersPage() {
                   <th className="text-left p-3 font-medium whitespace-nowrap">Signed up</th>
                   <th className="text-left p-3 font-medium">Verified</th>
                   <th className="text-left p-3 font-medium">Status</th>
+                  <th className="text-left p-3 font-medium whitespace-nowrap">Ordering</th>
+                  <th className="text-right p-3 font-medium whitespace-nowrap">Strikes</th>
                   <th className="text-right p-3 font-medium">Orders</th>
                   <th className="text-right p-3 font-medium">Total Spend</th>
+                  <th className="text-left p-3 font-medium w-36">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -133,8 +151,60 @@ export default function AdminUsersPage() {
                     </td>
                     <td className="p-3">{u.isVerified ? 'Yes' : 'No'}</td>
                     <td className="p-3">{u.isActive ? 'Active' : 'Inactive'}</td>
+                    <td className="p-3">
+                      {u.isOrderingBlocked ? (
+                        <span className="inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
+                          Blocked
+                        </span>
+                      ) : (
+                        <span className="text-slate-600 text-xs">OK</span>
+                      )}
+                    </td>
+                    <td className="p-3 text-right tabular-nums text-slate-600">{u.orderStrikeCount ?? 0}</td>
                     <td className="p-3 text-right">{u.ordersCount}</td>
                     <td className="p-3 text-right">Rs {u.totalSpend.toLocaleString()}</td>
+                    <td className="p-3">
+                      {u.isOrderingBlocked ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          loading={unblockId === u.id}
+                          disabled={unblockId != null && unblockId !== u.id}
+                          className="text-xs"
+                          onClick={async () => {
+                            if (
+                              !window.confirm(
+                                `Unblock ordering for ${u.name}? This resets strike count so they can place orders again.`,
+                              )
+                            ) {
+                              return;
+                            }
+                            setBanner(null);
+                            setUnblockId(u.id);
+                            try {
+                              await api.patch(`/admin/users/${u.id}/unblock-ordering`);
+                              setBanner({ type: 'ok', text: `Ordering unblocked for ${u.name}.` });
+                              setUsers((prev) =>
+                                prev.map((row) =>
+                                  row.id === u.id
+                                    ? { ...row, isOrderingBlocked: false, orderStrikeCount: 0 }
+                                    : row,
+                                ),
+                              );
+                            } catch (e: unknown) {
+                              setBanner({ type: 'err', text: getApiErrorMessage(e, 'Unblock failed') });
+                            } finally {
+                              setUnblockId(null);
+                            }
+                          }}
+                        >
+                          Unblock ordering
+                        </Button>
+                      ) : (
+                        <span className="text-slate-400 text-xs">—</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
