@@ -5,8 +5,6 @@ export const WebPublicImages: Record<string, ImageSourcePropType> = {
   foodPlate: require('../../assets/web-public/food-plate.png'),
   groceryBasket: require('../../assets/web-public/grocery-shopping-basket.png'),
   medicineBox: require('../../assets/web-public/medicine-box.png'),
-  deliveryScooter: require('../../assets/web-public/delivery-scooter.png'),
-  deliveryPackage: require('../../assets/web-public/delivery-package.png'),
   wallet: require('../../assets/web-public/wallet.png'),
   userAvatar: require('../../assets/web-public/user-avatar.png'),
   mapLocation: require('../../assets/web-public/map-location.png'),

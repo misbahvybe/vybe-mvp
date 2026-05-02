@@ -14,7 +14,7 @@ import { CustomerScreenShell } from '@components/customer/CustomerScreenShell';
 import { WebPublicImages } from '@constants/images';
 import { tokens } from '@theme/tokens';
 
-type CategoryId = 'food' | 'grocery' | 'medicine' | 'ride' | 'courier' | 'wallet';
+type CategoryId = 'food' | 'grocery' | 'medicine' | 'wallet';
 
 const CATEGORY_CARDS: {
   id: CategoryId;
@@ -25,8 +25,6 @@ const CATEGORY_CARDS: {
   { id: 'food', label: 'Food', image: WebPublicImages.foodPlate },
   { id: 'grocery', label: 'Grocery', image: WebPublicImages.groceryBasket },
   { id: 'medicine', label: 'Medicine', image: WebPublicImages.medicineBox },
-  { id: 'ride', label: 'Ride', image: WebPublicImages.deliveryScooter, comingSoon: true },
-  { id: 'courier', label: 'Courier', image: WebPublicImages.deliveryPackage, comingSoon: true },
   { id: 'wallet', label: 'Crypto Wallet', image: WebPublicImages.wallet }
 ];
 

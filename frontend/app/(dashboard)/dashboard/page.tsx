@@ -16,8 +16,6 @@ const CATEGORY_CARDS = [
   { id: 'food', label: 'Food', image: '/food-plate.png', href: '/dashboard/category/food', comingSoon: false },
   { id: 'grocery', label: 'Grocery', image: '/grocery-shopping-basket.png', href: '/dashboard/category/grocery', comingSoon: false },
   { id: 'medicine', label: 'Medicine', image: '/medicine-box.png', href: '/dashboard/category/medicine', comingSoon: false },
-  { id: 'ride', label: 'Ride', image: '/delivery-scooter.png', href: '#', comingSoon: true },
-  { id: 'courier', label: 'Courier', image: '/delivery-package.png', href: '#', comingSoon: true },
   { id: 'wallet', label: 'Crypto Wallet', image: '/wallet.png', href: '/wallet', comingSoon: false },
 ];
 
