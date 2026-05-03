@@ -18,6 +18,7 @@ import { ApproveDraftProductDto } from './dto/approve-draft-product.dto';
 import { haversineDistanceKm } from '../../common/geo/haversine';
 import { Prisma } from '@prisma/client';
 import { computeStoreOpenNow } from '../../common/store/store-hours.util';
+import { productsWithCustomerPrices, normalizeCustomerMarkupPercent } from '../../common/pricing/customer-price-markup.util';
 
 @Injectable()
 export class StoresService {
@@ -406,9 +407,10 @@ export class StoresService {
       else if (s.status === StoreStatus.INACTIVE) menuMessage = 'Store is currently unavailable';
       else if (products.length === 0) menuMessage = 'Menu not available yet';
       else if (s.acceptingOrders === false) menuMessage = 'Not accepting new orders right now';
+      const markupPct = normalizeCustomerMarkupPercent(s.customerPriceMarkupPercent);
       return {
         ...s,
-        products,
+        products: productsWithCustomerPrices(products, markupPct),
         isOpenNow,
         menuAvailable: s.status === StoreStatus.ACTIVE && products.length > 0,
         menuMessage,
@@ -491,9 +493,10 @@ export class StoresService {
         else if (s.status === StoreStatus.INACTIVE) menuMessage = 'Store is currently unavailable';
         else if (products.length === 0) menuMessage = 'Menu not available yet';
         else if (s.acceptingOrders === false) menuMessage = 'Not accepting new orders right now';
+        const markupPct = normalizeCustomerMarkupPercent(s.customerPriceMarkupPercent);
         return {
           ...s,
-          products,
+          products: productsWithCustomerPrices(products, markupPct),
           isOpenNow,
           distanceKm: Math.round(d * 100) / 100,
           menuAvailable: s.status === StoreStatus.ACTIVE && products.length > 0,
@@ -535,9 +538,14 @@ export class StoresService {
     else if (store.status === StoreStatus.INACTIVE) menuMessage = 'Store is currently unavailable';
     else if (products.length === 0) menuMessage = 'Menu not available yet';
     else if (store.acceptingOrders === false) menuMessage = 'Not accepting new orders right now';
+    const markupPct = normalizeCustomerMarkupPercent(store.customerPriceMarkupPercent);
     return {
       ...store,
-      products,
+      products: productsWithCustomerPrices(products, markupPct),
+      productCategories: store.productCategories.map((pc) => ({
+        ...pc,
+        products: productsWithCustomerPrices(pc.products, markupPct),
+      })),
       isOpenNow: this.isStoreOpen(store),
       menuAvailable: store.status === StoreStatus.ACTIVE && products.length > 0,
       menuMessage,
@@ -553,6 +561,12 @@ export class StoresService {
     const term = raw ? normalizeProductName(raw) : '';
     const limit = Math.max(1, Math.min(100, Number(take ?? 30) || 30));
     if (!term) return [];
+
+    const storeMark = await this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: { customerPriceMarkupPercent: true },
+    });
+    const markupPct = normalizeCustomerMarkupPercent(storeMark?.customerPriceMarkupPercent);
 
     try {
       // Use trigram similarity for typo tolerance if pg_trgm is enabled.
@@ -592,10 +606,11 @@ export class StoresService {
         },
       });
       const byId = new Map(full.map((p) => [p.id, p]));
-      return ids.map((id) => byId.get(id)).filter(Boolean);
+      const ordered = ids.map((id) => byId.get(id)).filter((p): p is (typeof full)[number] => p != null);
+      return productsWithCustomerPrices(ordered, markupPct);
     } catch {
       // Fallback: simple contains
-      return this.prisma.product.findMany({
+      const list = await this.prisma.product.findMany({
         where: {
           storeId,
           ...this.publicProductCatalogWhere,
@@ -608,6 +623,7 @@ export class StoresService {
           variants: { where: { isAvailable: true }, orderBy: { sortOrder: 'asc' } },
         },
       });
+      return productsWithCustomerPrices(list, markupPct);
     }
   }
 

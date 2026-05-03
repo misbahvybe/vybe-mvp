@@ -29,7 +29,6 @@ import { StoresService } from '../stores/stores.service';
 import { RidersService } from '../riders/riders.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { isStoreWithinPostedHours } from '../../common/store/store-hours.util';
-import { assertMinOrderSubtotalPkr } from '../../common/constants/order-minimum';
 import { formatOrderNoForDisplay } from '../../common/format/order-number';
 import {
   isCheckoutOtpEnforced,
@@ -44,6 +43,8 @@ import {
   isPosAutoAcceptOrdersEnvEnabled,
   resolvePosAutoAcceptOrdersEnabled,
 } from '../../common/pos/pos-workflow.util';
+import { assertOrderCartItemsAndTotals } from '../../common/pricing/assert-order-cart-items';
+import { customerUnitPriceFromBase } from '../../common/pricing/customer-price-markup.util';
 
 /** Set `false` when Stripe / XPay keys are ready and clients show those options again. */
 const PAYMENTS_COD_ONLY = true;
@@ -84,9 +85,14 @@ export class OrdersService {
       throw new BadRequestException('JazzCash is not configured');
     }
 
-    const { subtotal: subtotalAmount } = await this.assertItemsAndSubtotal(this.prisma, dto.storeId, dto.items, {
-      checkStock: true,
-    });
+    const { subtotal: subtotalAmount, subtotalBase: subtotalBaseAmount } = await this.assertItemsAndSubtotal(
+      this.prisma,
+      dto.storeId,
+      dto.items,
+      {
+        checkStock: true,
+      },
+    );
     const priorJ = await this.priorPlacedOrderCountForPromos(customerId);
     const q = await this.pricing.buildQuote({
       storeId: dto.storeId,
@@ -95,6 +101,7 @@ export class OrdersService {
       storeLat: store.latitude != null ? Number(store.latitude) : null,
       storeLng: store.longitude != null ? Number(store.longitude) : null,
       subtotal: subtotalAmount,
+      subtotalBase: subtotalBaseAmount,
       paymentMethod: 'CARD',
       waiveDeliveryFee: priorJ < freeDeliveryOrderCap(),
     });
@@ -200,9 +207,14 @@ export class OrdersService {
       throw new BadRequestException('Easypaisa is not configured');
     }
 
-    const { subtotal: subtotalAmount } = await this.assertItemsAndSubtotal(this.prisma, dto.storeId, dto.items, {
-      checkStock: true,
-    });
+    const { subtotal: subtotalAmount, subtotalBase: subtotalBaseAmount } = await this.assertItemsAndSubtotal(
+      this.prisma,
+      dto.storeId,
+      dto.items,
+      {
+        checkStock: true,
+      },
+    );
     const priorE = await this.priorPlacedOrderCountForPromos(customerId);
     const q = await this.pricing.buildQuote({
       storeId: dto.storeId,
@@ -211,6 +223,7 @@ export class OrdersService {
       storeLat: store.latitude != null ? Number(store.latitude) : null,
       storeLng: store.longitude != null ? Number(store.longitude) : null,
       subtotal: subtotalAmount,
+      subtotalBase: subtotalBaseAmount,
       paymentMethod: 'CARD',
       waiveDeliveryFee: priorE < freeDeliveryOrderCap(),
     });
@@ -294,50 +307,18 @@ export class OrdersService {
    * Validates line items against catalog prices (anti-tamper) and optionally stock.
    */
   private async assertItemsAndSubtotal(
-    db: Pick<PrismaService, 'product' | 'productVariant'>,
+    db: Pick<PrismaService, 'product' | 'productVariant' | 'store'>,
     storeId: string,
     items: { productId: string; variantId?: string; quantity: number; price?: number }[],
     options: { checkStock: boolean },
-  ): Promise<{ subtotal: number; productById: Map<string, Product>; variantById: Map<string, ProductVariant> }> {
-    const products = await db.product.findMany({
-      where: { id: { in: items.map((i) => i.productId) }, storeId },
-    });
-    const productById = new Map(products.map((p) => [p.id, p]));
-    const variantIds = [...new Set(items.map((i) => i.variantId).filter(Boolean))] as string[];
-    const variants = variantIds.length
-      ? await db.productVariant.findMany({ where: { id: { in: variantIds } } })
-      : [];
-    const variantById = new Map(variants.map((v) => [v.id, v]));
-    let subtotal = 0;
-    for (const item of items) {
-      const prod = productById.get(item.productId);
-      if (!prod) throw new BadRequestException(`Product ${item.productId} not found`);
-      if (prod.isDraft) {
-        throw new BadRequestException(`Product "${prod.name}" is not available for sale yet`);
-      }
-      if (options.checkStock) {
-        const stock = Number(prod.stock);
-        if (prod.isOutOfStock || stock < item.quantity) {
-          throw new BadRequestException(
-            `Insufficient stock for ${prod.name}. Available: ${stock} ${stock === 0 ? '(out of stock)' : ''}`,
-          );
-        }
-      }
-      const variant = item.variantId ? variantById.get(item.variantId) : null;
-      if (item.variantId && (!variant || variant.productId !== prod.id)) {
-        throw new BadRequestException(`Variant ${item.variantId} not found for ${prod.name}`);
-      }
-      if (variant && variant.isAvailable === false) {
-        throw new BadRequestException(`Variant ${variant.name} is unavailable for ${prod.name}`);
-      }
-      const serverPrice = variant ? Number(variant.price) : Number(prod.price);
-      if (item.price != null && Math.abs(Number(item.price) - serverPrice) > 0.02) {
-        throw new BadRequestException(`Price mismatch for ${prod.name}`);
-      }
-      subtotal += item.quantity * serverPrice;
-    }
-    assertMinOrderSubtotalPkr(subtotal);
-    return { subtotal, productById, variantById };
+  ): Promise<{
+    subtotal: number;
+    subtotalBase: number;
+    customerMarkupPercent: number;
+    productById: Map<string, Product>;
+    variantById: Map<string, ProductVariant>;
+  }> {
+    return assertOrderCartItemsAndTotals(db, storeId, items, options);
   }
 
   async quote(customerId: string, dto: OrderQuoteDto) {
@@ -350,7 +331,7 @@ export class OrdersService {
     });
     if (!store) throw new ForbiddenException('Store not found');
     this.assertCustomerCanOrderFromStore(store);
-    const { subtotal } = await this.assertItemsAndSubtotal(this.prisma, dto.storeId, dto.items, {
+    const { subtotal, subtotalBase } = await this.assertItemsAndSubtotal(this.prisma, dto.storeId, dto.items, {
       checkStock: false,
     });
     const useCard = !PAYMENTS_COD_ONLY && dto.paymentMethod === 'CARD';
@@ -364,6 +345,7 @@ export class OrdersService {
       storeLat: store.latitude != null ? Number(store.latitude) : null,
       storeLng: store.longitude != null ? Number(store.longitude) : null,
       subtotal,
+      subtotalBase,
       paymentMethod: useManualMvp ? 'MANUAL' : useCard ? 'CARD' : 'COD',
       waiveDeliveryFee: waiveDelivery,
     });
@@ -439,9 +421,14 @@ export class OrdersService {
     if (!store) throw new ForbiddenException('Store not found');
     this.assertCustomerCanOrderFromStore(store);
 
-    const { subtotal: subtotalAmount } = await this.assertItemsAndSubtotal(this.prisma, dto.storeId, dto.items, {
-      checkStock: true,
-    });
+    const { subtotal: subtotalAmount, subtotalBase: subtotalBaseAmount } = await this.assertItemsAndSubtotal(
+      this.prisma,
+      dto.storeId,
+      dto.items,
+      {
+        checkStock: true,
+      },
+    );
     const priorX = await this.priorPlacedOrderCountForPromos(customerId);
     const q = await this.pricing.buildQuote({
       storeId: dto.storeId,
@@ -450,6 +437,7 @@ export class OrdersService {
       storeLat: store.latitude != null ? Number(store.latitude) : null,
       storeLng: store.longitude != null ? Number(store.longitude) : null,
       subtotal: subtotalAmount,
+      subtotalBase: subtotalBaseAmount,
       paymentMethod: 'CARD',
       waiveDeliveryFee: priorX < freeDeliveryOrderCap(),
     });
@@ -657,7 +645,8 @@ export class OrdersService {
 
     const order = await this.prisma.$transaction(
       async (tx) => {
-        const { subtotal: subtotalAmount, productById, variantById } = await this.assertItemsAndSubtotal(
+        const { subtotal: subtotalAmount, subtotalBase: subtotalBaseAmount, productById, variantById, customerMarkupPercent } =
+          await this.assertItemsAndSubtotal(
           tx,
           dto.storeId,
           dto.items,
@@ -674,6 +663,7 @@ export class OrdersService {
           storeLat: store.latitude != null ? Number(store.latitude) : null,
           storeLng: store.longitude != null ? Number(store.longitude) : null,
           subtotal: subtotalAmount,
+          subtotalBase: subtotalBaseAmount,
           paymentMethod: useCardLikeQuote ? (isManual ? 'MANUAL' : 'CARD') : 'COD',
           waiveDeliveryFee: waiveDelivery,
         });
@@ -745,7 +735,8 @@ export class OrdersService {
                 variantId: variant?.id ?? null,
                 variantNameSnapshot: variant?.name ?? null,
                 quantity: new Decimal(i.quantity),
-                price: variant ? variant.price : prod.price,
+                price: customerUnitPriceFromBase(variant ? variant.price : prod.price, customerMarkupPercent),
+                storeBaseUnitPrice: variant ? variant.price : prod.price,
               };
             }),
           },
@@ -1690,12 +1681,30 @@ export class OrdersService {
       throw new BadRequestException('Order must contain at least one item with positive amount');
     }
 
+    const usesMarkupModel = order.items.some((i) => i.storeBaseUnitPrice != null);
+    let subtotalBaseAfter: Decimal | null = null;
+    if (usesMarkupModel) {
+      let sumBase = new Decimal(0);
+      for (const it of order.items) {
+        const baseUnit =
+          it.storeBaseUnitPrice != null ? new Decimal(it.storeBaseUnitPrice) : new Decimal(it.price);
+        if (it.id === itemId) {
+          const q = remove ? 0 : newQty;
+          if (q > 0) sumBase = sumBase.add(baseUnit.mul(q));
+        } else {
+          sumBase = sumBase.add(baseUnit.mul(Number(it.quantity)));
+        }
+      }
+      subtotalBaseAfter = sumBase;
+    }
+
     const recomputed = await this.pricing.recomputeFromSubtotal(
       subtotalDecimal,
       order.deliveryFee,
       order.serviceFee,
       order.paymentMethod,
       order.commissionPercentSnapshot,
+      subtotalBaseAfter,
     );
 
     await this.prisma.$transaction(async (tx) => {

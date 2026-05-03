@@ -215,6 +215,8 @@ model Store {
   closingTime  String?  @map("closing_time")   // HH:mm e.g. "22:00"
   /// Optional custom commission % for this store only (0–100). If null, category default applies.
   commissionPercentOverride Decimal? @map("commission_percent_override") @db.Decimal(5, 2)
+  /// Customer sees catalogue price × (1 + this/100). Admin-configurable per store (default 10 = +10%).
+  customerPriceMarkupPercent Decimal @default(10) @map("customer_price_markup_percent") @db.Decimal(5, 2)
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
@@ -506,7 +508,10 @@ model OrderItem {
   variantId String? @map("variant_id")
   variantNameSnapshot String? @map("variant_name_snapshot")
   quantity  Decimal @db.Decimal(10, 2)
+  /// Unit price the customer pays (includes platform markup on catalogue price).
   price     Decimal @db.Decimal(10, 2)
+  /// Store’s catalogue unit price at checkout (before customer markup). Null = legacy rows where `price` was catalogue price.
+  storeBaseUnitPrice Decimal? @map("store_base_unit_price") @db.Decimal(10, 2)
 
   order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id])

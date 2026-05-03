@@ -18,6 +18,7 @@ import { UpdateProductVariantDto } from '../stores/dto/update-product-variant.dt
 import { PatchPlatformCategoryCommissionDto } from './dto/patch-platform-category-commission.dto';
 import { PatchPlatformCheckoutSettingsDto } from './dto/patch-platform-checkout-settings.dto';
 import { UpdateStoreCommissionOverrideDto } from './dto/update-store-commission-override.dto';
+import { UpdateStoreCustomerMarkupDto } from './dto/update-store-customer-markup.dto';
 import { UpdateStoreStatusDto } from './dto/update-store-status.dto';
 import { SetStorePlatformCategoriesDto } from './dto/set-store-platform-categories.dto';
 import { IngestReferenceDto } from './dto/ingest-reference.dto';
@@ -184,6 +185,14 @@ export class AdminController {
     @Body() dto: UpdateStoreCommissionOverrideDto,
   ) {
     return this.admin.setStoreCommissionOverride(storeId, dto.commissionPercentOverride);
+  }
+
+  @Patch('stores/:storeId/customer-price-markup')
+  async patchStoreCustomerPriceMarkup(
+    @Param('storeId') storeId: string,
+    @Body() dto: UpdateStoreCustomerMarkupDto,
+  ) {
+    return this.admin.setStoreCustomerPriceMarkup(storeId, dto.customerPriceMarkupPercent);
   }
 
   @Patch('stores/:storeId/status')

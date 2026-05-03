@@ -238,6 +238,8 @@ export class PricingService {
 
   /**
    * Customer-facing line items + platform commission (on subtotal only).
+   * `subtotal` = customer item total (catalogue prices + markup). `subtotalBase` = store catalogue total;
+   * platform item margin = difference; store receives `subtotalBase`.
    */
   async buildQuote(params: {
     storeId: string;
@@ -245,12 +247,16 @@ export class PricingService {
     addressLng: number;
     storeLat: number | null;
     storeLng: number | null;
+    /** Customer-visible item subtotal (after catalogue markup). */
     subtotal: number;
+    /** Sum of store catalogue line totals (before markup). */
+    subtotalBase: number;
     paymentMethod: OrderQuotePayment;
     /** When set, `deliveryFee` is forced to 0 and `deliveryDiscount` = gross list fee (first N orders, etc.). */
     waiveDeliveryFee?: boolean;
   }): Promise<OrderPricingQuote> {
     const subtotal = new Decimal(params.subtotal);
+    const subtotalBaseIn = new Decimal(params.subtotalBase);
     let distanceKm = new Decimal('1');
     if (
       params.storeLat != null &&
@@ -289,10 +295,14 @@ export class PricingService {
     }
     const totalAmount = baseBeforeSurcharge.add(gstAmount).add(cardProcessingAmount).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
 
-    const { percent: commissionPercent, categorySlug: categorySlugUsed } =
-      await this.resolveCommissionPercentForStore(params.storeId);
-    const commissionAmount = subtotal.mul(commissionPercent).div(100).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
-    const storeAmount = subtotal.minus(commissionAmount).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    const { categorySlug: categorySlugUsed } = await this.resolveCommissionPercentForStore(params.storeId);
+
+    const commissionAmount = subtotal.sub(subtotalBaseIn).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    const storeAmount = subtotalBaseIn.toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    /** Snapshot for orders: nominal % on catalogue subtotal (≈10% when markup is 10%). */
+    const commissionPercent = subtotalBaseIn.gt(0)
+      ? commissionAmount.mul(100).div(subtotalBaseIn).toDecimalPlaces(2, Decimal.ROUND_HALF_UP)
+      : new Decimal(0);
 
     return {
       subtotal,
@@ -322,6 +332,8 @@ export class PricingService {
     serviceFee: Decimal,
     paymentMethod: PaymentMethod,
     commissionPercentSnapshot: Decimal | null,
+    /** When non-null, order uses catalogue + markup split (see buildQuote). */
+    subtotalBase: Decimal | null,
   ): Promise<{
     gstAmount: Decimal;
     cardProcessingAmount: Decimal;
@@ -338,12 +350,21 @@ export class PricingService {
         .mul(fees.cardProcessingRate)
         .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
     } else {
-      gstAmount = baseBeforeSurcharge.mul(fees.codTaxRate).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+      if (fees.codTaxEnabled && fees.codTaxRate > 0) {
+        gstAmount = baseBeforeSurcharge.mul(fees.codTaxRate).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+      }
     }
     const totalAmount = baseBeforeSurcharge.add(gstAmount).add(cardProcessingAmount).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
-    const pct = commissionPercentSnapshot ?? new Decimal(this.defaultCommissionPercent());
-    const commissionAmount = subtotal.mul(pct).div(100).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
-    const storeAmount = subtotal.minus(commissionAmount).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    let commissionAmount: Decimal;
+    let storeAmount: Decimal;
+    if (subtotalBase != null) {
+      commissionAmount = subtotal.sub(subtotalBase).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+      storeAmount = subtotalBase.toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    } else {
+      const pct = commissionPercentSnapshot ?? new Decimal(this.defaultCommissionPercent());
+      commissionAmount = subtotal.mul(pct).div(100).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+      storeAmount = subtotal.minus(commissionAmount).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    }
     return { gstAmount, cardProcessingAmount, totalAmount, commissionAmount, storeAmount };
   }
 }

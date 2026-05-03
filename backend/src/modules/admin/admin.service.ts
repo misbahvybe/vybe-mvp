@@ -393,6 +393,7 @@ export class AdminService {
       isApproved: s.isApproved,
       commissionPercentOverride:
         s.commissionPercentOverride != null ? Number(s.commissionPercentOverride) : null,
+      customerPriceMarkupPercent: Number(s.customerPriceMarkupPercent),
       platformCategories: s.categories.map((c) => c.category.name),
     }));
   }
@@ -407,6 +408,19 @@ export class AdminService {
     });
     await this.stores.invalidatePublicStoreListCache().catch(() => undefined);
     return updated;
+  }
+
+  async setStoreCustomerPriceMarkup(storeId: string, customerPriceMarkupPercent: number) {
+    const store = await this.prisma.store.findUnique({ where: { id: storeId } });
+    if (!store) throw new NotFoundException('Store not found');
+    const rounded = Math.round(customerPriceMarkupPercent * 100) / 100;
+    const updated = await this.prisma.store.update({
+      where: { id: storeId },
+      data: { customerPriceMarkupPercent: rounded },
+      select: { id: true, customerPriceMarkupPercent: true },
+    });
+    await this.stores.invalidatePublicStoreListCache().catch(() => undefined);
+    return { id: updated.id, customerPriceMarkupPercent: Number(updated.customerPriceMarkupPercent) };
   }
 
   /** Platform verticals (Food / Grocery / Medicine tabs on customer app). */

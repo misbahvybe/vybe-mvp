@@ -6,7 +6,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { PricingService } from '../pricing/pricing.service';
 import { PrepareXPayDto } from '../orders/dto/prepare-xpay.dto';
 import { isStoreWithinPostedHours } from '../../common/store/store-hours.util';
-import { assertMinOrderSubtotalPkr } from '../../common/constants/order-minimum';
+import { assertOrderCartItemsAndTotals } from '../../common/pricing/assert-order-cart-items';
 
 export type BankSlug = 'hbl' | 'meezan' | 'allied';
 
@@ -76,48 +76,12 @@ export class BankPaymentsService {
     }
   }
 
-  private async assertItemsAndSubtotal(
+  private assertItemsAndSubtotal(
     storeId: string,
     items: { productId: string; variantId?: string; quantity: number; price?: number }[],
     options: { checkStock: boolean },
-  ): Promise<{ subtotal: number }> {
-    const products = await this.prisma.product.findMany({
-      where: { id: { in: items.map((i) => i.productId) }, storeId },
-    });
-    const productById = new Map(products.map((p) => [p.id, p]));
-    const variantIds = [...new Set(items.map((i) => i.variantId).filter(Boolean))] as string[];
-    const variants = variantIds.length ? await this.prisma.productVariant.findMany({ where: { id: { in: variantIds } } }) : [];
-    const variantById = new Map(variants.map((v) => [v.id, v]));
-    let subtotal = 0;
-    for (const item of items) {
-      const prod = productById.get(item.productId);
-      if (!prod) throw new BadRequestException(`Product ${item.productId} not found`);
-      if (prod.isDraft) {
-        throw new BadRequestException(`Product "${prod.name}" is not available for sale yet`);
-      }
-      if (options.checkStock) {
-        const stock = Number(prod.stock);
-        if (prod.isOutOfStock || stock < item.quantity) {
-          throw new BadRequestException(
-            `Insufficient stock for ${prod.name}. Available: ${stock} ${stock === 0 ? '(out of stock)' : ''}`,
-          );
-        }
-      }
-      const variant = item.variantId ? variantById.get(item.variantId) : null;
-      if (item.variantId && (!variant || variant.productId !== prod.id)) {
-        throw new BadRequestException(`Variant ${item.variantId} not found for ${prod.name}`);
-      }
-      if (variant && variant.isAvailable === false) {
-        throw new BadRequestException(`Variant ${variant.name} is unavailable for ${prod.name}`);
-      }
-      const serverPrice = variant ? Number(variant.price) : Number(prod.price);
-      if (item.price != null && Math.abs(Number(item.price) - serverPrice) > 0.02) {
-        throw new BadRequestException(`Price mismatch for ${prod.name}`);
-      }
-      subtotal += item.quantity * serverPrice;
-    }
-    assertMinOrderSubtotalPkr(subtotal);
-    return { subtotal };
+  ) {
+    return assertOrderCartItemsAndTotals(this.prisma, storeId, items, options);
   }
 
   private generateMerchantRef(slug: BankSlug): string {
@@ -158,7 +122,11 @@ export class BankPaymentsService {
     this.assertCustomerCanOrderFromStore(store);
 
     const items = dto.items as { productId: string; variantId?: string; quantity: number; price?: number }[];
-    const { subtotal: subtotalAmount } = await this.assertItemsAndSubtotal(dto.storeId, items, { checkStock: true });
+    const { subtotal: subtotalAmount, subtotalBase: subtotalBaseAmount } = await this.assertItemsAndSubtotal(
+      dto.storeId,
+      items,
+      { checkStock: true },
+    );
     const prior = await this.prisma.order.count({
       where: {
         customerId,
@@ -172,6 +140,7 @@ export class BankPaymentsService {
       storeLat: store.latitude != null ? Number(store.latitude) : null,
       storeLng: store.longitude != null ? Number(store.longitude) : null,
       subtotal: subtotalAmount,
+      subtotalBase: subtotalBaseAmount,
       paymentMethod: 'CARD',
       waiveDeliveryFee: prior < freeDeliveryOrderCap(),
     });

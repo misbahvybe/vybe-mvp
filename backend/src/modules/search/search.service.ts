@@ -3,6 +3,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { normalizeProductName } from '../../common/product/product-name.util';
 import { StoreStatus } from '@prisma/client';
 import { Prisma } from '@prisma/client';
+import { customerUnitPriceFromBase, normalizeCustomerMarkupPercent } from '../../common/pricing/customer-price-markup.util';
 
 @Injectable()
 export class SearchService {
@@ -42,9 +43,17 @@ export class SearchService {
       `);
 
       const itemRows = await this.prisma.$queryRaw<
-        { id: string; name: string; price: any; storeId: string; storeName: string }[]
+        {
+          id: string;
+          name: string;
+          price: any;
+          storeId: string;
+          storeName: string;
+          customerPriceMarkupPercent: any;
+        }[]
       >(Prisma.sql`
-        SELECT p.id, p.name, p.price, p.store_id AS "storeId", s.name AS "storeName"
+        SELECT p.id, p.name, p.price, p.store_id AS "storeId", s.name AS "storeName",
+          s.customer_price_markup_percent AS "customerPriceMarkupPercent"
         FROM "Product" p
         JOIN "Store" s ON s.id = p.store_id
         WHERE p.is_draft = false
@@ -59,7 +68,10 @@ export class SearchService {
         LIMIT ${takeItems}
       `);
 
-      items = itemRows;
+      items = itemRows.map(({ customerPriceMarkupPercent, ...row }) => ({
+        ...row,
+        price: customerUnitPriceFromBase(row.price, normalizeCustomerMarkupPercent(customerPriceMarkupPercent)),
+      }));
     } catch {
       // 1) Store-level match fallback
       stores = await this.prisma.store.findMany({
@@ -92,13 +104,13 @@ export class SearchService {
           name: true,
           price: true,
           storeId: true,
-          store: { select: { name: true } },
+          store: { select: { name: true, customerPriceMarkupPercent: true } },
         },
       });
       items = fallbackItems.map((i) => ({
         id: i.id,
         name: i.name,
-        price: i.price,
+        price: customerUnitPriceFromBase(i.price, normalizeCustomerMarkupPercent(i.store.customerPriceMarkupPercent)),
         storeId: i.storeId,
         storeName: i.store.name,
       }));

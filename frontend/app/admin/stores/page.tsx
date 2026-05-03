@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import { Loader } from '@/components/ui/Loader';
+import { Button } from '@/components/ui/Button';
 import { ChevronRight } from 'lucide-react';
 import api from '@/services/api';
 
@@ -17,19 +18,29 @@ interface StoreRow {
   ordersToday: number;
   revenueToday: number;
   isApproved: boolean;
+  /** Percent added on top of store menu prices for customers (e.g. 10 = +10%). */
+  customerPriceMarkupPercent: number;
 }
 
 export default function AdminStoresPage() {
   const [stores, setStores] = useState<StoreRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [markupSavingId, setMarkupSavingId] = useState<string | null>(null);
+  const [markupInputs, setMarkupInputs] = useState<Record<string, string>>({});
   const [filter, setFilter] = useState<'ALL' | 'INVITED' | 'ACTIVE' | 'INACTIVE'>('ALL');
 
   const fetchStores = () => {
     setLoading(true);
     api
       .get<StoreRow[]>('/admin/stores')
-      .then((r) => setStores(r.data ?? []))
+      .then((r) => {
+        const list = r.data ?? [];
+        setStores(list);
+        setMarkupInputs(
+          Object.fromEntries(list.map((s) => [s.id, String(s.customerPriceMarkupPercent ?? 10)])),
+        );
+      })
       .catch(() => setStores([]))
       .finally(() => setLoading(false));
   };
@@ -45,6 +56,29 @@ export default function AdminStoresPage() {
       setStores((prev) => prev.map((s) => (s.id === storeId ? { ...s, status } : s)));
     } finally {
       setSavingId(null);
+    }
+  };
+
+  const saveCustomerMarkup = async (storeId: string) => {
+    const raw = markupInputs[storeId]?.trim() ?? '';
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0 || n > 500) {
+      alert('Enter a markup between 0 and 500 (percent added on catalogue prices).');
+      return;
+    }
+    setMarkupSavingId(storeId);
+    try {
+      const { data } = await api.patch<{ customerPriceMarkupPercent: number }>(
+        `/admin/stores/${storeId}/customer-price-markup`,
+        { customerPriceMarkupPercent: n },
+      );
+      const applied = data?.customerPriceMarkupPercent ?? n;
+      setStores((prev) =>
+        prev.map((s) => (s.id === storeId ? { ...s, customerPriceMarkupPercent: applied } : s)),
+      );
+      setMarkupInputs((prev) => ({ ...prev, [storeId]: String(applied) }));
+    } finally {
+      setMarkupSavingId(null);
     }
   };
 
@@ -102,6 +136,7 @@ export default function AdminStoresPage() {
                   <th className="text-left p-3 font-medium">Onboarding</th>
                   <th className="text-left p-3 font-medium">Open</th>
                   <th className="text-left p-3 font-medium">Hours</th>
+                  <th className="text-left p-3 font-medium">Customer markup %</th>
                   <th className="text-right p-3 font-medium">Orders Today</th>
                   <th className="text-right p-3 font-medium">Revenue Today</th>
                   <th className="text-right p-3 font-medium">Actions</th>
@@ -121,6 +156,37 @@ export default function AdminStoresPage() {
                       </span>
                     </td>
                     <td className="p-3">{s.openingTime && s.closingTime ? `${s.openingTime}–${s.closingTime}` : '—'}</td>
+                    <td className="p-3">
+                      <div className="flex flex-wrap items-center gap-2 max-w-[200px]">
+                        <label className="sr-only" htmlFor={`markup-${s.id}`}>
+                          Customer price markup percent for {s.name}
+                        </label>
+                        <input
+                          id={`markup-${s.id}`}
+                          type="number"
+                          min={0}
+                          max={500}
+                          step={0.5}
+                          className="w-20 rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+                          value={markupInputs[s.id] ?? String(s.customerPriceMarkupPercent ?? 10)}
+                          onChange={(e) =>
+                            setMarkupInputs((prev) => ({ ...prev, [s.id]: e.target.value }))
+                          }
+                        />
+                        <span className="text-xs text-slate-500 whitespace-nowrap">% on menu</span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0 text-xs px-2 py-1"
+                          loading={markupSavingId === s.id}
+                          disabled={markupSavingId === s.id}
+                          onClick={() => saveCustomerMarkup(s.id)}
+                        >
+                          Save
+                        </Button>
+                      </div>
+                    </td>
                     <td className="p-3 text-right">{s.ordersToday}</td>
                     <td className="p-3 text-right">Rs {s.revenueToday.toLocaleString()}</td>
                     <td className="p-3 text-right">
