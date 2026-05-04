@@ -235,7 +235,7 @@ export function StoreLocationMapPicker({ storeId, initialLat, initialLng, onSele
       <div className="flex flex-wrap gap-2 items-center justify-between">
         {geoState === 'denied' && (
           <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex-1 min-w-[200px]">
-            Location access is off. Tap the map or drag the purple pin to set your storefront.
+            Location access is off. Tap the map or drag the red pin to set your storefront.
           </p>
         )}
         {geoState === 'unsupported' && (
@@ -249,7 +249,7 @@ export function StoreLocationMapPicker({ storeId, initialLat, initialLng, onSele
             type="button"
             onClick={() => tryGeolocate()}
             disabled={geoState === 'pending'}
-            className="text-sm font-medium text-primary px-3 py-2 rounded-button border border-primary shrink-0 min-h-[44px] hover:bg-primary/5 disabled:opacity-50"
+            className="text-sm font-semibold text-white px-3 py-2 rounded-button bg-primary shadow-soft shrink-0 min-h-[44px] hover:bg-accent-hover disabled:opacity-50"
           >
             {geoState === 'pending' ? 'Please wait…' : 'Use my current location'}
           </button>
@@ -278,7 +278,7 @@ export function StoreLocationMapPicker({ storeId, initialLat, initialLng, onSele
               type="button"
               onClick={() => setSatelliteMode(false)}
               className={`px-3 py-2 text-xs font-semibold min-h-[40px] transition-colors ${
-                !satelliteMode ? 'bg-primary text-white' : 'bg-white/95 text-slate-700 hover:bg-white'
+                !satelliteMode ? 'bg-primary text-white' : 'bg-primary/20 text-white hover:bg-primary/30'
               }`}
             >
               Map
@@ -287,7 +287,7 @@ export function StoreLocationMapPicker({ storeId, initialLat, initialLng, onSele
               type="button"
               onClick={() => setSatelliteMode(true)}
               className={`px-3 py-2 text-xs font-semibold min-h-[40px] transition-colors border-l border-white/50 ${
-                satelliteMode ? 'bg-primary text-white' : 'bg-white/95 text-slate-700 hover:bg-white'
+                satelliteMode ? 'bg-primary text-white' : 'bg-primary/20 text-white hover:bg-primary/30'
               }`}
             >
               Satellite

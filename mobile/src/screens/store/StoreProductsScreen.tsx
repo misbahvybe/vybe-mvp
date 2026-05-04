@@ -229,7 +229,7 @@ export function StoreProductsScreen() {
                 style={[styles.pillButton, { backgroundColor: '#0f172a' }]}
                 onPress={() => setShowAddProduct((v) => !v)}
               >
-                <Text style={[styles.pillButtonText, { color: '#facc15' }]}>Add Product</Text>
+                <Text style={[styles.pillButtonText, { color: tokens.primary }]}>Add Product</Text>
               </TouchableOpacity>
             </View>
 
@@ -732,7 +732,7 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#facc15',
+    color: tokens.primary,
   },
   secondaryButton: {
     borderRadius: 999,
@@ -773,7 +773,7 @@ const styles = StyleSheet.create({
     color: '#64748b',
   },
   chipTextActive: {
-    color: '#facc15',
+    color: tokens.primary,
     fontWeight: '600',
   },
   switchRow: {

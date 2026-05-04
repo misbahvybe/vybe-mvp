@@ -116,7 +116,7 @@ export default function AdminRidersPage() {
                         type="button"
                         disabled={settlingId === r.id || Number(r.codCollectedAmount ?? 0) <= 0}
                         onClick={() => settle(r.id)}
-                        className="text-xs font-semibold text-white bg-slate-800 hover:bg-slate-700 disabled:opacity-40 px-3 py-1.5 rounded-lg"
+                        className="text-xs font-semibold text-white bg-primary hover:bg-accent-hover disabled:opacity-40 px-3 py-1.5 rounded-lg shadow-soft"
                       >
                         {settlingId === r.id ? '…' : 'Received'}
                       </button>

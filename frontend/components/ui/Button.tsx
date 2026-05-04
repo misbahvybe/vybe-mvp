@@ -11,11 +11,12 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variants: Record<Variant, string> = {
-  primary: 'bg-primary text-white shadow-soft hover:bg-primary-dark',
-  secondary: 'bg-primary-dark text-white hover:opacity-90',
-  accent: 'bg-accent text-white hover:bg-accent-hover',
-  outline: 'border-2 border-primary text-primary bg-transparent hover:bg-primary hover:text-white',
-  ghost: 'text-primary hover:bg-primary/10',
+  // Brand rule: all buttons should be red-filled across the app.
+  primary: 'bg-primary text-white shadow-soft hover:bg-accent-hover',
+  secondary: 'bg-primary text-white shadow-soft hover:bg-accent-hover',
+  accent: 'bg-primary text-white shadow-soft hover:bg-accent-hover',
+  outline: 'bg-primary text-white shadow-soft hover:bg-accent-hover',
+  ghost: 'bg-primary text-white shadow-soft hover:bg-accent-hover',
 };
 
 const sizes: Record<Size, string> = {

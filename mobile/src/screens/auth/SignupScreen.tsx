@@ -11,6 +11,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { api } from '@api/client';
 import { useAuthStore } from '@store/auth';
+import { tokens } from '@theme/tokens';
 import type { User } from '@store/auth';
 
 export function SignupScreen() {
@@ -95,7 +96,7 @@ export function SignupScreen() {
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color="#000" />
+            <ActivityIndicator color={tokens.white} />
           ) : (
             <Text style={styles.buttonText}>Sign up</Text>
           )}
@@ -151,7 +152,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingVertical: 14,
     alignItems: 'center',
-    backgroundColor: '#0f172a',
+    backgroundColor: tokens.primary,
     marginTop: 4,
   },
   buttonDisabled: {
@@ -159,7 +160,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontWeight: '600',
-    color: '#facc15',
+    color: tokens.white,
     fontSize: 15,
   },
   linkButton: {

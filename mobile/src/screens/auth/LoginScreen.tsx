@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useAuthStore } from '@store/auth';
+import { tokens } from '@theme/tokens';
 
 export function LoginScreen() {
   const navigation = useNavigation<any>();
@@ -122,7 +123,7 @@ const styles = StyleSheet.create({
   modeText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#7c3aed',
+    color: tokens.primary,
     textDecorationLine: 'underline',
   },
   input: {
@@ -139,7 +140,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingVertical: 14,
     alignItems: 'center',
-    backgroundColor: '#facc15',
+    backgroundColor: tokens.primary,
     marginTop: 4
   },
   buttonDisabled: {
@@ -147,7 +148,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontWeight: '600',
-    color: '#020617',
+    color: tokens.white,
     fontSize: 16
   },
   linkButton: {

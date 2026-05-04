@@ -437,7 +437,7 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#facc15',
+    color: tokens.primary,
   },
 });
 

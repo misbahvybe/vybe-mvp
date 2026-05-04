@@ -199,7 +199,7 @@ export function StoreEarningsScreen() {
                 onPress={submitWithdraw}
               >
                 {withdrawSubmitting ? (
-                  <ActivityIndicator color="#facc15" />
+                  <ActivityIndicator color={tokens.primary} />
                 ) : (
                   <Text style={styles.modalPrimaryText}>Submit request</Text>
                 )}
@@ -333,7 +333,7 @@ const styles = StyleSheet.create({
   modalPrimaryText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#facc15'
+    color: tokens.primary
   },
   modalCancel: {
     marginTop: 10,

@@ -293,7 +293,7 @@ function StoreDashboardInner() {
               <span
                 className={`text-xs px-2 py-1 rounded-full border shrink-0 ${
                   qzPrintConfigured
-                    ? 'border-violet-200 bg-violet-50 text-violet-800'
+                    ? 'border-primary/25 bg-primary/10 text-primary'
                     : 'border-slate-200 bg-slate-50 text-slate-600'
                 }`}
                 title={
@@ -1205,7 +1205,7 @@ function StoreSettingsTab({
             />
           </div>
           <p className="text-xs text-slate-500 mt-2">
-            Coordinates are set from the purple pin. You can edit latitude / longitude below if needed.
+            Coordinates are set from the red pin. You can edit latitude / longitude below if needed.
           </p>
         </div>
         <div className="grid grid-cols-2 gap-3">

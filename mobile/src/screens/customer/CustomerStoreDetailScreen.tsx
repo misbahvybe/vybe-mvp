@@ -317,7 +317,7 @@ const styles = StyleSheet.create({
   bannerClosed: {
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#facc15',
+    borderColor: tokens.primary,
     backgroundColor: '#fefce8',
     padding: 12,
     marginHorizontal: 16,

@@ -11,6 +11,7 @@ import {
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { api } from '@api/client';
 import { useAuthStore } from '@store/auth';
+import { tokens } from '@theme/tokens';
 
 type SignupOtpRoute = RouteProp<{ SignupOtp: { phone: string } }, 'SignupOtp'>;
 
@@ -62,7 +63,7 @@ export function SignupOtpScreen() {
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color="#000" />
+            <ActivityIndicator color={tokens.white} />
           ) : (
             <Text style={styles.buttonText}>Verify & continue</Text>
           )}
@@ -116,7 +117,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingVertical: 14,
     alignItems: 'center',
-    backgroundColor: '#0f172a',
+    backgroundColor: tokens.primary,
     marginTop: 4,
   },
   buttonDisabled: {
@@ -124,7 +125,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontWeight: '600',
-    color: '#facc15',
+    color: tokens.white,
     fontSize: 15,
   },
   linkButton: {

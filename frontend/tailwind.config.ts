@@ -1,4 +1,5 @@
 import type { Config } from 'tailwindcss';
+import colors from 'tailwindcss/colors';
 
 const config: Config = {
   content: [
@@ -8,13 +9,15 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        /** Warm neutrals: existing `text-slate-*` / `border-slate-*` pick up stone (pairs with amber). */
+        slate: colors.stone,
         primary: {
-          DEFAULT: '#7c3aed',
+          DEFAULT: '#F9A31E',
           dark: '#1a1a1a',
-          light: '#8b5cf6',
+          light: '#FBC04D',
         },
-        accent: '#7c3aed',
-        'accent-hover': '#6d28d9',
+        accent: '#F9A31E',
+        'accent-hover': '#E09218',
         surface: '#ffffff',
       },
       borderRadius: {

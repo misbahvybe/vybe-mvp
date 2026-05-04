@@ -143,5 +143,5 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   settleBtnDisabled: { opacity: 0.45 },
-  settleBtnText: { fontSize: 12, fontWeight: '700', color: '#facc15' },
+  settleBtnText: { fontSize: 12, fontWeight: '700', color: tokens.primary },
 });

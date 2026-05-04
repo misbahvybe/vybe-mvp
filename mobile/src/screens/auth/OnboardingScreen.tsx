@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { tokens } from '@theme/tokens';
 
 export function OnboardingScreen() {
   const navigation = useNavigation<any>();
@@ -69,7 +70,7 @@ const styles = StyleSheet.create({
   logo: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#facc15',
+    color: tokens.primary,
     marginBottom: 24,
     textAlign: 'center',
   },
@@ -107,7 +108,7 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     borderRadius: 999,
-    backgroundColor: '#facc15',
+    backgroundColor: tokens.primary,
     paddingVertical: 14,
     alignItems: 'center',
     marginBottom: 10,
@@ -115,12 +116,12 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#020617',
+    color: tokens.white,
   },
   secondaryButton: {
     borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#475569',
+    borderWidth: 2,
+    borderColor: tokens.primary,
     paddingVertical: 13,
     alignItems: 'center',
     marginBottom: 12,
@@ -128,7 +129,7 @@ const styles = StyleSheet.create({
   secondaryButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#e5e7eb',
+    color: tokens.primary,
   },
   linkButton: {
     alignItems: 'center',

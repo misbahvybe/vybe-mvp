@@ -1,107 +1,164 @@
-'use client';
-
-import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Button } from '@/components/ui/Button';
-import { BRAND_FULL } from '@/constants/brand';
+import { Caveat, Permanent_Marker, Inter } from 'next/font/google';
+import { LandingLogo } from '@/components/landing/LandingLogo';
+import { LandingViewportLock } from '@/components/landing/LandingViewportLock';
 
-const SLIDES = [
-  { id: 'food', title: 'Food', description: 'Fast delivery from restaurants near you. Pay cash when your order arrives.', image: '/food-plate.png' },
-  { id: 'grocery', title: 'Groceries', description: 'Fresh groceries to your door — one simple app for daily needs.', image: '/grocery-shopping-basket.png' },
-  { id: 'medicine', title: 'Medicine', description: 'Health essentials delivered quickly and reliably.', image: '/medicine-box.png' },
-];
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-landing-sans',
+  display: 'swap',
+});
+
+const caveat = Caveat({
+  subsets: ['latin'],
+  weight: ['600', '700'],
+  variable: '--font-landing-script',
+  display: 'swap',
+});
+
+const permanentMarker = Permanent_Marker({
+  weight: '400',
+  subsets: ['latin'],
+  variable: '--font-landing-marker',
+  display: 'swap',
+});
+
+/**
+ * Landing assets live in /public/landing/
+ * - hero-collage.svg (or .png) — use unoptimized for SVG (Next/Image default blocks SVG optimization)
+ * - deco-*.png — must match filenames on disk (.jpg here causes 404 → hidden)
+ */
+const ASSETS = {
+  heroCollage: '/landing/hero-collage.svg',
+  decoTopLeft: '/landing/deco-top-left.png',
+  decoBottomLeft: '/landing/deco-bottom-left.png',
+  decoBottomRight: '/landing/deco-bottom-right.png',
+} as const;
+
+/** Landing-only accent (amber); app shell still uses `primary` in Tailwind. */
+const LANDING_ACCENT = '#F9A31E';
 
 export default function LandingPage() {
-  const [slide, setSlide] = useState(0);
-  const [showCta, setShowCta] = useState(false);
-
-  const handleContinue = () => {
-    if (slide < SLIDES.length - 1) {
-      setSlide((s) => s + 1);
-    } else {
-      setShowCta(true);
-    }
-  };
-
-  if (showCta) {
-    return (
-      <div className="min-h-screen flex flex-col">
-        <div className="relative flex-1 min-h-[400px] rounded-b-3xl bg-white flex flex-col items-center justify-center overflow-hidden">
-          <div className="relative z-10 w-full max-w-sm sm:max-w-md lg:max-w-lg px-4 sm:px-6 text-center">
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 tracking-tight px-2">{BRAND_FULL}</h1>
-            <p className="mt-2 text-slate-600 text-sm font-medium">
-              Order food, groceries &amp; medicine — simple and fast
-            </p>
-          </div>
-        </div>
-        <div className="bg-primary-dark rounded-t-3xl shadow-soft-lg px-4 sm:px-8 mb-10 pt-14 pb-14 safe-bottom min-h-[20px] flex flex-col justify-center w-full min-w-0">
-          <div className="w-full max-w-sm sm:max-w-md lg:max-w-lg mx-auto space-y-4">
-            <Link href="/auth/signup" className="block">
-              <Button variant="accent" size="lg" fullWidth>
-                Order Now
-              </Button>
-            </Link>
-            <div className="pt-2 text-center space-y-1">
-              <Link href="/auth/login" className="block text-white/90 text-sm font-medium hover:text-white">
-                Customer Login
-              </Link>
-              <Link href="/auth/signup" className="block text-white/80 mt-10 mb-10 text-sm hover:text-white">
-                Sign up
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const current = SLIDES[slide];
-
   return (
-    <div className="min-h-screen flex flex-col bg-primary-dark">
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="relative h-[55vh] sm:h-[60vh] min-h-[200px] max-h-[640px] bg-white overflow-hidden rounded-b-3xl flex flex-col items-center justify-center px-4">
-          <div className="w-full max-w-[min(88vw,312px)] aspect-square max-h-[min(50vh,312px)] rounded-2xl bg-white flex items-center justify-center p-3">
-            <Image
-              src={current.image}
-              alt={current.title}
-              width={312}
-              height={312}
-              className="object-contain w-full h-full max-w-[280px] sm:max-w-[312px]"
-              sizes="(max-width: 640px) 85vw, 312px"
-            />
-          </div>
+    <div
+      className={`relative flex h-dvh max-h-dvh flex-col overflow-hidden bg-black text-white ${inter.variable} ${caveat.variable} ${permanentMarker.variable} font-sans antialiased`}
+    >
+      <LandingViewportLock />
+      
+
+      <div
+        className="pointer-events-none fixed inset-0 z-[1] overflow-hidden"
+        aria-hidden
+      >
+        {/* Top deco: mirror of bottom — strip at top; image bottom-aligned; top ~1/4 clipped above viewport. */}
+        <div className="absolute left-0 top-0 h-[min(20dvh,220px)] w-[min(46vw,300px)] overflow-hidden sm:h-[min(24dvh,270px)] sm:w-[min(40vw,340px)] md:h-[min(26dvh,300px)]">
+          <img
+            src={ASSETS.decoTopLeft}
+            alt=""
+            decoding="async"
+            className="absolute bottom-0 left-0 h-[calc(100%*4/3)] w-auto max-w-none -translate-x-[18%] object-contain opacity-90 [object-position:left_bottom] sm:-translate-x-[22%]"
+            aria-hidden
+          />
         </div>
-        <div className="bg-primary-dark rounded-t-3xl px-4 sm:px-8 pt-6 pb-10 safe-bottom flex-1 flex flex-col justify-center relative z-10 w-full min-w-0">
-          <div className="flex justify-center gap-2 mb-3">
-            {SLIDES.map((_, i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => setSlide(i)}
-                className={`w-2 h-2 rounded-full transition-all ${
-                  i === slide ? 'bg-white w-6' : 'bg-white/50'
-                }`}
-                aria-label={`Slide ${i + 1}`}
-              />
-            ))}
-          </div>
-          <h2 className="text-lg sm:text-xl font-bold text-white mb-2">{current.title}</h2>
-          <p className="text-white/90 text-sm sm:text-base mb-5 max-w-xl">{current.description}</p>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleContinue();
-            }}
-            className="w-full px-6 py-3 text-lg font-semibold rounded-button bg-white text-primary-dark hover:bg-slate-100 transition-all cursor-pointer [touch-action:manipulation]"
-          >
-            Continue
-          </button>
+        {/* Bottom decos: ~3/4 of image visible; bottom ~1/4 clipped (image height = 4/3 of window). */}
+        <div className="absolute bottom-0 left-0 h-[min(20dvh,220px)] w-[min(46vw,300px)] overflow-hidden sm:h-[min(24dvh,270px)] sm:w-[min(40vw,340px)] md:h-[min(26dvh,300px)]">
+          <img
+            src={ASSETS.decoBottomLeft}
+            alt=""
+            decoding="async"
+            className="absolute left-0 top-0 h-[calc(100%*4/3)] w-auto max-w-none -translate-x-[18%] object-contain opacity-90 [object-position:left_top] sm:-translate-x-[22%]"
+            aria-hidden
+          />
+        </div>
+        <div className="absolute bottom-0 right-0 h-[min(20dvh,220px)] w-[min(48vw,320px)] overflow-hidden sm:h-[min(24dvh,270px)] sm:w-[min(42vw,360px)] md:h-[min(26dvh,300px)]">
+          <img
+            src={ASSETS.decoBottomRight}
+            alt=""
+            decoding="async"
+            className="absolute right-0 top-0 h-[calc(100%*4/3)] w-auto max-w-none translate-x-[18%] object-contain opacity-90 [object-position:right_top] sm:translate-x-[22%]"
+            aria-hidden
+          />
         </div>
       </div>
+
+      <header className="relative z-30 flex shrink-0 justify-end px-4 pb-1 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-8 sm:pb-2 sm:pt-[max(1rem,env(safe-area-inset-top))]">
+        <Link href="/" className="block text-right" aria-label="VYBE Superapp home">
+          <LandingLogo />
+        </Link>
+      </header>
+
+      <main className="relative z-10 mx-auto grid min-h-0 w-full max-w-[1400px] flex-1 grid-cols-1 content-center items-center gap-2 px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-0 sm:gap-5 sm:px-8 sm:pb-[max(1rem,env(safe-area-inset-bottom))] sm:pt-1 md:gap-8 lg:grid-cols-2 lg:gap-10 lg:px-10 lg:pb-[max(1.25rem,env(safe-area-inset-bottom))] lg:pt-2 xl:px-12">
+        <div className="order-2 min-h-0 min-w-0 max-w-xl justify-self-center text-center lg:order-1 lg:justify-self-start lg:pl-8 lg:text-left xl:pl-12 2xl:pl-24">
+          <h1 className="space-y-0 leading-[0.95]">
+            <span
+              className={`${caveat.className} block text-[clamp(1.65rem,5.2vw,3.75rem)] font-semibold leading-[0.95] tracking-wide text-white sm:text-[clamp(1.85rem,5vw,3.75rem)]`}
+            >
+              Delivery for
+            </span>
+            <span
+              className={`${permanentMarker.className} block py-0.5 text-[clamp(2.35rem,9.5vw,6.5rem)] leading-[0.9] tracking-tight sm:py-1 sm:leading-[0.92]`}
+              style={{ color: LANDING_ACCENT }}
+            >
+              Pakistan&apos;s
+            </span>
+            <span
+              className={`${caveat.className} block text-[clamp(1.65rem,5.2vw,3.85rem)] font-semibold leading-[0.95] tracking-wide text-white sm:text-[clamp(1.85rem,5vw,3.85rem)]`}
+            >
+              best local restaurants
+            </span>
+          </h1>
+
+          <p
+            className={`mx-auto mt-3 max-w-md text-sm font-medium leading-snug text-white/95 sm:mt-5 sm:text-base sm:leading-relaxed md:mt-6 md:text-lg lg:mx-0 ${inter.className}`}
+          >
+            We charge 10% commission, Foodpanda charges 35%.
+          </p>
+
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-3 sm:mt-6 md:mt-8 lg:justify-start">
+            <Link
+              href="/auth/signup"
+              className={`inline-flex rounded-full bg-primary px-8 py-3 text-center text-sm font-bold lowercase tracking-wide text-white shadow-lg transition-transform hover:scale-[1.02] hover:bg-accent-hover active:scale-[0.98] sm:px-10 sm:py-3.5 sm:text-base md:py-4 md:text-lg ${inter.className}`}
+              style={{ boxShadow: `0 12px 40px ${LANDING_ACCENT}55` }}
+            >
+              order now
+            </Link>
+            <Link
+              href="/get-app"
+              className={`inline-flex rounded-full border-2 border-transparent px-8 py-3 text-center text-sm font-bold tracking-wide text-white shadow-lg transition-transform hover:scale-[1.02] border-white active:scale-[0.98] sm:px-10 sm:py-3.5 sm:text-base md:py-4 md:text-lg ${inter.className}`}
+              
+            >
+              Get the app
+            </Link>
+          </div>
+        </div>
+
+        <div className="relative order-1 flex min-h-0 w-full max-w-full justify-center justify-self-center sm:max-w-[min(96vw,620px)] lg:order-2 lg:h-full lg:min-h-0 lg:max-h-none lg:max-w-[min(58vw,760px)] lg:justify-self-end">
+          <div className="relative flex h-full min-h-0 w-full max-h-[min(28dvh,220px)] items-center justify-center sm:max-h-[min(32dvh,260px)] md:max-h-[min(36dvh,300px)] lg:max-h-[min(calc(100dvh-5.75rem),100%)]">
+            {ASSETS.heroCollage.endsWith('.svg') ? (
+              // eslint-disable-next-line @next/next/no-img-element -- next/image skips SVG optimization without extra config; <img> is reliable for local SVGs
+              <img
+                src={ASSETS.heroCollage}
+                alt="VYBE — noodles, wings, and fresh meals"
+                width={900}
+                height={900}
+                className="max-h-full w-full object-contain object-center drop-shadow-2xl"
+                decoding="async"
+                fetchPriority="high"
+              />
+            ) : (
+              <Image
+                src={ASSETS.heroCollage}
+                alt="VYBE — noodles, wings, and fresh meals"
+                width={900}
+                height={900}
+                className="max-h-full w-full object-contain object-center drop-shadow-2xl"
+                priority
+              />
+            )}
+          </div>
+        </div>
+      </main>
     </div>
   );
 }

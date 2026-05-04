@@ -353,7 +353,7 @@ export function RiderDashboardScreen() {
                     }}
                   >
                     {actionLoadingId === o.id ? (
-                      <ActivityIndicator color="#facc15" />
+                      <ActivityIndicator color={tokens.primary} />
                     ) : (
                       <Text style={styles.pickBtnText}>Pick</Text>
                     )}
@@ -640,7 +640,7 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#facc15'
+    color: tokens.primary
   },
   section: {
     marginTop: 8
@@ -683,7 +683,7 @@ const styles = StyleSheet.create({
     minWidth: 72,
     alignItems: 'center'
   },
-  pickBtnText: { fontSize: 13, fontWeight: '700', color: '#facc15' },
+  pickBtnText: { fontSize: 13, fontWeight: '700', color: tokens.primary },
   pickBtnDisabled: { opacity: 0.45 },
   center: {
     paddingVertical: 24,

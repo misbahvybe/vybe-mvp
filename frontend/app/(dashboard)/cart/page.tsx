@@ -50,7 +50,7 @@ export default function CartPage() {
                   <div className="flex flex-col items-center justify-center gap-1">
                     <button
                       type="button"
-                      className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-lg"
+                      className="w-8 h-8 rounded-full bg-primary text-white shadow-soft flex items-center justify-center text-lg hover:bg-accent-hover"
                       onClick={() => updateQty(item.lineId, item.quantity + 1)}
                     >
                       +
@@ -58,7 +58,7 @@ export default function CartPage() {
                     <span className="text-sm font-medium">{String(item.quantity).padStart(2, '0')}</span>
                     <button
                       type="button"
-                      className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-lg"
+                      className="w-8 h-8 rounded-full bg-primary text-white shadow-soft flex items-center justify-center text-lg hover:bg-accent-hover"
                       onClick={() => updateQty(item.lineId, item.quantity - 1)}
                     >
                       −

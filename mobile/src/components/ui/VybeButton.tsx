@@ -65,12 +65,10 @@ const variantStyles = {
   },
   outline: {
     container: {
-      backgroundColor: 'transparent',
-      borderWidth: 2,
-      borderColor: tokens.primary
+      backgroundColor: tokens.primary
     },
-    label: { color: tokens.primary },
-    spinnerColor: tokens.primary as string
+    label: { color: tokens.white },
+    spinnerColor: tokens.white as string
   }
 };
 

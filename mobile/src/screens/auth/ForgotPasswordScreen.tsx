@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { api } from '@api/client';
+import { tokens } from '@theme/tokens';
 
 export function ForgotPasswordScreen() {
   const navigation = useNavigation<any>();
@@ -52,7 +53,7 @@ export function ForgotPasswordScreen() {
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color="#000" />
+            <ActivityIndicator color={tokens.white} />
           ) : (
             <Text style={styles.buttonText}>Send code</Text>
           )}
@@ -107,7 +108,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingVertical: 14,
     alignItems: 'center',
-    backgroundColor: '#facc15',
+    backgroundColor: tokens.primary,
     marginTop: 4,
   },
   buttonDisabled: {
@@ -115,7 +116,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontWeight: '600',
-    color: '#020617',
+    color: tokens.white,
     fontSize: 15,
   },
   linkButton: {

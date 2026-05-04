@@ -345,7 +345,7 @@ const styles = StyleSheet.create({
     borderRadius: 999
   },
   stopAlertBtnText: {
-    color: '#facc15',
+    color: tokens.primary,
     fontSize: 12,
     fontWeight: '700'
   },
@@ -431,7 +431,7 @@ const styles = StyleSheet.create({
   primaryPillText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#facc15'
+    color: tokens.primary
   },
   secondaryPill: {
     borderRadius: 999,

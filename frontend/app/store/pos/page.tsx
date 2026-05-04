@@ -265,7 +265,7 @@ export default function StorePosPage() {
             <span
               className={`text-xs px-2 py-1 rounded-full border shrink-0 ${
                 qzPrintConfigured
-                  ? 'border-violet-200 bg-violet-50 text-violet-800'
+                  ? 'border-primary/25 bg-primary/10 text-primary'
                   : 'border-slate-200 bg-slate-50 text-slate-600'
               }`}
               title={

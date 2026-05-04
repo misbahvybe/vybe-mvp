@@ -12,6 +12,7 @@ import {
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { api } from '@api/client';
 import { useAuthStore } from '@store/auth';
+import { tokens } from '@theme/tokens';
 
 export function PartnerInviteScreen() {
   const route = useRoute<any>();
@@ -194,7 +195,7 @@ const styles = StyleSheet.create({
   },
   err: { color: '#fca5a5', marginBottom: 12, fontSize: 13 },
   btn: {
-    backgroundColor: '#7c3aed',
+    backgroundColor: tokens.primary,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',

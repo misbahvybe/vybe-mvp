@@ -191,7 +191,7 @@ export function AddressMapPicker({
             type="button"
             onClick={() => tryGeolocate()}
             disabled={geoState === 'pending'}
-            className="text-sm font-medium text-primary px-3 py-2 rounded-button border border-primary shrink-0 min-h-[44px] hover:bg-primary/5 disabled:opacity-50"
+            className="text-sm font-semibold text-white px-3 py-2 rounded-button bg-primary shadow-soft shrink-0 min-h-[44px] hover:bg-accent-hover disabled:opacity-50"
           >
             {geoState === 'pending' ? 'Please wait…' : 'Use my current location'}
           </button>
@@ -214,7 +214,7 @@ export function AddressMapPicker({
               type="button"
               onClick={() => setSatelliteMode(false)}
               className={`px-3 py-2 text-xs font-semibold min-h-[40px] transition-colors ${
-                !satelliteMode ? 'bg-primary text-white' : 'bg-white/95 text-slate-700 hover:bg-white'
+                !satelliteMode ? 'bg-primary text-white' : 'bg-primary/20 text-white hover:bg-primary/30'
               }`}
             >
               Map
@@ -223,7 +223,7 @@ export function AddressMapPicker({
               type="button"
               onClick={() => setSatelliteMode(true)}
               className={`px-3 py-2 text-xs font-semibold min-h-[40px] transition-colors border-l border-white/50 ${
-                satelliteMode ? 'bg-primary text-white' : 'bg-white/95 text-slate-700 hover:bg-white'
+                satelliteMode ? 'bg-primary text-white' : 'bg-primary/20 text-white hover:bg-primary/30'
               }`}
             >
               Satellite
@@ -233,7 +233,7 @@ export function AddressMapPicker({
         {ready && (
           <p className="absolute bottom-2 left-2 right-2 text-center text-xs text-white bg-black/55 rounded py-2 px-2 z-[1000]">
             <span className="block sm:inline">
-              The <span className="font-semibold">Map</span> view shows streets only — use <span className="font-semibold">Satellite</span> to see buildings, then place the purple pin on your home or gate.
+              The <span className="font-semibold">Map</span> view shows streets only — use <span className="font-semibold">Satellite</span> to see buildings, then place the red pin on your home or gate.
             </span>{' '}
             Tap the map or drag the pin to adjust.
           </p>

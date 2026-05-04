@@ -240,9 +240,9 @@ export default function AdminDashboardPage() {
           </Card>
         </Link>
         <Link href="/admin/orders?status=READY_FOR_PICKUP">
-          <Card className="p-4 border-l-4 border-purple-400 hover:shadow-md transition-shadow">
+          <Card className="p-4 border-l-4 border-primary hover:shadow-md transition-shadow">
             <p className="text-xs text-slate-500 uppercase">Ready</p>
-            <p className="text-2xl font-bold text-purple-700">{counts.readyForPickup}</p>
+            <p className="text-2xl font-bold text-primary">{counts.readyForPickup}</p>
           </Card>
         </Link>
         <Link href="/admin/orders?status=out_for_delivery">
