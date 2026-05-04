@@ -112,7 +112,7 @@ export default function LandingPage() {
           <p
             className={`mx-auto mt-3 max-w-md text-sm font-medium leading-snug text-white/95 sm:mt-5 sm:text-base sm:leading-relaxed md:mt-6 md:text-lg lg:mx-0 ${inter.className}`}
           >
-            We charge 10% commission, Foodpanda charges 35%.
+            Fair pricing for restaurants — keep more of what you earn.
           </p>
 
           <div className="mt-4 flex flex-wrap items-center justify-center gap-3 sm:mt-6 md:mt-8 lg:justify-start">
