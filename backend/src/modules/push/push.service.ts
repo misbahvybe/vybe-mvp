@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../common/prisma/prisma.service';
 // CJS module: default import becomes `require(...).default` → undefined without esModuleInterop
 import * as webpush from 'web-push';
-import { Expo, ExpoPushMessage } from 'expo-server-sdk';
+import type { Expo, ExpoPushMessage } from 'expo-server-sdk';
 
 type PushPayload = {
   title: string;
@@ -17,7 +17,8 @@ type PushPayload = {
 export class PushService {
   private readonly logger = new Logger(PushService.name);
   private configured = false;
-  private readonly expo = new Expo();
+  private expoClient: Expo | null = null;
+  private expoModulePromise: Promise<{ Expo: typeof Expo }> | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -36,6 +37,18 @@ export class PushService {
 
   isConfigured(): boolean {
     return this.configured;
+  }
+
+  private async getExpo(): Promise<Expo> {
+    if (this.expoClient) return this.expoClient;
+    if (!this.expoModulePromise) {
+      // `expo-server-sdk` is ESM-only on newer versions. Nest builds CJS, so we must load it dynamically.
+      this.expoModulePromise = import('expo-server-sdk') as any;
+    }
+    const mod = await this.expoModulePromise;
+    // @ts-expect-error runtime module provides Expo constructor
+    this.expoClient = new mod.Expo();
+    return this.expoClient;
   }
 
   async upsertSubscription(params: {
@@ -130,6 +143,7 @@ export class PushService {
     userId: string,
     payload: PushPayload & { channelId?: string; sound?: 'default' | null; priority?: 'default' | 'high' },
   ): Promise<{ sent: number }> {
+    const mod = (await (this.expoModulePromise ?? (this.expoModulePromise = (import('expo-server-sdk') as any)))) as any;
     const rows = await (this.prisma as any).mobilePushToken.findMany({
       where: { userId },
       select: { token: true },
@@ -137,7 +151,7 @@ export class PushService {
     });
     const tokens = (rows as Array<{ token: string }>)
       .map((r: { token: string }) => r.token)
-      .filter((t: string) => Expo.isExpoPushToken(t));
+      .filter((t: string) => mod.Expo?.isExpoPushToken?.(t));
     if (tokens.length === 0) return { sent: 0 };
 
     const messages: ExpoPushMessage[] = tokens.map((to) => ({
@@ -151,10 +165,11 @@ export class PushService {
     }));
 
     let sent = 0;
-    const chunks = this.expo.chunkPushNotifications(messages);
+    const expo = await this.getExpo();
+    const chunks = expo.chunkPushNotifications(messages);
     for (const chunk of chunks) {
       try {
-        const tickets = await this.expo.sendPushNotificationsAsync(chunk);
+        const tickets = await expo.sendPushNotificationsAsync(chunk);
         for (let i = 0; i < tickets.length; i++) {
           const ticket = tickets[i];
           if (ticket.status === 'ok') {
