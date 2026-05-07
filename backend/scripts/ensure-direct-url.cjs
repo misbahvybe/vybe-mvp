@@ -36,6 +36,15 @@ if (args.length === 0) {
   process.exit(1);
 }
 
+// Railway commonly starts multiple instances at once; Prisma migrate uses a Postgres advisory lock
+// with a short 10s acquisition timeout, which can fail during concurrent deploys.
+// Disabling advisory locks for `migrate deploy` avoids that failure mode.
+// (Does not use any shadow DB.)
+const cmdStr = args.map(String).join(' ');
+if (cmdStr.includes('prisma') && cmdStr.includes('migrate') && cmdStr.includes('deploy')) {
+  process.env.PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK = process.env.PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK ?? '1';
+}
+
 const result = spawnSync(args[0], args.slice(1), {
   stdio: 'inherit',
   env: process.env,

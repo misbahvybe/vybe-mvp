@@ -21,4 +21,4 @@ RUN npx prisma generate
 EXPOSE 4000
 
 # Apply pending DB migrations before boot (required when schema changes between deploys)
-CMD ["sh", "-c", "node scripts/ensure-direct-url.cjs npx prisma migrate deploy && node dist/src/main.js"]
+CMD ["sh", "-c", "PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=1 node scripts/ensure-direct-url.cjs npx prisma migrate deploy && node dist/src/main.js"]
