@@ -88,6 +88,11 @@ export class AdminController {
     return this.admin.getStores(platform, includeUnapproved === 'true');
   }
 
+  @Get('stores/:storeId/profile')
+  async getStoreProfileForAdmin(@Param('storeId') storeId: string) {
+    return this.admin.getStoreProfileForAdmin(storeId);
+  }
+
   /**
    * Platform verticals (food/grocery/medicine) for a store — alternate path so production
    * proxies / older route tables cannot shadow `stores/:id/platform-categories`.

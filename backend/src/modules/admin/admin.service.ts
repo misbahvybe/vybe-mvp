@@ -24,6 +24,49 @@ export class AdminService {
     private readonly stores: StoresService,
   ) {}
 
+  async getStoreProfileForAdmin(storeId: string) {
+    const store = await this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        imageUrl: true,
+        phone: true,
+        address: true,
+        city: true,
+        latitude: true,
+        longitude: true,
+        isOpen: true,
+        acceptingOrders: true,
+        openingTime: true,
+        closingTime: true,
+        status: true,
+        minimumOrderValue: true,
+      },
+    });
+
+    if (!store) throw new NotFoundException('Store not found');
+
+    return {
+      id: store.id,
+      name: store.name,
+      description: store.description,
+      imageUrl: store.imageUrl,
+      phone: store.phone,
+      address: store.address,
+      city: store.city,
+      latitude: store.latitude,
+      longitude: store.longitude,
+      isOpen: store.isOpen,
+      acceptingOrders: store.acceptingOrders,
+      openingTime: store.openingTime,
+      closingTime: store.closingTime,
+      status: store.status,
+      minimumOrderValue: Number(store.minimumOrderValue ?? 0),
+    };
+  }
+
   private adminMetricsTtlSeconds(): number {
     const n = Number(this.config.get<string>('ADMIN_METRICS_CACHE_TTL_SECONDS') ?? 45);
     return Number.isFinite(n) && n > 0 ? Math.min(n, 300) : 45;

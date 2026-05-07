@@ -267,12 +267,20 @@ export default function AdminStoresPage() {
                       </div>
                     </td>
                     <td className="p-3 text-right">
-                      <Link
-                        href={`/admin/stores/${s.id}/menu`}
-                        className="text-primary text-sm font-medium inline-flex items-center gap-1"
-                      >
-                        Menu <ChevronRight className="w-4 h-4" />
-                      </Link>
+                      <div className="inline-flex items-center justify-end gap-3">
+                        <Link
+                          href={`/admin/stores/${s.id}/menu`}
+                          className="text-primary text-sm font-medium inline-flex items-center gap-1"
+                        >
+                          Menu <ChevronRight className="w-4 h-4" />
+                        </Link>
+                        <Link
+                          href={`/admin/stores/${s.id}/settings`}
+                          className="text-slate-600 text-sm font-medium inline-flex items-center gap-1 hover:text-primary"
+                        >
+                          Settings <ChevronRight className="w-4 h-4" />
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}
