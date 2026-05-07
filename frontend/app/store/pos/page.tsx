@@ -478,7 +478,7 @@ export default function StorePosPage() {
             </div>
 
             {!detail ? (
-              <p className="text-sm text-slate-600 mt-3">Tap an order on the left to view items and total.</p>
+              <p className="text-sm text-slate-600 mt-3">Tap an order on the left to view items.</p>
             ) : (
               <div className="mt-3 space-y-3">
                 <div className="flex items-center justify-between">
@@ -488,8 +488,8 @@ export default function StorePosPage() {
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-600">Total</span>
-                  <span className="text-xl font-bold text-accent">Rs {fmtMoney(detail.totalAmount)}</span>
+                  <span className="text-sm text-slate-600">Pricing</span>
+                  <span className="text-sm font-semibold text-slate-500">Hidden for restaurant view</span>
                 </div>
                 {detail.address?.fullAddress ? (
                   <div>
@@ -501,11 +501,8 @@ export default function StorePosPage() {
                   <p className="text-xs uppercase tracking-wide text-slate-500">Items</p>
                   <ul className="mt-2 space-y-1">
                     {detail.items?.map((i, idx) => (
-                      <li key={idx} className="flex justify-between gap-2 text-sm">
-                        <span className="text-slate-700">
-                          {i.product?.name ?? 'Item'} × {Number(i.quantity)}
-                        </span>
-                        <span className="text-slate-800 font-medium">Rs {fmtMoney(Number(i.price) * Number(i.quantity))}</span>
+                      <li key={idx} className="text-sm text-slate-700">
+                        {i.product?.name ?? 'Item'} × {Number(i.quantity)}
                       </li>
                     ))}
                   </ul>
@@ -569,9 +566,7 @@ function OrderCard({
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-base font-bold text-slate-800">{formatOrderNo(o.orderNumber, o.id)}</p>
-            <p className="text-sm text-slate-600 mt-0.5">
-              {o.items.length} items · Rs {fmtMoney(o.totalAmount)}
-            </p>
+            <p className="text-sm text-slate-600 mt-0.5">{o.items.length} items</p>
           </div>
           <span className="text-xs text-slate-500">{timeHHMM(o.createdAt)}</span>
         </div>

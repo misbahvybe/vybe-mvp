@@ -23,6 +23,7 @@ import { UpstashModule } from './common/upstash/upstash.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { SearchModule } from './modules/search/search.module';
 import { PushModule } from './modules/push/push.module';
+import { ReferralsModule } from './modules/referrals/referrals.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { PushModule } from './modules/push/push.module';
     NotificationsModule,
     SearchModule,
     PushModule,
+    ReferralsModule,
     HealthModule,
     UploadsModule,
     BankPaymentsModule,

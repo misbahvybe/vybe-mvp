@@ -8,9 +8,10 @@ import { JazzCashModule } from '../jazzcash/jazzcash.module';
 import { EasypaisaModule } from '../easypaisa/easypaisa.module';
 import { RidersModule } from '../riders/riders.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { ReferralsModule } from '../referrals/referrals.module';
 
 @Module({
-  imports: [PricingModule, RealtimeModule, StoresModule, JazzCashModule, EasypaisaModule, RidersModule, NotificationsModule],
+  imports: [PricingModule, RealtimeModule, StoresModule, JazzCashModule, EasypaisaModule, RidersModule, NotificationsModule, ReferralsModule],
   controllers: [OrdersController],
   providers: [OrdersService],
   exports: [OrdersService],

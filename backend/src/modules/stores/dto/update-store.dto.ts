@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsBoolean, Matches, IsNumber } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, Matches, IsNumber, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class UpdateStoreDto {
@@ -53,4 +53,10 @@ export class UpdateStoreDto {
   @IsOptional()
   @IsBoolean()
   acceptingOrders?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  minimumOrderValue?: number;
 }

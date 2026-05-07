@@ -113,6 +113,7 @@ export class StoresService {
     if (dto.closingTime !== undefined) data.closingTime = dto.closingTime;
     if (dto.isOpen !== undefined) data.isOpen = dto.isOpen;
     if (dto.acceptingOrders !== undefined) data.acceptingOrders = dto.acceptingOrders;
+    if (dto.minimumOrderValue !== undefined) data.minimumOrderValue = new Decimal(dto.minimumOrderValue);
     const updated = await this.prisma.store.update({ where: { id: store.id }, data });
     await this.invalidatePublicStoreListCache().catch(() => undefined);
     return updated;
@@ -842,5 +843,26 @@ export class StoresService {
     const variant = await this.prisma.productVariant.findFirst({ where: { id: variantId, productId } });
     if (!variant) throw new BadRequestException('Variant not found');
     return this.prisma.productVariant.delete({ where: { id: variantId } });
+  }
+
+  async adminUpdateStoreProfile(storeId: string, dto: UpdateStoreDto) {
+    await this.requireStore(storeId);
+    const data: Record<string, unknown> = {};
+    if (dto.name !== undefined) data.name = dto.name;
+    if (dto.description !== undefined) data.description = dto.description;
+    if (dto.imageUrl !== undefined) data.imageUrl = dto.imageUrl;
+    if (dto.phone !== undefined) data.phone = dto.phone;
+    if (dto.address !== undefined) data.address = dto.address;
+    if (dto.city !== undefined) data.city = dto.city;
+    if (dto.latitude !== undefined) data.latitude = dto.latitude;
+    if (dto.longitude !== undefined) data.longitude = dto.longitude;
+    if (dto.openingTime !== undefined) data.openingTime = dto.openingTime;
+    if (dto.closingTime !== undefined) data.closingTime = dto.closingTime;
+    if (dto.isOpen !== undefined) data.isOpen = dto.isOpen;
+    if (dto.acceptingOrders !== undefined) data.acceptingOrders = dto.acceptingOrders;
+    if (dto.minimumOrderValue !== undefined) data.minimumOrderValue = new Decimal(dto.minimumOrderValue);
+    const updated = await this.prisma.store.update({ where: { id: storeId }, data });
+    await this.invalidatePublicStoreListCache().catch(() => undefined);
+    return updated;
   }
 }

@@ -91,6 +91,11 @@ enum MedicineFormHint {
   OTHER
 }
 
+enum ReferralRewardStatus {
+  PENDING
+  ISSUED
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // 1️⃣ USERS
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -100,6 +105,10 @@ model User {
   name                 String
   email                String?   @unique
   phone                String    @unique
+  /// Public referral code users can share with friends.
+  referralCode         String?   @unique @map("referral_code")
+  /// Upline referrer (if this account was created via referral).
+  referredByUserId     String?   @map("referred_by_user_id")
   password             String?   // hashed
   role                 Role      @default(CUSTOMER)
   isVerified           Boolean   @default(false) @map("is_verified")
@@ -131,8 +140,14 @@ model User {
   orderRiderChanges OrderRiderChange[] @relation("OrderRiderChangeAdmin")
   notifications     Notification[]
   webPushSubscriptions WebPushSubscription[]
+  mobilePushTokens  MobilePushToken[]
+  referrals         User[]   @relation("UserReferrals")
+  referredBy        User?    @relation("UserReferrals", fields: [referredByUserId], references: [id], onDelete: SetNull)
+  referralRewardsAsReferrer ReferralReward[] @relation("ReferralRewardReferrer")
+  referralRewardsAsReferred ReferralReward[] @relation("ReferralRewardReferred")
 
   @@index([phone])
+  @@index([referredByUserId])
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -217,6 +232,8 @@ model Store {
   commissionPercentOverride Decimal? @map("commission_percent_override") @db.Decimal(5, 2)
   /// Customer sees catalogue price × (1 + this/100). Admin-configurable per store (default 10 = +10%).
   customerPriceMarkupPercent Decimal @default(10) @map("customer_price_markup_percent") @db.Decimal(5, 2)
+  /// Minimum cart subtotal required to place an order for this store (PKR).
+  minimumOrderValue Decimal @default(500) @map("minimum_order_value") @db.Decimal(10, 2)
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
@@ -317,6 +334,41 @@ model WebPushSubscription {
 
   @@index([userId])
   @@map("web_push_subscriptions")
+}
+
+model MobilePushToken {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  token      String   @unique
+  platform   String?
+  deviceName String?  @map("device_name")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("mobile_push_tokens")
+}
+
+model ReferralReward {
+  id             String               @id @default(uuid())
+  referrerId     String               @map("referrer_id")
+  referredUserId String               @map("referred_user_id")
+  orderId        String               @unique @map("order_id")
+  couponCode     String               @unique @map("coupon_code")
+  status         ReferralRewardStatus @default(PENDING)
+  eligibleAt     DateTime             @map("eligible_at")
+  issuedAt       DateTime?            @map("issued_at")
+  createdAt      DateTime             @default(now()) @map("created_at")
+
+  referrer   User  @relation("ReferralRewardReferrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  referredBy User  @relation("ReferralRewardReferred", fields: [referredUserId], references: [id], onDelete: Cascade)
+  order      Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([referrerId, status, eligibleAt])
+  @@index([referredUserId])
+  @@map("referral_rewards")
 }
 
 model StoreToCategory {
@@ -453,6 +505,7 @@ model Order {
   items     OrderItem[]
   riderEarning RiderEarning?
   storeEarning StoreEarning?
+  referralReward ReferralReward?
   statusHistory OrderStatusHistory[]
   riderChanges OrderRiderChange[] @relation("OrderRiderChanges")
 

@@ -28,6 +28,7 @@ import { OrdersGateway } from '../realtime/orders.gateway';
 import { StoresService } from '../stores/stores.service';
 import { RidersService } from '../riders/riders.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ReferralsService } from '../referrals/referrals.service';
 import { isStoreWithinPostedHours } from '../../common/store/store-hours.util';
 import { formatOrderNoForDisplay } from '../../common/format/order-number';
 import {
@@ -45,6 +46,7 @@ import {
 } from '../../common/pos/pos-workflow.util';
 import { assertOrderCartItemsAndTotals } from '../../common/pricing/assert-order-cart-items';
 import { customerUnitPriceFromBase } from '../../common/pricing/customer-price-markup.util';
+import { resolveStoreMinOrderSubtotalPkr } from '../../common/constants/order-minimum';
 
 /** Set `false` when Stripe / XPay keys are ready and clients show those options again. */
 const PAYMENTS_COD_ONLY = true;
@@ -64,6 +66,7 @@ export class OrdersService {
     private readonly stores: StoresService,
     private readonly riders: RidersService,
     private readonly notifications: NotificationsService,
+    private readonly referrals: ReferralsService,
   ) {}
 
   async prepareJazzCash(customerId: string, dto: PrepareXPayDto) {
@@ -334,6 +337,7 @@ export class OrdersService {
     const { subtotal, subtotalBase } = await this.assertItemsAndSubtotal(this.prisma, dto.storeId, dto.items, {
       checkStock: false,
     });
+    this.assertStoreMinimumOrderSubtotal(store, subtotal);
     const useCard = !PAYMENTS_COD_ONLY && dto.paymentMethod === 'CARD';
     const useManualMvp = isManualMvpEnabled() && dto.paymentMethod === 'MANUAL';
     const prior = await this.priorPlacedOrderCountForPromos(customerId);
@@ -655,6 +659,7 @@ export class OrdersService {
           },
         );
         const subtotalDecimal = new Decimal(subtotalAmount);
+        this.assertStoreMinimumOrderSubtotal(store, subtotalAmount);
 
         const q = await this.pricing.buildQuote({
           storeId: dto.storeId,
@@ -965,6 +970,18 @@ export class OrdersService {
     const tz = this.config.get<string>('BUSINESS_TIMEZONE', 'Asia/Karachi');
     if (!isStoreWithinPostedHours(store, { timeZone: tz })) {
       throw new BadRequestException('Store is closed. Please try again during business hours.');
+    }
+  }
+
+  private assertStoreMinimumOrderSubtotal(
+    store: { minimumOrderValue?: Decimal | null },
+    subtotal: number,
+  ): void {
+    const minRequired = resolveStoreMinOrderSubtotalPkr(
+      store.minimumOrderValue != null ? Number(store.minimumOrderValue) : null,
+    );
+    if (!Number.isFinite(subtotal) || subtotal < minRequired) {
+      throw new BadRequestException(`Minimum order value is Rs ${minRequired}. Add more items to continue.`);
     }
   }
 
@@ -1352,6 +1369,9 @@ export class OrdersService {
     }
     if (toStatus === OrderStatus.DELIVERED && updated.riderId) {
       await this.riders.emitCodWalletSnapshotForRider(updated.riderId);
+    }
+    if (toStatus === OrderStatus.DELIVERED) {
+      await this.referrals.processCompletedFirstOrder(updated.customerId, updated.id);
     }
 
     this.ordersGateway.emitAdminPipelineUpdated();

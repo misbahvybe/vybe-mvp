@@ -428,7 +428,6 @@ export function PartnerOrderDetailScreen() {
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Products</Text>
           {order.items.map((item) => {
-            const lineTotal = Number(item.quantity) * Number(item.price);
             return (
               <View key={item.id} style={styles.itemRow}>
                 <View style={{ flex: 1 }}>
@@ -446,13 +445,12 @@ export function PartnerOrderDetailScreen() {
                     </View>
                   )}
                 </View>
-                <Text style={styles.lineTotal}>Rs {lineTotal.toFixed(0)}</Text>
               </View>
             );
           })}
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>Rs {Number(order.totalAmount).toFixed(0)}</Text>
+            <Text style={styles.totalLabel}>Pricing</Text>
+            <Text style={styles.totalValue}>Hidden for restaurant view</Text>
           </View>
         </View>
       </ScrollView>
@@ -584,7 +582,6 @@ const styles = StyleSheet.create({
     borderColor: tokens.slate200,
   },
   miniBtnText: { fontSize: 11, fontWeight: '600', color: tokens.slate600 },
-  lineTotal: { fontSize: 14, fontWeight: '700', color: tokens.accent },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

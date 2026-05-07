@@ -14,6 +14,7 @@ import { AddPaymentMethodDto } from './dto/add-payment-method.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { Decimal } from '@prisma/client/runtime/library';
+import { ReferralsService } from '../referrals/referrals.service';
 
 const PASSWORD_SALT_ROUNDS = 10;
 
@@ -22,6 +23,7 @@ export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly stripe: StripeService,
+    private readonly referrals: ReferralsService,
   ) {}
 
   async findById(id: string): Promise<User | null> {
@@ -31,13 +33,15 @@ export class UsersService {
   }
 
   async getProfile(id: string) {
-    const user = await this.prisma.user.findUnique({
+    const user = await (this.prisma.user as any).findUnique({
       where: { id },
       select: {
         id: true,
         name: true,
         email: true,
         phone: true,
+        referralCode: true,
+        referredByUserId: true,
         role: true,
         isVerified: true,
         isActive: true,
@@ -48,7 +52,7 @@ export class UsersService {
         riderProfile: true,
         ownedStores: { select: { id: true, name: true, isApproved: true } },
       },
-    });
+    }) as any;
     if (!user) return user;
     const { password, ...rest } = user;
     return { ...rest, hasPassword: Boolean(password) };
@@ -235,5 +239,9 @@ export class UsersService {
     return this.prisma.savedPaymentMethod.findFirst({
       where: { id, userId },
     });
+  }
+
+  async getReferralSummary(userId: string) {
+    return this.referrals.getReferralSummary(userId);
   }
 }

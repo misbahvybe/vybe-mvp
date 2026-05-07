@@ -21,6 +21,7 @@ export function SignupScreen() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [referralCode, setReferralCode] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSignup = async () => {
@@ -42,6 +43,7 @@ export function SignupScreen() {
         phone: phone.trim(),
         password,
         confirmPassword,
+        referralCode: referralCode.trim() || undefined,
       });
       setSession(data.access_token, data.user);
     } catch (e: any) {
@@ -88,6 +90,14 @@ export function SignupScreen() {
           value={confirmPassword}
           onChangeText={setConfirmPassword}
           secureTextEntry
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Referral code (optional)"
+          placeholderTextColor="#94a3b8"
+          value={referralCode}
+          onChangeText={setReferralCode}
+          autoCapitalize="characters"
         />
 
         <TouchableOpacity

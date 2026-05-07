@@ -34,11 +34,22 @@ export class AuthService {
       throw new ConflictException('Email or phone already registered');
     }
     const passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
-    const user = await this.prisma.user.create({
+    const referredBy = dto.referralCode?.trim()
+      ? await (this.prisma.user as any).findFirst({
+          where: { referralCode: dto.referralCode.trim().toUpperCase() },
+          select: { id: true },
+        })
+      : null;
+    if (dto.referralCode?.trim() && !referredBy) {
+      throw new ConflictException('Invalid referral code');
+    }
+    const user = await (this.prisma.user as any).create({
       data: {
         name: dto.name,
         email: emailTrim,
         phone: normalized,
+        referralCode: await this.generateUniqueReferralCode(),
+        referredByUserId: referredBy?.id ?? null,
         password: passwordHash,
         role: 'CUSTOMER',
         isVerified: true,
@@ -133,6 +144,19 @@ export class AuthService {
         role: user.role,
       },
     };
+  }
+
+  private async generateUniqueReferralCode(): Promise<string> {
+    for (let i = 0; i < 8; i++) {
+      const code = `VYBE${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+      const exists = await (this.prisma.user as any).findFirst({
+        where: { referralCode: code },
+        select: { id: true },
+      });
+      if (!exists) return code;
+    }
+    // Fallback with timestamp suffix to avoid collisions under burst signups.
+    return `VYBE${Date.now().toString(36).toUpperCase()}`.slice(0, 14);
   }
 
   private normalizePhone(phone: string): string {

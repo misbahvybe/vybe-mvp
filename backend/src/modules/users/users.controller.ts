@@ -18,6 +18,11 @@ export class UsersController {
     return this.users.getProfile(user.id);
   }
 
+  @Get('me/referrals')
+  async myReferrals(@CurrentUser() user: User) {
+    return this.users.getReferralSummary(user.id);
+  }
+
   @Patch('me')
   async updateMe(@CurrentUser() user: User, @Body() dto: UpdateProfileDto) {
     return this.users.updateProfile(user.id, dto);

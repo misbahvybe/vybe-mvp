@@ -53,8 +53,8 @@ export class NotificationsService {
       createdAt: row.createdAt,
     });
 
-    // Push notification (PWA). Only for high-signal events.
-    if (row.type === 'ORDER_NEW') {
+    // Push notification (PWA + mobile). Only for high-signal events.
+    if (row.type === 'ORDER_NEW' || row.type === 'ORDER_ASSIGNED' || row.type === 'REFERRAL_REWARD') {
       const data = row.dataJson ? safeJson(row.dataJson) : null;
       const orderId = data?.orderId;
       await this.push.sendToUser(row.userId, {
@@ -63,6 +63,14 @@ export class NotificationsService {
         url: orderId ? `/store/pos?orderId=${encodeURIComponent(orderId)}` : '/store/pos',
         tag: 'vybe-order-new',
         data,
+      });
+      await this.push.sendMobileToUser(row.userId, {
+        title: row.title,
+        body: row.body,
+        data,
+        channelId: 'orders',
+        sound: 'default',
+        priority: 'high',
       });
     }
 

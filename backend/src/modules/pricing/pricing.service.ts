@@ -72,6 +72,8 @@ function pakistanNowParts(now = new Date()): { day: number; minutes: number } {
 @Injectable()
 export class PricingService {
   private readonly logger = new Logger(PricingService.name);
+  private static readonly DELIVERY_FEE_MIN = new Decimal(49);
+  private static readonly DELIVERY_FEE_MAX = new Decimal(249);
 
   constructor(
     private readonly prisma: PrismaService,
@@ -273,7 +275,11 @@ export class PricingService {
       distanceKm = new Decimal(km.toFixed(4));
     }
     const fees = await this.resolveCheckoutFees();
-    const deliveryFeeGross = distanceKm.mul(fees.deliveryPerKm).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    const rawDelivery = distanceKm.mul(fees.deliveryPerKm).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    const deliveryFeeGross = Decimal.min(
+      PricingService.DELIVERY_FEE_MAX,
+      Decimal.max(PricingService.DELIVERY_FEE_MIN, rawDelivery),
+    );
     const waive = Boolean(params.waiveDeliveryFee);
     const deliveryFee = waive
       ? new Decimal(0)

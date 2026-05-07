@@ -394,6 +394,7 @@ export class AdminService {
       commissionPercentOverride:
         s.commissionPercentOverride != null ? Number(s.commissionPercentOverride) : null,
       customerPriceMarkupPercent: Number(s.customerPriceMarkupPercent),
+      minimumOrderValue: Number((s as any).minimumOrderValue ?? 500),
       platformCategories: s.categories.map((c) => c.category.name),
     }));
   }
@@ -421,6 +422,19 @@ export class AdminService {
     });
     await this.stores.invalidatePublicStoreListCache().catch(() => undefined);
     return { id: updated.id, customerPriceMarkupPercent: Number(updated.customerPriceMarkupPercent) };
+  }
+
+  async setStoreMinimumOrderValue(storeId: string, minimumOrderValue: number) {
+    const store = await this.prisma.store.findUnique({ where: { id: storeId } });
+    if (!store) throw new NotFoundException('Store not found');
+    const rounded = Math.max(0, Math.round(minimumOrderValue));
+    const updated = await this.prisma.store.update({
+      where: { id: storeId },
+      data: { minimumOrderValue: rounded },
+      select: { id: true, minimumOrderValue: true },
+    });
+    await this.stores.invalidatePublicStoreListCache().catch(() => undefined);
+    return { id: updated.id, minimumOrderValue: Number((updated as any).minimumOrderValue ?? rounded) };
   }
 
   /** Platform verticals (Food / Grocery / Medicine tabs on customer app). */

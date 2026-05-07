@@ -17,6 +17,7 @@ export default function SignupPage() {
     phone: '',
     password: '',
     confirmPassword: '',
+    referralCode: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -37,6 +38,7 @@ export default function SignupPage() {
         phone: form.phone.trim(),
         password: form.password,
         confirmPassword: form.confirmPassword,
+        referralCode: form.referralCode.trim() || undefined,
       });
       const user: User = { ...data.user, role: data.user.role as Role };
       setAuth(user, data.access_token);
@@ -97,6 +99,15 @@ export default function SignupPage() {
             onChange={(e) => setForm((f) => ({ ...f, confirmPassword: e.target.value }))}
             className="w-full px-4 py-3 rounded-button border border-slate-300 focus:ring-2 focus:ring-primary outline-none mb-6"
             autoComplete="new-password"
+          />
+          <label className="block text-sm font-medium text-slate-700 mb-2">Referral code (optional)</label>
+          <input
+            type="text"
+            value={form.referralCode}
+            onChange={(e) => setForm((f) => ({ ...f, referralCode: e.target.value }))}
+            className="w-full px-4 py-3 rounded-button border border-slate-300 focus:ring-2 focus:ring-primary outline-none mb-6 uppercase"
+            autoComplete="off"
+            placeholder="VYBEABC123"
           />
           <Button fullWidth size="lg" loading={loading} onClick={submitSignup}>
             Create account

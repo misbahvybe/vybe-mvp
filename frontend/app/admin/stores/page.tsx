@@ -20,6 +20,7 @@ interface StoreRow {
   isApproved: boolean;
   /** Percent added on top of store menu prices for customers (e.g. 10 = +10%). */
   customerPriceMarkupPercent: number;
+  minimumOrderValue?: number;
 }
 
 export default function AdminStoresPage() {
@@ -28,6 +29,8 @@ export default function AdminStoresPage() {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [markupSavingId, setMarkupSavingId] = useState<string | null>(null);
   const [markupInputs, setMarkupInputs] = useState<Record<string, string>>({});
+  const [minimumOrderInputs, setMinimumOrderInputs] = useState<Record<string, string>>({});
+  const [minimumOrderSavingId, setMinimumOrderSavingId] = useState<string | null>(null);
   const [filter, setFilter] = useState<'ALL' | 'INVITED' | 'ACTIVE' | 'INACTIVE'>('ALL');
 
   const fetchStores = () => {
@@ -39,6 +42,9 @@ export default function AdminStoresPage() {
         setStores(list);
         setMarkupInputs(
           Object.fromEntries(list.map((s) => [s.id, String(s.customerPriceMarkupPercent ?? 10)])),
+        );
+        setMinimumOrderInputs(
+          Object.fromEntries(list.map((s) => [s.id, String(s.minimumOrderValue ?? 500)])),
         );
       })
       .catch(() => setStores([]))
@@ -79,6 +85,29 @@ export default function AdminStoresPage() {
       setMarkupInputs((prev) => ({ ...prev, [storeId]: String(applied) }));
     } finally {
       setMarkupSavingId(null);
+    }
+  };
+
+  const saveMinimumOrder = async (storeId: string) => {
+    const raw = minimumOrderInputs[storeId]?.trim() ?? '';
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0) {
+      alert('Enter a valid minimum order value (PKR).');
+      return;
+    }
+    setMinimumOrderSavingId(storeId);
+    try {
+      const { data } = await api.patch<{ minimumOrderValue: number }>(
+        `/admin/stores/${storeId}/minimum-order`,
+        { minimumOrderValue: n },
+      );
+      const applied = data?.minimumOrderValue ?? Math.max(0, Math.round(n));
+      setStores((prev) =>
+        prev.map((s) => (s.id === storeId ? { ...s, minimumOrderValue: applied } : s)),
+      );
+      setMinimumOrderInputs((prev) => ({ ...prev, [storeId]: String(applied) }));
+    } finally {
+      setMinimumOrderSavingId(null);
     }
   };
 
@@ -137,6 +166,7 @@ export default function AdminStoresPage() {
                   <th className="text-left p-3 font-medium">Open</th>
                   <th className="text-left p-3 font-medium">Hours</th>
                   <th className="text-left p-3 font-medium">Customer markup %</th>
+                  <th className="text-left p-3 font-medium">Minimum order (PKR)</th>
                   <th className="text-right p-3 font-medium">Orders Today</th>
                   <th className="text-right p-3 font-medium">Revenue Today</th>
                   <th className="text-right p-3 font-medium">Actions</th>
@@ -149,6 +179,35 @@ export default function AdminStoresPage() {
                     <td className="p-3 font-medium">{s.name}</td>
                     <td className="p-3">
                       {statusPill(s.status)}
+                    </td>
+                    <td className="p-3">
+                      <div className="flex flex-wrap items-center gap-2 max-w-[220px]">
+                        <label className="sr-only" htmlFor={`min-order-${s.id}`}>
+                          Minimum order value for {s.name}
+                        </label>
+                        <input
+                          id={`min-order-${s.id}`}
+                          type="number"
+                          min={0}
+                          step={1}
+                          className="w-24 rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+                          value={minimumOrderInputs[s.id] ?? String(s.minimumOrderValue ?? 500)}
+                          onChange={(e) =>
+                            setMinimumOrderInputs((prev) => ({ ...prev, [s.id]: e.target.value }))
+                          }
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0 text-xs px-2 py-1"
+                          loading={minimumOrderSavingId === s.id}
+                          disabled={minimumOrderSavingId === s.id}
+                          onClick={() => saveMinimumOrder(s.id)}
+                        >
+                          Save
+                        </Button>
+                      </div>
                     </td>
                     <td className="p-3">
                       <span className={s.isOpen ? 'text-green-600' : 'text-red-600'}>

@@ -32,6 +32,13 @@
         {
           "locationWhenInUsePermission": "VYBE Superapp uses your location to show nearest pickup orders."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#F9A31E",
+          "defaultChannel": "orders"
+        }
       ]
     ],
     "extra": {

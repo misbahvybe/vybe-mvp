@@ -47,6 +47,23 @@ import { BulkHardDeleteOrdersDto } from './dto/bulk-hard-delete-orders.dto';
 export class OrdersController {
   constructor(private readonly orders: OrdersService) {}
 
+  private redactStoreOwnerPricing<T extends { items?: Array<Record<string, unknown>> }>(order: T): T {
+    return {
+      ...order,
+      subtotalAmount: null,
+      deliveryFee: null,
+      serviceFee: null,
+      gstAmount: null,
+      cardProcessingAmount: null,
+      totalAmount: null,
+      commissionAmount: null,
+      items: (order.items ?? []).map((item) => ({
+        ...item,
+        price: null,
+      })),
+    } as T;
+  }
+
   @Public()
   @Get('xpay-callback')
   async xpayCallback(
@@ -179,7 +196,11 @@ export class OrdersController {
   @UseGuards(JwtAuthGuard)
   @Get()
   async list(@CurrentUser() user: User) {
-    return this.orders.findForUser(user.id, user.role);
+    const rows = await this.orders.findForUser(user.id, user.role);
+    if (user.role === 'STORE_OWNER') {
+      return rows.map((row) => this.redactStoreOwnerPricing(row as any));
+    }
+    return rows;
   }
 
   @UseGuards(JwtAuthGuard)
@@ -374,6 +395,11 @@ export class OrdersController {
       ) {
         throw new ForbiddenException('Order not found');
       }
+      const allowed = await this.orders.getAllowedTransitionsForOrder(
+        { orderStatus: order.orderStatus, paymentMethod: order.paymentMethod, paymentStatus: order.paymentStatus },
+        user.role,
+      );
+      return { ...this.redactStoreOwnerPricing(order as any), allowedTransitions: allowed };
     }
     if (user.role === 'RIDER') {
       const canViewOpenPool =

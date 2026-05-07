@@ -23,4 +23,9 @@ export class SignupDto {
 
   @IsString()
   confirmPassword: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(4)
+  referralCode?: string;
 }

@@ -23,6 +23,8 @@ import { UpdateStoreStatusDto } from './dto/update-store-status.dto';
 import { SetStorePlatformCategoriesDto } from './dto/set-store-platform-categories.dto';
 import { IngestReferenceDto } from './dto/ingest-reference.dto';
 import { ApproveDraftProductDto } from '../stores/dto/approve-draft-product.dto';
+import { UpdateStoreMinimumOrderDto } from './dto/update-store-minimum-order.dto';
+import { UpdateStoreDto } from '../stores/dto/update-store.dto';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -193,6 +195,19 @@ export class AdminController {
     @Body() dto: UpdateStoreCustomerMarkupDto,
   ) {
     return this.admin.setStoreCustomerPriceMarkup(storeId, dto.customerPriceMarkupPercent);
+  }
+
+  @Patch('stores/:storeId/minimum-order')
+  async patchStoreMinimumOrder(
+    @Param('storeId') storeId: string,
+    @Body() dto: UpdateStoreMinimumOrderDto,
+  ) {
+    return this.admin.setStoreMinimumOrderValue(storeId, dto.minimumOrderValue);
+  }
+
+  @Patch('stores/:storeId/profile')
+  async patchStoreProfile(@Param('storeId') storeId: string, @Body() dto: UpdateStoreDto) {
+    return this.stores.adminUpdateStoreProfile(storeId, dto);
   }
 
   @Patch('stores/:storeId/status')

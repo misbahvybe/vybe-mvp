@@ -60,6 +60,10 @@ type CheckoutEligibility = {
   bankManualDisplay: BankManualDisplay | null;
 };
 
+type StoreMinimumOrderPayload = {
+  minimumOrderValue?: string | number | null;
+};
+
 type PaymentSelect =
   | 'COD'
   | 'MVP_JAZZCASH'
@@ -88,6 +92,7 @@ function CheckoutContent() {
   const [otpBusy, setOtpBusy] = useState(false);
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [eligibilityFetchFailed, setEligibilityFetchFailed] = useState(false);
+  const [storeMinimumOrderPkr, setStoreMinimumOrderPkr] = useState<number>(MIN_ORDER_SUBTOTAL_PKR);
   const { copy: copyValue, toast: copyToast, clearToast: clearCopyToast } = useCopyToClipboard();
 
   const cartKey = useMemo(
@@ -126,11 +131,25 @@ function CheckoutContent() {
   }, [token]);
 
   useEffect(() => {
+    if (!token || !storeId) {
+      setStoreMinimumOrderPkr(MIN_ORDER_SUBTOTAL_PKR);
+      return;
+    }
+    api
+      .get<StoreMinimumOrderPayload>(`/stores/${storeId}`)
+      .then((res) => {
+        const raw = Number(res.data?.minimumOrderValue ?? MIN_ORDER_SUBTOTAL_PKR);
+        setStoreMinimumOrderPkr(Number.isFinite(raw) ? Math.max(0, Math.round(raw)) : MIN_ORDER_SUBTOTAL_PKR);
+      })
+      .catch(() => setStoreMinimumOrderPkr(MIN_ORDER_SUBTOTAL_PKR));
+  }, [token, storeId]);
+
+  useEffect(() => {
     if (!token || !storeId || !selectedAddressId || items.length === 0) {
       setQuote(null);
       return;
     }
-    if (subtotalPkr < MIN_ORDER_SUBTOTAL_PKR) {
+    if (subtotalPkr < storeMinimumOrderPkr) {
       setQuote(null);
       setQuoteLoading(false);
       return;
@@ -161,7 +180,7 @@ function CheckoutContent() {
     return () => {
       cancelled = true;
     };
-  }, [token, storeId, selectedAddressId, cartKey, items.length, payment, subtotalPkr, quotePaymentParam]);
+  }, [token, storeId, selectedAddressId, cartKey, items.length, payment, subtotalPkr, quotePaymentParam, storeMinimumOrderPkr]);
 
   useEffect(() => {
     const err = searchParams?.get('error');
@@ -250,8 +269,8 @@ function CheckoutContent() {
       setError('Verify the OTP sent to your phone before placing the order.');
       return;
     }
-    if (subtotalPkr < MIN_ORDER_SUBTOTAL_PKR) {
-      setError(`Minimum order is Rs ${MIN_ORDER_SUBTOTAL_PKR}. Add more items to your cart.`);
+    if (subtotalPkr < storeMinimumOrderPkr) {
+      setError(`Minimum order value is Rs ${storeMinimumOrderPkr}. Add more items to your cart.`);
       return;
     }
     setError('');
@@ -331,7 +350,7 @@ function CheckoutContent() {
     selectedAddressId &&
     items.length > 0 &&
     addresses.length > 0 &&
-    subtotalPkr >= MIN_ORDER_SUBTOTAL_PKR &&
+    subtotalPkr >= storeMinimumOrderPkr &&
     !eligibility?.isBlocked &&
     (!needsProofUpload || Boolean(proofFile));
 
@@ -348,8 +367,8 @@ function CheckoutContent() {
     else if (!selectedAddressId) hints.push('Select a delivery address.');
     if (!items.length) hints.push('Your cart is empty — go back to the store and add items.');
     if (items.length > 0 && !storeId) hints.push('Cart is missing store — clear the cart and add items again from one store.');
-    if (items.length > 0 && subtotalPkr < MIN_ORDER_SUBTOTAL_PKR) {
-      hints.push(`Cart subtotal must be at least Rs ${MIN_ORDER_SUBTOTAL_PKR} (before fees).`);
+    if (items.length > 0 && subtotalPkr < storeMinimumOrderPkr) {
+      hints.push(`Cart subtotal must be at least Rs ${storeMinimumOrderPkr} (before fees).`);
     }
     if (eligibility?.isBlocked) {
       const strikes =
@@ -377,6 +396,7 @@ function CheckoutContent() {
     storeId,
     items.length,
     subtotalPkr,
+    storeMinimumOrderPkr,
     eligibility?.isBlocked,
     eligibility?.orderStrikeCount,
     needsProofUpload,
@@ -700,10 +720,10 @@ function CheckoutContent() {
         )}
 
         <h2 className="text-lg font-bold text-slate-800 mb-2">Order summary</h2>
-        {subtotalPkr < MIN_ORDER_SUBTOTAL_PKR && items.length > 0 && (
+        {subtotalPkr < storeMinimumOrderPkr && items.length > 0 && (
           <Card className="mb-4 border-amber-200 bg-amber-50/80">
             <p className="text-sm text-amber-900">
-              Minimum order is <span className="font-semibold">Rs {MIN_ORDER_SUBTOTAL_PKR}</span> (cart subtotal). Your
+              Minimum order value is <span className="font-semibold">Rs {storeMinimumOrderPkr}</span> (cart subtotal). Your
               subtotal is Rs {subtotalPkr.toFixed(0)} — add more items to continue.
             </p>
           </Card>

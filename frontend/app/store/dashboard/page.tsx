@@ -115,6 +115,7 @@ function StoreDashboardInner() {
     openingTime?: string;
     closingTime?: string;
     posAutoAcceptOrders?: boolean;
+    minimumOrderValue?: number;
   } | null>(null);
   const [earnings, setEarnings] = useState<{
     today: { orders: number; revenue: number; commission: number; net: number };
@@ -369,9 +370,7 @@ function StoreDashboardInner() {
                         <p className="font-bold text-slate-800">{formatOrderNo(o.orderNumber, o.id)}</p>
                         <span className="text-xs text-slate-500">{timeAgo(o.createdAt)}</span>
                       </div>
-                      <p className="text-sm text-slate-600">
-                        {o.items.length} items · {Number(o.totalAmount).toLocaleString()} PKR
-                      </p>
+                      <p className="text-sm text-slate-600">{o.items.length} items</p>
                       <p className="text-xs text-slate-500 mt-1">
                         {o.paymentMethod === 'COD' ? (
                           <span className="inline-flex items-center gap-1"><Banknote className="w-3 h-3" /> COD</span>
@@ -484,7 +483,7 @@ function StoreDashboardInner() {
                   {delivered.slice(0, 10).map((o) => (
                     <Card key={o.id} className="p-3 flex justify-between items-center opacity-80">
                       <span className="font-medium">{formatOrderNo(o.orderNumber, o.id)}</span>
-                      <span className="text-accent font-semibold">{Number(o.totalAmount).toLocaleString()} PKR</span>
+                      <span className="text-slate-500 text-sm">Completed</span>
                     </Card>
                   ))}
                 </div>
@@ -1022,6 +1021,7 @@ function StoreSettingsTab({
     acceptingOrders?: boolean;
     openingTime?: string;
     closingTime?: string;
+    minimumOrderValue?: number;
   } | null;
   loading: boolean;
   onRefresh: () => void;
@@ -1039,6 +1039,7 @@ function StoreSettingsTab({
     closingTime: '22:00',
     isOpen: true,
     acceptingOrders: true,
+    minimumOrderValue: '500',
   });
   const [saving, setSaving] = useState(false);
 
@@ -1057,6 +1058,7 @@ function StoreSettingsTab({
         closingTime: store.closingTime ?? '22:00',
         isOpen: store.isOpen,
         acceptingOrders: store.acceptingOrders !== false,
+        minimumOrderValue: String(store.minimumOrderValue ?? 500),
       });
     }
   }, [store]);
@@ -1068,6 +1070,7 @@ function StoreSettingsTab({
         ...form,
         latitude: form.latitude ? Number(form.latitude) : undefined,
         longitude: form.longitude ? Number(form.longitude) : undefined,
+        minimumOrderValue: form.minimumOrderValue ? Number(form.minimumOrderValue) : undefined,
       });
       onRefresh();
     } catch (e) {
@@ -1207,6 +1210,16 @@ function StoreSettingsTab({
           <p className="text-xs text-slate-500 mt-2">
             Coordinates are set from the red pin. You can edit latitude / longitude below if needed.
           </p>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Minimum order value (PKR)</label>
+          <input
+            type="number"
+            min={0}
+            value={form.minimumOrderValue}
+            onChange={(e) => setForm((f) => ({ ...f, minimumOrderValue: e.target.value }))}
+            className="w-full px-3 py-2 border rounded-button"
+          />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>

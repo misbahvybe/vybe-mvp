@@ -47,6 +47,29 @@ export class PushController {
     });
   }
 
+  @Post('mobile/register')
+  async registerMobileToken(
+    @CurrentUser() user: User,
+    @Body() body: { token: string; platform?: string; deviceName?: string },
+  ) {
+    const token = String(body?.token ?? '').trim();
+    if (!token) return { ok: false, message: 'token is required' };
+    return this.push.upsertMobileToken({
+      userId: user.id,
+      token,
+      platform: body?.platform ?? null,
+      deviceName: body?.deviceName ?? null,
+    });
+  }
+
+  @Delete('mobile/unregister')
+  async unregisterMobileToken(
+    @CurrentUser() user: User,
+    @Body() body: { token: string },
+  ) {
+    return this.push.removeMobileToken(String(body?.token ?? '').trim(), user.id);
+  }
+
   @Delete('unsubscribe')
   async unsubscribe(
     @CurrentUser() user: User,

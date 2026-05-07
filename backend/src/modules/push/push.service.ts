@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../common/prisma/prisma.service';
 // CJS module: default import becomes `require(...).default` → undefined without esModuleInterop
 import * as webpush from 'web-push';
+import { Expo, ExpoPushMessage } from 'expo-server-sdk';
 
 type PushPayload = {
   title: string;
@@ -16,6 +17,7 @@ type PushPayload = {
 export class PushService {
   private readonly logger = new Logger(PushService.name);
   private configured = false;
+  private readonly expo = new Expo();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -66,6 +68,34 @@ export class PushService {
     return { ok: true as const };
   }
 
+  async upsertMobileToken(params: {
+    userId: string;
+    token: string;
+    platform?: string | null;
+    deviceName?: string | null;
+  }) {
+    const mobilePushToken = (this.prisma as any).mobilePushToken;
+    return mobilePushToken.upsert({
+      where: { token: params.token },
+      update: {
+        userId: params.userId,
+        platform: params.platform ?? null,
+        deviceName: params.deviceName ?? null,
+      },
+      create: {
+        userId: params.userId,
+        token: params.token,
+        platform: params.platform ?? null,
+        deviceName: params.deviceName ?? null,
+      },
+    });
+  }
+
+  async removeMobileToken(token: string, userId: string) {
+    await (this.prisma as any).mobilePushToken.deleteMany({ where: { token, userId } });
+    return { ok: true as const };
+  }
+
   async sendToUser(userId: string, payload: PushPayload): Promise<{ sent: number }> {
     if (!this.configured) return { sent: 0 };
     const subs = await this.prisma.webPushSubscription.findMany({
@@ -91,6 +121,55 @@ export class PushService {
         if (code === 404 || code === 410) {
           await this.prisma.webPushSubscription.deleteMany({ where: { endpoint: s.endpoint, userId } });
         }
+      }
+    }
+    return { sent };
+  }
+
+  async sendMobileToUser(
+    userId: string,
+    payload: PushPayload & { channelId?: string; sound?: 'default' | null; priority?: 'default' | 'high' },
+  ): Promise<{ sent: number }> {
+    const rows = await (this.prisma as any).mobilePushToken.findMany({
+      where: { userId },
+      select: { token: true },
+      take: 20,
+    });
+    const tokens = (rows as Array<{ token: string }>)
+      .map((r: { token: string }) => r.token)
+      .filter((t: string) => Expo.isExpoPushToken(t));
+    if (tokens.length === 0) return { sent: 0 };
+
+    const messages: ExpoPushMessage[] = tokens.map((to) => ({
+      to,
+      title: payload.title,
+      body: payload.body ?? undefined,
+      data: payload.data ?? undefined,
+      sound: payload.sound ?? 'default',
+      priority: payload.priority ?? 'high',
+      channelId: payload.channelId ?? 'orders',
+    }));
+
+    let sent = 0;
+    const chunks = this.expo.chunkPushNotifications(messages);
+    for (const chunk of chunks) {
+      try {
+        const tickets = await this.expo.sendPushNotificationsAsync(chunk);
+        for (let i = 0; i < tickets.length; i++) {
+          const ticket = tickets[i];
+          if (ticket.status === 'ok') {
+            sent++;
+            continue;
+          }
+          const details = (ticket as { details?: { error?: string } }).details;
+          const err = details?.error ?? 'unknown';
+          const badToken = chunk[i]?.to;
+          if (err === 'DeviceNotRegistered' && typeof badToken === 'string') {
+            await (this.prisma as any).mobilePushToken.deleteMany({ where: { token: badToken, userId } });
+          }
+        }
+      } catch (e) {
+        this.logger.warn(`Failed mobile push chunk send: ${String(e)}`);
       }
     }
     return { sent };

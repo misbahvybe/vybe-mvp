@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 
-/** Minimum cart subtotal (PKR) before delivery/service fees — applies to all checkout paths. */
+/** Default cart subtotal (PKR) before delivery/service fees when a store has no override. */
 export const MIN_ORDER_SUBTOTAL_PKR = 500;
 
 export function assertMinOrderSubtotalPkr(subtotal: number): void {
@@ -9,4 +9,10 @@ export function assertMinOrderSubtotalPkr(subtotal: number): void {
       `Minimum order is Rs ${MIN_ORDER_SUBTOTAL_PKR}. Add more items to your cart (current subtotal is too low).`,
     );
   }
+}
+
+export function resolveStoreMinOrderSubtotalPkr(storeMinOrderValue?: number | null): number {
+  if (storeMinOrderValue == null) return MIN_ORDER_SUBTOTAL_PKR;
+  if (!Number.isFinite(storeMinOrderValue)) return MIN_ORDER_SUBTOTAL_PKR;
+  return Math.max(0, Math.round(storeMinOrderValue));
 }

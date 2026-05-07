@@ -5,8 +5,13 @@ import {
   StyleSheet,
   TouchableOpacity,
   Image,
+  Modal,
+  Pressable,
+  Animated,
+  Easing,
   type ImageSourcePropType
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { Search } from 'lucide-react-native';
 import { useAuthStore } from '@store/auth';
@@ -35,6 +40,43 @@ export function CustomerHomeScreen() {
 
   const openProfile = () =>
     navigation.getParent()?.navigate('MoreTab', { screen: 'CustomerProfile' });
+  const [promoVisible, setPromoVisible] = React.useState(false);
+  const fade = React.useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const key = 'promo:first-two-deliveries:last-seen-at';
+        const raw = await AsyncStorage.getItem(key);
+        const last = raw ? Number(raw) : 0;
+        const shouldShow = !last || Date.now() - last > 24 * 60 * 60 * 1000;
+        if (!mounted || !shouldShow) return;
+        setPromoVisible(true);
+        Animated.timing(fade, {
+          toValue: 1,
+          duration: 240,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }).start();
+      } catch {
+        // Fail-open: no popup if storage fails.
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [fade]);
+
+  const closePromo = React.useCallback(async () => {
+    try {
+      await AsyncStorage.setItem('promo:first-two-deliveries:last-seen-at', String(Date.now()));
+    } catch {
+      // ignore
+    }
+    setPromoVisible(false);
+    fade.setValue(0);
+  }, [fade]);
 
   return (
     <CustomerScreenShell
@@ -60,6 +102,26 @@ export function CustomerHomeScreen() {
         </View>
       }
     >
+      <Modal visible={promoVisible} transparent animationType="none" onRequestClose={closePromo}>
+        <View style={styles.modalBackdrop}>
+          <Animated.View style={[styles.modalCard, { opacity: fade }]}>
+            <Pressable style={styles.modalClose} onPress={closePromo}>
+              <Text style={styles.modalCloseText}>x</Text>
+            </Pressable>
+            <Text style={styles.modalTitle}>First 2 deliveries are FREE</Text>
+            <Text style={styles.modalDesc}>Enjoy FREE delivery on your first 2 orders on Vibe Super App.</Text>
+            <TouchableOpacity
+              style={styles.modalCta}
+              onPress={() => {
+                closePromo();
+                navigation.navigate('CustomerStores');
+              }}
+            >
+              <Text style={styles.modalCtaText}>Order Now</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+      </Modal>
       <View style={styles.pad}>
         <Text style={styles.title}>Hi, {firstName}</Text>
         <Text style={styles.subtitle}>What would you like to order today?</Text>
@@ -188,5 +250,55 @@ const styles = StyleSheet.create({
     backgroundColor: tokens.slate200,
     color: tokens.slate600,
     fontWeight: '500'
-  }
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 22,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 360,
+    borderRadius: 20,
+    backgroundColor: tokens.surface,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    ...tokens.shadowSoft,
+  },
+  modalClose: {
+    alignSelf: 'flex-end',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  modalCloseText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: tokens.slate500,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: tokens.slate800,
+    marginTop: 4,
+  },
+  modalDesc: {
+    marginTop: 8,
+    fontSize: 14,
+    color: tokens.slate600,
+    lineHeight: 20,
+  },
+  modalCta: {
+    marginTop: 14,
+    backgroundColor: tokens.primary,
+    borderRadius: 999,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  modalCtaText: {
+    color: tokens.white,
+    fontWeight: '700',
+    fontSize: 15,
+  },
 });

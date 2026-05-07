@@ -23,7 +23,6 @@ interface Order {
   orderNumber?: number;
   orderStatus: string;
   createdAt: string;
-  totalAmount: number;
   items: OrderItem[];
 }
 
@@ -252,7 +251,7 @@ function Section({
                   <Text style={styles.orderTime}>{timeAgo(o.createdAt)}</Text>
                 </View>
                 <Text style={styles.orderSummary}>
-                  {o.items.length} items · {Number(o.totalAmount).toLocaleString()} PKR
+                  {o.items.length} items
                 </Text>
                 {onOpenDetail ? <Text style={styles.openDetailHint}>Tap for details</Text> : null}
               </TouchableOpacity>
