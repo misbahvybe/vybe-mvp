@@ -32,6 +32,9 @@ type OrderQuote = {
   codTaxPercent?: string;
   serviceFeeMode?: 'FIXED' | 'PERCENT';
   serviceFeePercent?: string;
+  referralWalletAvailable?: string;
+  referralWalletApplied?: string;
+  totalAfterReferralDiscount?: string;
 };
 
 type BankManualDisplay = {
@@ -88,6 +91,7 @@ function CheckoutContent() {
   const [error, setError] = useState('');
   const [quote, setQuote] = useState<OrderQuote | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
+  const [useReferralWallet, setUseReferralWallet] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [otpBusy, setOtpBusy] = useState(false);
   const [proofFile, setProofFile] = useState<File | null>(null);
@@ -109,11 +113,19 @@ function CheckoutContent() {
     return 'CARD';
   }, [payment]);
 
+  const walletDiscountSupported = payment === 'COD' || payment === 'MVP_BANK';
+
   useEffect(() => {
     if (payment === 'MVP_JAZZCASH' || payment === 'MVP_EASYPAISA') {
       setPayment('MVP_BANK');
     }
   }, [payment]);
+
+  useEffect(() => {
+    if (!walletDiscountSupported && useReferralWallet) {
+      setUseReferralWallet(false);
+    }
+  }, [walletDiscountSupported, useReferralWallet]);
 
   useEffect(() => {
     if (!token) return;
@@ -167,6 +179,7 @@ function CheckoutContent() {
           price: i.unitPrice,
         })),
         paymentMethod: quotePaymentParam(),
+        applyReferralWalletCredit: useReferralWallet,
       })
       .then((r) => {
         if (!cancelled) setQuote(r.data ?? null);
@@ -180,7 +193,7 @@ function CheckoutContent() {
     return () => {
       cancelled = true;
     };
-  }, [token, storeId, selectedAddressId, cartKey, items.length, payment, subtotalPkr, quotePaymentParam, storeMinimumOrderPkr]);
+  }, [token, storeId, selectedAddressId, cartKey, items.length, payment, subtotalPkr, quotePaymentParam, storeMinimumOrderPkr, useReferralWallet]);
 
   useEffect(() => {
     const err = searchParams?.get('error');
@@ -287,6 +300,7 @@ function CheckoutContent() {
             price: i.unitPrice,
           })),
           paymentMethod: 'COD',
+          applyReferralWalletCredit: useReferralWallet,
         });
         clearCart();
         router.push(`/order/${res.data.id}`);
@@ -310,6 +324,7 @@ function CheckoutContent() {
               quantity: i.quantity,
               price: i.unitPrice,
             })),
+            applyReferralWalletCredit: useReferralWallet,
           }),
         );
         fd.append('file', proofFile);
@@ -692,7 +707,9 @@ function CheckoutContent() {
               ) : null}
               <div className="pt-2 border-t border-slate-200">
                 <p className="text-slate-500 text-xs">Amount to pay (exactly)</p>
-                <p className="text-2xl font-bold text-primary">Rs {Number(quote.totalAmount).toFixed(0)}</p>
+                <p className="text-2xl font-bold text-primary">
+                  Rs {Number(quote.totalAfterReferralDiscount ?? quote.totalAmount).toFixed(0)}
+                </p>
               </div>
             </div>
             <div className="mt-4">
@@ -798,6 +815,32 @@ function CheckoutContent() {
               <span>Rs {Number(quote.cardProcessingAmount).toFixed(2)}</span>
             </div>
           )}
+          {quote && walletDiscountSupported && Number(quote.referralWalletAvailable ?? 0) > 0 && (
+            <div className="mt-2 rounded-md border border-emerald-200 bg-emerald-50/70 px-3 py-2">
+              <label className="flex items-center justify-between gap-3 cursor-pointer">
+                <span className="text-sm text-emerald-900 font-medium">
+                  Use referral wallet credit (available Rs {Number(quote.referralWalletAvailable).toFixed(0)})
+                </span>
+                <input
+                  type="checkbox"
+                  checked={useReferralWallet}
+                  onChange={(e) => setUseReferralWallet(e.target.checked)}
+                  className="h-4 w-4 accent-primary"
+                />
+              </label>
+              {useReferralWallet && Number(quote.referralWalletApplied ?? 0) > 0 ? (
+                <p className="mt-1 text-xs text-emerald-800">
+                  Wallet applied: Rs {Number(quote.referralWalletApplied).toFixed(2)}
+                </p>
+              ) : null}
+            </div>
+          )}
+          {quote && Number(quote.referralWalletApplied ?? 0) > 0 && (
+            <div className="flex justify-between py-2 text-emerald-800">
+              <span>Referral wallet discount</span>
+              <span>− Rs {Number(quote.referralWalletApplied).toFixed(2)}</span>
+            </div>
+          )}
           {quote && (
             <p className="text-xs text-slate-500 mt-1">
               Distance ~{Number(quote.deliveryDistanceKm).toFixed(1)} km × rate (see platform settings)
@@ -810,7 +853,7 @@ function CheckoutContent() {
               {quoteLoading
                 ? '…'
                 : quote
-                  ? `Rs ${Number(quote.totalAmount).toFixed(0)}`
+                  ? `Rs ${Number(quote.totalAfterReferralDiscount ?? quote.totalAmount).toFixed(0)}`
                   : `Rs ${subtotalPkr.toFixed(0)}`}
             </span>
           </div>

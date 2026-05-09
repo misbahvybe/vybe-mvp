@@ -23,6 +23,11 @@ export class UsersController {
     return this.users.getReferralSummary(user.id);
   }
 
+  @Get('me/referral-wallet')
+  async myReferralWallet(@CurrentUser() user: User) {
+    return this.users.getReferralWallet(user.id, 50);
+  }
+
   @Patch('me')
   async updateMe(@CurrentUser() user: User, @Body() dto: UpdateProfileDto) {
     return this.users.updateProfile(user.id, dto);

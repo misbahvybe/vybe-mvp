@@ -96,6 +96,11 @@ enum ReferralRewardStatus {
   ISSUED
 }
 
+enum ReferralWalletEntryType {
+  CREDIT_REFERRAL
+  DEBIT_ORDER
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // 1️⃣ USERS
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -145,6 +150,8 @@ model User {
   referredBy        User?    @relation("UserReferrals", fields: [referredByUserId], references: [id], onDelete: SetNull)
   referralRewardsAsReferrer ReferralReward[] @relation("ReferralRewardReferrer")
   referralRewardsAsReferred ReferralReward[] @relation("ReferralRewardReferred")
+  referralDiscountWallet ReferralDiscountWallet?
+  referralWalletEntries ReferralWalletEntry[]
 
   @@index([phone])
   @@index([referredByUserId])
@@ -357,6 +364,7 @@ model ReferralReward {
   referredUserId String               @map("referred_user_id")
   orderId        String               @unique @map("order_id")
   couponCode     String               @unique @map("coupon_code")
+  rewardAmount   Decimal              @default(0) @map("reward_amount") @db.Decimal(10, 2)
   status         ReferralRewardStatus @default(PENDING)
   eligibleAt     DateTime             @map("eligible_at")
   issuedAt       DateTime?            @map("issued_at")
@@ -369,6 +377,43 @@ model ReferralReward {
   @@index([referrerId, status, eligibleAt])
   @@index([referredUserId])
   @@map("referral_rewards")
+}
+
+model ReferralDiscountWallet {
+  id        String   @id @default(uuid())
+  userId    String   @unique @map("user_id")
+  balance   Decimal  @default(0) @db.Decimal(10, 2)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entries ReferralWalletEntry[]
+
+  @@index([userId])
+  @@map("referral_discount_wallets")
+}
+
+model ReferralWalletEntry {
+  id        String                  @id @default(uuid())
+  walletId  String                  @map("wallet_id")
+  userId    String                  @map("user_id")
+  orderId   String?                 @map("order_id")
+  rewardId  String?                 @map("reward_id")
+  entryType ReferralWalletEntryType @map("entry_type")
+  amount    Decimal                 @db.Decimal(10, 2)
+  note      String?
+  createdAt DateTime                @default(now()) @map("created_at")
+
+  wallet ReferralDiscountWallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  user   User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order  Order?                 @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  reward ReferralReward?        @relation(fields: [rewardId], references: [id], onDelete: SetNull)
+
+  @@index([walletId, createdAt])
+  @@index([userId, createdAt])
+  @@index([orderId])
+  @@index([rewardId])
+  @@map("referral_wallet_entries")
 }
 
 model StoreToCategory {
@@ -508,6 +553,7 @@ model Order {
   referralReward ReferralReward?
   statusHistory OrderStatusHistory[]
   riderChanges OrderRiderChange[] @relation("OrderRiderChanges")
+  referralWalletEntries ReferralWalletEntry[]
 
   @@index([customerId])
   @@index([storeId])

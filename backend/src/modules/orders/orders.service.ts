@@ -353,6 +353,14 @@ export class OrdersService {
       paymentMethod: useManualMvp ? 'MANUAL' : useCard ? 'CARD' : 'COD',
       waiveDeliveryFee: waiveDelivery,
     });
+    const walletAvailable = await this.referrals.getWalletBalance(customerId);
+    const walletApplied = await this.referrals.resolveRequestedWalletCredit(
+      customerId,
+      Number(q.totalAmount),
+      dto.referralWalletCreditAmount,
+      dto.applyReferralWalletCredit,
+    );
+    const totalAfterWalletDiscount = Math.max(0, Number(q.totalAmount) - walletApplied);
     return {
       subtotal: q.subtotal.toFixed(2),
       deliveryDistanceKm: q.deliveryDistanceKm.toFixed(4),
@@ -372,6 +380,9 @@ export class OrdersService {
       codTaxPercent: q.codTaxPercent.toFixed(2),
       serviceFeeMode: q.serviceFeeMode,
       serviceFeePercent: q.serviceFeePercent.toFixed(2),
+      referralWalletAvailable: walletAvailable.toFixed(2),
+      referralWalletApplied: walletApplied.toFixed(2),
+      totalAfterReferralDiscount: totalAfterWalletDiscount.toFixed(2),
     };
   }
 
@@ -672,6 +683,24 @@ export class OrdersService {
           paymentMethod: useCardLikeQuote ? (isManual ? 'MANUAL' : 'CARD') : 'COD',
           waiveDeliveryFee: waiveDelivery,
         });
+        const walletModel = (tx as any).referralDiscountWallet;
+        const requestedWalletAmount = Math.max(0, Number(dto.referralWalletCreditAmount ?? 0));
+        const wantsWalletDiscount = dto.applyReferralWalletCredit === true || requestedWalletAmount > 0;
+        let walletAppliedAmount = 0;
+        if (wantsWalletDiscount) {
+          const wallet = await walletModel.findUnique({
+            where: { userId: customerId },
+            select: { balance: true },
+          });
+          const balance = Number(wallet?.balance ?? 0);
+          if (balance > 0) {
+            const requested = dto.applyReferralWalletCredit ? balance : requestedWalletAmount;
+            walletAppliedAmount = Math.min(balance, Math.max(0, requested), Number(q.totalAmount));
+          }
+        }
+        const totalAfterWalletDiscount = new Decimal(
+          Math.max(0, Number(q.totalAmount) - walletAppliedAmount).toFixed(2),
+        );
 
         // NOTE: Prisma interactive transactions should not run queries in parallel.
         // Also, decrementing N items one-by-one is slower than a single SQL update.
@@ -709,7 +738,7 @@ export class OrdersService {
           serviceFee: q.serviceFee,
           gstAmount: q.gstAmount,
           cardProcessingAmount: q.cardProcessingAmount,
-          totalAmount: q.totalAmount,
+          totalAmount: totalAfterWalletDiscount,
           commissionAmount: q.commissionAmount,
           commissionPercentSnapshot: q.commissionPercent,
           deliveryDistanceKm: q.deliveryDistanceKm,
@@ -757,6 +786,10 @@ export class OrdersService {
       await tx.orderStatusHistory.create({
         data: { orderId: o.id, status: OrderStatus.PENDING, changedByUserId: customerId },
       });
+
+      if (walletAppliedAmount > 0) {
+        await this.referrals.debitWalletForOrder(tx, customerId, o.id, walletAppliedAmount);
+      }
 
         // For CARD / manual MVP, earnings only after payment is verified.
         if (!useCard && !isManual) {

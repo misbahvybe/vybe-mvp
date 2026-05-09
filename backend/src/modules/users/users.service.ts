@@ -244,4 +244,8 @@ export class UsersService {
   async getReferralSummary(userId: string) {
     return this.referrals.getReferralSummary(userId);
   }
+
+  async getReferralWallet(userId: string, take = 30) {
+    return this.referrals.listWalletEntries(userId, take);
+  }
 }

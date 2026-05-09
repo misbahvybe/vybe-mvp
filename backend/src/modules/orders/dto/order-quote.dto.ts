@@ -1,4 +1,4 @@
-import { IsString, IsArray, IsNumber, IsOptional, ValidateNested, ArrayMinSize, IsIn } from 'class-validator';
+import { IsString, IsArray, IsNumber, IsOptional, ValidateNested, ArrayMinSize, IsIn, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class QuoteOrderItemDto {
@@ -35,4 +35,12 @@ export class OrderQuoteDto {
   @IsIn(['COD', 'CARD', 'MANUAL'])
   /** MANUAL: same surcharges as card (MVP online transfer, no COD tax). */
   paymentMethod?: 'COD' | 'CARD' | 'MANUAL';
+
+  @IsOptional()
+  @IsBoolean()
+  applyReferralWalletCredit?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  referralWalletCreditAmount?: number;
 }

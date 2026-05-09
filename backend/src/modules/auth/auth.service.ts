@@ -56,6 +56,17 @@ export class AuthService {
         passwordSet: true,
       },
     });
+    if (referredBy?.id) {
+      await this.prisma.notification.create({
+        data: {
+          userId: referredBy.id,
+          type: 'REFERRAL_JOINED',
+          title: 'Your friend joined VYBE',
+          body: `${dto.name.trim()} signed up with your referral code.`,
+          dataJson: JSON.stringify({ referredUserId: user.id }),
+        },
+      }).catch(() => undefined);
+    }
     // OTP / WhatsApp verification disabled — customers sign up with password and log in directly.
     // const { expiresAt } = await this.otp.createAndSend(dto.phone);
     return this.buildTokenResponse(user);

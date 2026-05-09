@@ -1,4 +1,4 @@
-import { IsString, IsArray, IsNumber, IsOptional, ValidateNested, ArrayMinSize, IsIn, ValidateIf } from 'class-validator';
+import { IsString, IsArray, IsNumber, IsOptional, ValidateNested, ArrayMinSize, IsIn, ValidateIf, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class OrderItemDto {
@@ -54,4 +54,12 @@ export class CreateOrderDto {
   @IsOptional()
   @IsString()
   xpayIntentId?: string; // XPay intent id – when provided, payment already confirmed
+
+  @IsOptional()
+  @IsBoolean()
+  applyReferralWalletCredit?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  referralWalletCreditAmount?: number;
 }

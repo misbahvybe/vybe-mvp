@@ -1,0 +1,2 @@
+-- No-op migration placeholder.
+-- This folder was created without SQL; keeping this file avoids Prisma P3015.
