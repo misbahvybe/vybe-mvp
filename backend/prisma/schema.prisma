@@ -373,6 +373,7 @@ model ReferralReward {
   referrer   User  @relation("ReferralRewardReferrer", fields: [referrerId], references: [id], onDelete: Cascade)
   referredBy User  @relation("ReferralRewardReferred", fields: [referredUserId], references: [id], onDelete: Cascade)
   order      Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  walletEntries ReferralWalletEntry[]
 
   @@index([referrerId, status, eligibleAt])
   @@index([referredUserId])
