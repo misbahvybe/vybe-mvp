@@ -63,4 +63,4 @@ See `backend/.env.example` and `frontend/.env.example`.
 
 ## Payments
 
-Optional **Stripe** and **XPay**; without keys, checkout supports COD and simulated saved cards for development. Configure keys per `.env.example`.
+<!-- Optional **Stripe** and **XPay**; without keys, checkout supports COD and simulated saved cards for development. Configure keys per `.env.example`. -->
