@@ -109,11 +109,20 @@ export class ReferralsService {
 
   async getReferralSummary(userId: string) {
     const referralReward = (this.prisma as any).referralReward;
-    const [user, totalReferrals, completedReferrals, rewardsIssued, wallet, latestRewards] = await Promise.all([
-      (this.prisma.user as any).findUnique({
+    let user = await (this.prisma.user as any).findUnique({
+      where: { id: userId },
+      select: { referralCode: true },
+    });
+    if (!user?.referralCode) {
+      const generated = await this.generateUniqueReferralCode();
+      user = await (this.prisma.user as any).update({
         where: { id: userId },
+        data: { referralCode: generated },
         select: { referralCode: true },
-      }),
+      });
+    }
+
+    const [totalReferrals, completedReferrals, rewardsIssued, wallet, latestRewards] = await Promise.all([
       (this.prisma.user as any).count({ where: { referredByUserId: userId } }),
       referralReward.count({ where: { referrerId: userId } }),
       referralReward.count({
@@ -251,6 +260,18 @@ export class ReferralsService {
     if (!Number.isFinite(orderTotalPkr) || orderTotalPkr <= 0) return 0;
     const raw = (orderTotalPkr * ReferralsService.REWARD_PERCENT) / 100;
     return Math.max(1, Math.min(ReferralsService.REWARD_CAP_PKR, Math.round(raw * 100) / 100));
+  }
+
+  private async generateUniqueReferralCode(): Promise<string> {
+    for (let i = 0; i < 8; i++) {
+      const code = `VYBE${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+      const exists = await (this.prisma.user as any).findFirst({
+        where: { referralCode: code },
+        select: { id: true },
+      });
+      if (!exists) return code;
+    }
+    return `VYBE${Date.now().toString(36).toUpperCase()}`.slice(0, 14);
   }
 
   private async generateUniqueCouponCode(): Promise<string> {

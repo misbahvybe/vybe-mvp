@@ -11,6 +11,7 @@ const DEFAULT_SHARE_URL = 'https://vybepk.com';
 
 export default function ReferPage() {
   const [copied, setCopied] = useState(false);
+  const [loadingReferral, setLoadingReferral] = useState(true);
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [totalReferrals, setTotalReferrals] = useState(0);
   const [completedReferrals, setCompletedReferrals] = useState(0);
@@ -23,6 +24,7 @@ export default function ReferPage() {
   }, []);
 
   useEffect(() => {
+    setLoadingReferral(true);
     api
       .get<{
         referralCode?: string | null;
@@ -41,7 +43,8 @@ export default function ReferPage() {
         setTotalReferrals(0);
         setCompletedReferrals(0);
         setWalletBalance(0);
-      });
+      })
+      .finally(() => setLoadingReferral(false));
   }, []);
 
   const shareText = referralCode
@@ -89,7 +92,7 @@ export default function ReferPage() {
           <Card>
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Referral code</p>
             <p className="text-sm break-all text-slate-800 font-mono bg-slate-50 rounded-button px-3 py-2.5 border border-slate-100">
-              {referralCode ?? 'Loading...'}
+              {loadingReferral ? 'Loading...' : (referralCode ?? 'Code unavailable')}
             </p>
             <p className="text-xs text-slate-500 mt-2">Share link: {referralShareUrl}</p>
             <div className="mt-3 flex flex-col sm:flex-row gap-2">
